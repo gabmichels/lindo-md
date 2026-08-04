@@ -31,7 +31,7 @@ interface TitleBarProps {
   onBack: () => void;
   onForward: () => void;
   onFind: () => void;
-  onSettings: () => void;
+  onAppearance: () => void;
 }
 
 export function TitleBar({
@@ -42,7 +42,7 @@ export function TitleBar({
   onBack,
   onForward,
   onFind,
-  onSettings,
+  onAppearance,
 }: TitleBarProps) {
   const host = useHostPlatform();
 
@@ -69,9 +69,9 @@ export function TitleBar({
 
       <NavButton label="Find in document" icon={Search} onClick={onFind} />
       <NavButton
-        label="Appearance settings"
+        label="Appearance"
         icon={SlidersHorizontal}
-        onClick={onSettings}
+        onClick={onAppearance}
       />
 
       {host !== "macos" && <WindowControls host={host} />}

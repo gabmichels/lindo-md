@@ -64,6 +64,7 @@ src-tauri/src/
   markdown.rs    comrak + ammonia + TOC
   files.rs       open/read/scan/watch
   config.rs      settings persistence
+  defaults.rs    which app owns .md (read-only — Windows blocks writing it)
   error.rs       LindoError, serialized to the frontend as a plain string
 ```
 
@@ -85,9 +86,14 @@ are called with `camelCase` keys.
 - **Comments** explain *why*, not *what*. A comment restating the code is worse than no comment.
 - **Tokens only.** No color literal in a component. No hardcoded radius — use `--ui-r-sm|md|lg`.
 - **`aria-label` on every icon-only control.** The rail is almost all icon-only controls.
-- **New setting?** It has to land in four places: the Rust struct in `config.rs`, the zod schema and
-  TS type in `src/lib/ipc.ts` / `src/lib/types.ts`, and the settings UI. Themes are the deliberate
-  exception — Rust stores them as opaque JSON so the schema lives in one place, the frontend.
+- **New setting?** It has to land in five places: the Rust struct in `config.rs`, the zod schema and
+  TS type in `src/lib/ipc.ts` / `src/lib/types.ts`, the `FALLBACK` in `hooks/useConfig.tsx`, and the
+  settings UI. Themes are the deliberate exception — Rust stores them as opaque JSON so the schema
+  lives in one place, the frontend.
+- **Which settings surface?** `SettingsDrawer` is for anything you can watch change in the document
+  behind it — themes, type, colour, spacing. Everything else goes in `SettingsDialog`. The drawer is
+  non-modal and scrimless *because* it is a live preview; putting a behaviour toggle in it borrows
+  that shape for a control that has nothing to preview.
 - **Tests are part of the change, not a follow-up.** Every new pure function gets a unit test; every
   new Markdown construct gets a case in `test/fixtures/kitchen-sink.md` and a Rust snapshot test;
   every sanitizer-relevant change gets a test proving the hostile input is neutralized.
@@ -153,4 +159,16 @@ no dialog has to be driven to open a document.
 - **Registering the association does not steal the default handler.** Windows honours
   `HKCU\...\Explorer\FileExts\.md\UserChoice` above `HKCU\Software\Classes\.md`, so a user who has
   already chosen an editor keeps it and lindo-md appears under "Open with". Do not try to override
-  `UserChoice` — it is hash-protected, and doing so is what malware does.
+  `UserChoice` — it is hash-protected (enforced by UCPD.sys since KB5034765), and doing so is what
+  malware does.
+- **`installer-hooks.nsh` adds what Tauri's bundled `FileAssociation.nsh` leaves out**: an
+  `OpenWithProgids` entry per extension, a `Capabilities` key, and a `RegisteredApplications` value.
+  Without that last pair lindo-md does not appear in Settings → Default apps at all, and the
+  `ms-settings:defaultapps?registeredAppUser=lindo-md` deep link in `defaults.rs` has nothing to
+  resolve to. Three names have to agree across three files — the ProgID (`tauri.conf.json` /
+  `installer-hooks.nsh` / `defaults.rs`) and the registered-app name (`installer-hooks.nsh` /
+  `defaults.rs`); each is commented on both sides.
+- **The default-app row cannot be verified from `tauri dev`.** A dev build was never run through the
+  installer, so it is not registered and the deep link falls back to the generic Settings page.
+  Reading the current handler works either way; the deep link needs `pnpm tauri build` and an
+  install.

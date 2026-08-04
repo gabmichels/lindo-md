@@ -39,6 +39,7 @@ export function useTheme(
   mode: AppearanceMode,
   customThemes: Theme[],
   canvas: HTMLElement | null,
+  zoom: number,
 ): Theme {
   const systemAppearance = useSystemAppearance();
   const appearance: Appearance = mode === "system" ? systemAppearance : mode;
@@ -49,8 +50,8 @@ export function useTheme(
   );
 
   useEffect(() => {
-    if (canvas) applyTheme(theme, canvas);
-  }, [theme, canvas]);
+    if (canvas) applyTheme(theme, canvas, zoom);
+  }, [theme, canvas, zoom]);
 
   return theme;
 }

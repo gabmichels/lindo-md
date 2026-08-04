@@ -6,6 +6,7 @@ import { DocumentView } from "@/components/DocumentView";
 import { EmptyState } from "@/components/EmptyState";
 import { FindBar } from "@/components/FindBar";
 import { Rail } from "@/components/Rail";
+import { SettingsDialog } from "@/components/SettingsDialog";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { TitleBar } from "@/components/TitleBar";
 import { ConfigProvider, useConfig } from "@/hooks/useConfig";
@@ -21,6 +22,7 @@ import {
   writeHtmlFile,
 } from "@/lib/ipc";
 import { buildStandaloneHtml } from "@/lib/export/html";
+import { stepZoom } from "@/lib/zoom";
 import documentCss from "@/document.css?inline";
 import { basename, dirname } from "@/lib/utils";
 
@@ -38,6 +40,7 @@ function Shell() {
 
   const [canvas, setCanvas] = useState<HTMLElement | null>(null);
   const [scroller, setScroller] = useState<HTMLElement | null>(null);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -52,8 +55,13 @@ function Shell() {
     config.appearance,
     config.customThemes,
     canvas,
+    config.zoom,
   );
-  const { tree } = useFileTree(folder, config.respectGitignore);
+  const { tree } = useFileTree(
+    folder,
+    config.respectGitignore,
+    config.showHiddenFiles,
+  );
   const doc = useDocument(folder);
   const outline = useOutline(doc.document?.toc ?? [], scroller);
   const find = useFind(scroller);
@@ -69,17 +77,33 @@ function Shell() {
     [doc],
   );
 
+  // What to show on launch. Deliberately waits for settings to load: whether to
+  // fall back to the last document is one of them, and running before they
+  // arrive would decide it from the fallback defaults instead.
   const openedInitial = useRef(false);
   useEffect(() => {
-    if (openedInitial.current) return;
+    if (!loaded || openedInitial.current) return;
     openedInitial.current = true;
+
+    const lastDocument = config.reopenLastDocument
+      ? config.recentFiles[0]
+      : undefined;
+
     getInitialDocument().then(
       (path) => {
+        // A double-clicked file always wins: the reader asked for that one.
         if (path) openFromOs(path);
+        else if (lastDocument) {
+          setFolder((current) => current ?? dirname(lastDocument));
+          doc.restore(lastDocument);
+        }
       },
       () => undefined,
     );
-  }, [openFromOs]);
+    // The config values and `doc` are read once, at the moment this fires — the
+    // ref above is what makes this a single decision rather than something that
+    // re-runs when the reader later changes the setting.
+  }, [loaded, openFromOs, config.reopenLastDocument, config.recentFiles, doc]);
 
   useEffect(() => {
     const unlisten = onOpenDocumentRequested(openFromOs);
@@ -131,6 +155,14 @@ function Shell() {
     );
   }, [doc.document, scroller, theme]);
 
+  // Computed from the current value at apply time, not from this render's — a
+  // held Ctrl+`+` fires faster than React re-renders.
+  const zoomBy = useCallback(
+    (delta: number) =>
+      update((current) => ({ zoom: stepZoom(current.zoom, delta) })),
+    [update],
+  );
+
   useKeyboardShortcuts({
     scroller,
     onFind: () => setFindOpen(true),
@@ -138,8 +170,12 @@ function Shell() {
     onOpenFile: () => void openFile(),
     onOpenFolder: () => void openFolder(),
     onSettings: () => setSettingsOpen((open) => !open),
+    onAppearance: () => setAppearanceOpen((open) => !open),
     onPrint: () => window.print(),
     onExport: () => void exportHtml(),
+    onZoomIn: () => zoomBy(0.1),
+    onZoomOut: () => zoomBy(-0.1),
+    onZoomReset: () => update({ zoom: 1 }),
     onBack: doc.back,
     onForward: doc.forward,
   });
@@ -171,6 +207,7 @@ function Shell() {
         activeHeadingId={outline.activeId}
         progress={outline.progress}
         onJumpTo={jumpTo}
+        onOpenAppearance={() => setAppearanceOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         onExport={() => void exportHtml()}
         onOpenAbout={() => setAboutOpen(true)}
@@ -203,7 +240,7 @@ function Shell() {
           onBack={doc.back}
           onForward={doc.forward}
           onFind={() => setFindOpen(true)}
-          onSettings={() => setSettingsOpen(true)}
+          onAppearance={() => setAppearanceOpen(true)}
         />
 
         {findOpen && <FindBar find={find} onClose={() => { find.clear(); setFindOpen(false); }} />}
@@ -234,9 +271,17 @@ function Shell() {
 
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
 
-      <SettingsDrawer
+      <SettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
+        config={config}
+        onUpdateConfig={update}
+        onOpenAppearance={() => setAppearanceOpen(true)}
+      />
+
+      <SettingsDrawer
+        open={appearanceOpen}
+        onOpenChange={setAppearanceOpen}
         config={config}
         theme={theme}
         onUpdateConfig={update}
@@ -270,8 +315,12 @@ function useKeyboardShortcuts(handlers: {
   onOpenFile: () => void;
   onOpenFolder: () => void;
   onSettings: () => void;
+  onAppearance: () => void;
   onPrint: () => void;
   onExport: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onZoomReset: () => void;
   onBack: () => void;
   onForward: () => void;
 }) {
@@ -307,9 +356,33 @@ function useKeyboardShortcuts(handlers: {
           if (event.shiftKey) handlers.onOpenFolder();
           else handlers.onOpenFile();
           break;
+        // Shift does not just set `shiftKey` for punctuation — it changes the
+        // character, so `Ctrl+Shift+,` arrives as `<` on a US layout and testing
+        // `shiftKey` alone would never match.
         case ",":
           event.preventDefault();
           handlers.onSettings();
+          break;
+        case "<":
+          event.preventDefault();
+          handlers.onAppearance();
+          break;
+        // Both the unshifted and shifted spellings of the zoom keys: on a US
+        // layout Ctrl and `+` means Ctrl+Shift+`=`, and reporting differs
+        // between layouts and browsers.
+        case "=":
+        case "+":
+          event.preventDefault();
+          handlers.onZoomIn();
+          break;
+        case "-":
+        case "_":
+          event.preventDefault();
+          handlers.onZoomOut();
+          break;
+        case "0":
+          event.preventDefault();
+          handlers.onZoomReset();
           break;
         case "p":
           event.preventDefault();

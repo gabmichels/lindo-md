@@ -40,8 +40,20 @@ pub struct RenderedDoc {
     pub title: Option<String>,
 }
 
-fn options() -> Options<'static> {
+/// The rendering choices a reader can change. Separate from `Options` so the
+/// settings that reach here stay an explicit, small list rather than exposing all
+/// of comrak's surface to the frontend.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RenderOptions {
+    /// Straight quotes become curly, `--` becomes an en dash, `...` an ellipsis.
+    /// Off by default: it is a change to the author's text, and prose that
+    /// discusses code suffers most from having its quotes rewritten.
+    pub smart_punctuation: bool,
+}
+
+fn options(settings: RenderOptions) -> Options<'static> {
     let mut options = Options::default();
+    options.parse.smart = settings.smart_punctuation;
 
     let ext = &mut options.extension;
     ext.table = true;
@@ -75,9 +87,9 @@ fn options() -> Options<'static> {
     options
 }
 
-pub fn render(source: &str) -> RenderedDoc {
+pub fn render_with(source: &str, settings: RenderOptions) -> RenderedDoc {
     let arena = Arena::new();
-    let options = options();
+    let options = options(settings);
     let root = comrak::parse_document(&arena, source, &options);
 
     let frontmatter = take_frontmatter(root);
@@ -285,6 +297,11 @@ fn sanitizer() -> ammonia::Builder<'static> {
 mod tests {
     use super::*;
 
+    /// The defaults every test but the smart-punctuation one renders under.
+    fn render(source: &str) -> RenderedDoc {
+        render_with(source, RenderOptions::default())
+    }
+
     fn html(source: &str) -> String {
         render(source).html
     }
@@ -332,6 +349,27 @@ mod tests {
     fn title_is_the_first_h1_only() {
         assert_eq!(render("## Sub\n\n# Real\n").title.as_deref(), Some("Real"));
         assert_eq!(render("## Only a sub\n").title, None);
+    }
+
+    #[test]
+    fn smart_punctuation_is_off_unless_asked_for() {
+        let source = r#"He said "no" -- twice..."#;
+
+        let plain = render(source).html;
+        assert!(plain.contains(r#""no""#), "got {plain}");
+
+        let smart = render_with(
+            source,
+            RenderOptions {
+                smart_punctuation: true,
+            },
+        )
+        .html;
+        assert!(
+            smart.contains('\u{201c}'),
+            "expected curly quotes in {smart}"
+        );
+        assert!(smart.contains('\u{2013}'), "expected an en dash in {smart}");
     }
 
     #[test]

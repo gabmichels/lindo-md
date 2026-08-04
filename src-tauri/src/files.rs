@@ -71,7 +71,11 @@ pub fn is_markdown(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-pub fn read(app: &AppHandle, path: &Path) -> LindoResult<Document> {
+pub fn read(
+    app: &AppHandle,
+    path: &Path,
+    render_options: markdown::RenderOptions,
+) -> LindoResult<Document> {
     if !is_markdown(path) {
         return Err(LindoError::UnsupportedFile(path.display().to_string()));
     }
@@ -96,7 +100,7 @@ pub fn read(app: &AppHandle, path: &Path) -> LindoResult<Document> {
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.display().to_string());
 
-    let rendered = markdown::render(&source);
+    let rendered = markdown::render_with(&source, render_options);
     let title = rendered.title.clone().unwrap_or_else(|| name.clone());
 
     Ok(Document {
@@ -110,10 +114,27 @@ pub fn read(app: &AppHandle, path: &Path) -> LindoResult<Document> {
     })
 }
 
+/// What the reader has chosen to see in the rail. A struct rather than two bool
+/// parameters, which at a call site are indistinguishable from each other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScanOptions {
+    pub respect_gitignore: bool,
+    pub show_hidden: bool,
+}
+
+impl Default for ScanOptions {
+    fn default() -> Self {
+        Self {
+            respect_gitignore: true,
+            show_hidden: false,
+        }
+    }
+}
+
 /// Builds the document tree for a folder. Directories containing no Markdown at
 /// any depth are dropped, so opening a source repository shows the docs rather
 /// than the source layout.
-pub fn scan(root: &Path, respect_gitignore: bool) -> LindoResult<Vec<TreeNode>> {
+pub fn scan(root: &Path, options: ScanOptions) -> LindoResult<Vec<TreeNode>> {
     if !root.is_dir() {
         return Err(LindoError::msg(format!(
             "{} is not a folder",
@@ -121,9 +142,10 @@ pub fn scan(root: &Path, respect_gitignore: bool) -> LindoResult<Vec<TreeNode>> 
         )));
     }
 
+    let respect_gitignore = options.respect_gitignore;
     let mut builder = ignore::WalkBuilder::new(root);
     builder
-        .hidden(true)
+        .hidden(!options.show_hidden)
         .git_ignore(respect_gitignore)
         .git_global(respect_gitignore)
         .git_exclude(respect_gitignore)
@@ -346,6 +368,46 @@ mod tests {
     #[test]
     fn tree_is_empty_when_no_markdown_was_found() {
         assert!(tree("/r", &[]).is_empty());
+    }
+
+    #[test]
+    fn scanning_hides_dotfiles_unless_asked_to_show_them() {
+        let root = std::env::temp_dir().join("lindo-md-scan-hidden-test");
+        std::fs::create_dir_all(root.join(".hidden")).unwrap();
+        std::fs::write(root.join("visible.md"), "# Visible").unwrap();
+        std::fs::write(root.join(".hidden").join("secret.md"), "# Secret").unwrap();
+
+        let names = |options| {
+            let mut found: Vec<String> = Vec::new();
+            fn walk(nodes: &[TreeNode], found: &mut Vec<String>) {
+                for node in nodes {
+                    found.push(node.name.clone());
+                    walk(&node.children, found);
+                }
+            }
+            walk(&scan(&root, options).unwrap(), &mut found);
+            found.sort();
+            found
+        };
+
+        // `respect_gitignore` is off so a .gitignore anywhere above the temp
+        // directory cannot decide the outcome of this test.
+        assert_eq!(
+            names(ScanOptions {
+                respect_gitignore: false,
+                show_hidden: false
+            }),
+            vec!["visible.md"]
+        );
+        assert_eq!(
+            names(ScanOptions {
+                respect_gitignore: false,
+                show_hidden: true
+            }),
+            vec![".hidden", "secret.md", "visible.md"]
+        );
+
+        std::fs::remove_dir_all(&root).ok();
     }
 
     fn event(paths: &[&str]) -> notify::Event {

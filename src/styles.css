@@ -217,6 +217,39 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The tool's own scrollbar.
+   `document.css` does this for the paper; without the same treatment the chrome
+   gets WebView2's legacy light scrollbar, which against the rail's deep neutral
+   reads as a rendering fault rather than as a control.
+   Deliberately ::-webkit-scrollbar only — setting `scrollbar-width` or
+   `scrollbar-color` alongside it makes Chromium ignore these rules entirely and
+   fall back to the OS control. */
+@utility ui-scroller {
+  &::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 6px;
+    background-clip: content-box;
+    background-color: color-mix(in oklab, var(--ui-text) 25%, transparent);
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklab, var(--ui-text) 42%, transparent);
+  }
+
+  &::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
 /* Find highlights. Painted by the CSS Custom Highlight API (see hooks/useFind.ts)
    rather than by wrapping matches in elements, which would destroy the decorated
    code blocks and rendered diagrams the enhancement passes produced. */

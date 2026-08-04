@@ -189,6 +189,28 @@ describe("applyTheme", () => {
     expect(element.dataset.appearance).toBe("light");
   });
 
+  it("scales the base size by the reader's zoom", () => {
+    const element = document.createElement("div");
+    applyTheme(house.light, element, 1.5);
+    expect(element.style.getPropertyValue("--doc-size")).toBe(
+      `${house.light.typography.baseSize * 1.5}px`,
+    );
+  });
+
+  it("leaves zoom out of docTokens, so an export keeps the theme's own size", () => {
+    // Zoom is a property of the reader's view, not of the theme. A document
+    // exported while zoomed in must not carry that zoom into the file.
+    const element = document.createElement("div");
+    applyTheme(house.light, element, 2);
+
+    expect(docTokens(house.light)["--doc-size"]).toBe(
+      `${house.light.typography.baseSize}px`,
+    );
+    expect(element.style.getPropertyValue("--doc-size")).not.toBe(
+      docTokens(house.light)["--doc-size"],
+    );
+  });
+
   it("never writes a --ui-* property", () => {
     // The rule that makes Studio Rail work: a theme cannot reach the chrome.
     const element = document.createElement("div");

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Rail } from "@/components/Rail";
+import { SettingsDialog } from "@/components/SettingsDialog";
 import { applyTheme } from "@/lib/theme/apply";
 import { PRESETS } from "@/lib/theme/presets";
 import type { Appearance } from "@/lib/theme/schema";
-import type { TreeNode } from "@/lib/ipc";
+import type { AppConfig, TreeNode } from "@/lib/ipc";
 
 /**
  * The design specimen — open the app with `?specimen`.
@@ -50,9 +51,31 @@ const TOC = [
   { level: 2, text: "Troubleshooting", id: "troubleshooting" },
 ];
 
+/** The settings dialog reads its own state over IPC. Outside a Tauri host those
+ *  calls reject, which is the case the component already handles by hiding the
+ *  rows it has no answer for — so the specimen shows the dialog's chrome without
+ *  needing a running backend. */
+const SPECIMEN_CONFIG: AppConfig = {
+  version: 1,
+  themeId: "house",
+  appearance: "system",
+  customThemes: [],
+  railWidth: 264,
+  railCollapsed: false,
+  recentFiles: [],
+  lastFolder: null,
+  blockRemoteImages: true,
+  respectGitignore: true,
+  showHiddenFiles: false,
+  reopenLastDocument: true,
+  zoom: 1,
+  smartPunctuation: false,
+};
+
 export default function Specimen() {
   const [appearance, setAppearance] = useState<Appearance>("light");
   const [collapsed, setCollapsed] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <div className="flex h-full">
@@ -68,7 +91,8 @@ export default function Specimen() {
         activeHeadingId="installing"
         progress={0.42}
         onJumpTo={() => undefined}
-        onOpenSettings={() => undefined}
+        onOpenAppearance={() => undefined}
+        onOpenSettings={() => setSettingsOpen(true)}
         onExport={() => undefined}
         onOpenAbout={() => undefined}
         insetTop={false}
@@ -112,6 +136,14 @@ export default function Specimen() {
           ))}
         </div>
       </main>
+
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        config={SPECIMEN_CONFIG}
+        onUpdateConfig={() => undefined}
+        onOpenAppearance={() => undefined}
+      />
     </div>
   );
 }

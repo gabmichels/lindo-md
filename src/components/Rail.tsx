@@ -8,6 +8,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Palette,
+  Settings,
   Share,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -37,6 +38,7 @@ interface RailProps {
   activeHeadingId: string | null;
   progress: number;
   onJumpTo: (id: string) => void;
+  onOpenAppearance: () => void;
   onOpenSettings: () => void;
   onExport: () => void;
   onOpenAbout: () => void;
@@ -59,8 +61,13 @@ export function Rail(props: RailProps) {
         />
         <div className="flex-1" />
         <RailIconButton
-          label="Appearance settings"
+          label="Appearance"
           icon={Palette}
+          onClick={props.onOpenAppearance}
+        />
+        <RailIconButton
+          label="Settings"
+          icon={Settings}
           onClick={props.onOpenSettings}
         />
         <RailIconButton
@@ -90,7 +97,7 @@ export function Rail(props: RailProps) {
         />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-[var(--ui-pad)] pb-2">
+      <div className="ui-scroller min-h-0 flex-1 overflow-y-auto px-[var(--ui-pad)] pb-2">
         {props.tree.length > 0 && (
           <FileTree
             nodes={props.tree}
@@ -116,8 +123,13 @@ export function Rail(props: RailProps) {
 
       <div className="flex items-center gap-1 px-[var(--ui-pad)] pb-2">
         <RailIconButton
-          label="Appearance settings"
+          label="Appearance"
           icon={Palette}
+          onClick={props.onOpenAppearance}
+        />
+        <RailIconButton
+          label="Settings"
+          icon={Settings}
           onClick={props.onOpenSettings}
         />
         <RailIconButton

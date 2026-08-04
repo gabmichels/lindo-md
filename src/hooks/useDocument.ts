@@ -25,6 +25,10 @@ export interface DocumentState {
   canGoBack: boolean;
   canGoForward: boolean;
   open: (path: string, anchor?: string) => void;
+  /** Opens a document the reader did not just ask for — the one they had open
+   *  last session. A file that has since been deleted or moved leaves the empty
+   *  state rather than greeting them with an error they did not cause. */
+  restore: (path: string) => void;
   back: () => void;
   forward: () => void;
   clearPendingAnchor: () => void;
@@ -41,25 +45,28 @@ export function useDocument(folder: string | null): DocumentState {
   /** Guards against a slow open finishing after a newer one and winning. */
   const generation = useRef(0);
 
-  const load = useCallback((path: string, anchor: string | null) => {
-    const token = ++generation.current;
-    setLoading(true);
+  const load = useCallback(
+    (path: string, anchor: string | null, quiet = false) => {
+      const token = ++generation.current;
+      setLoading(true);
 
-    openDocument(path)
-      .then((next) => {
-        if (generation.current !== token) return;
-        setDocument(next);
-        setPendingAnchor(anchor);
-        setError(null);
-      })
-      .catch((e: unknown) => {
-        if (generation.current !== token) return;
-        setError(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => {
-        if (generation.current === token) setLoading(false);
-      });
-  }, []);
+      openDocument(path)
+        .then((next) => {
+          if (generation.current !== token) return;
+          setDocument(next);
+          setPendingAnchor(anchor);
+          setError(null);
+        })
+        .catch((e: unknown) => {
+          if (generation.current !== token || quiet) return;
+          setError(e instanceof Error ? e.message : String(e));
+        })
+        .finally(() => {
+          if (generation.current === token) setLoading(false);
+        });
+    },
+    [],
+  );
 
   const open = useCallback(
     (path: string, anchor?: string) => {
@@ -69,6 +76,15 @@ export function useDocument(folder: string | null): DocumentState {
       history.current.push(path);
       cursor.current = history.current.length - 1;
       load(path, anchor ?? null);
+    },
+    [load],
+  );
+
+  const restore = useCallback(
+    (path: string) => {
+      history.current = [path];
+      cursor.current = 0;
+      load(path, null, true);
     },
     [load],
   );
@@ -113,6 +129,7 @@ export function useDocument(folder: string | null): DocumentState {
     canGoBack: cursor.current > 0,
     canGoForward: cursor.current < history.current.length - 1,
     open,
+    restore,
     back,
     forward,
     clearPendingAnchor: useCallback(() => setPendingAnchor(null), []),

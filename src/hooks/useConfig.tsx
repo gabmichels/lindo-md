@@ -18,11 +18,22 @@ import { getConfig, setConfig, type AppConfig } from "@/lib/ipc";
  * config file on every animation frame.
  */
 
+/**
+ * A settings change, as fields to merge or as a function of the current values.
+ *
+ * The function form is not a convenience: a control that steps a value — zoom —
+ * would otherwise compute every step from the values of the render it was drawn
+ * in, so three fast clicks all produce the same single step.
+ */
+export type ConfigPatch =
+  | Partial<AppConfig>
+  | ((current: AppConfig) => Partial<AppConfig>);
+
 interface ConfigContextValue {
   config: AppConfig;
   loaded: boolean;
   error: string | null;
-  update: (patch: Partial<AppConfig>) => void;
+  update: (patch: ConfigPatch) => void;
   reload: () => void;
 }
 
@@ -39,6 +50,10 @@ const FALLBACK: AppConfig = {
   lastFolder: null,
   blockRemoteImages: true,
   respectGitignore: true,
+  showHiddenFiles: false,
+  reopenLastDocument: true,
+  zoom: 1,
+  smartPunctuation: false,
 };
 
 const WRITE_DEBOUNCE_MS = 250;
@@ -67,9 +82,12 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
   useEffect(reload, [reload]);
 
-  const update = useCallback((patch: Partial<AppConfig>) => {
+  const update = useCallback((patch: ConfigPatch) => {
     setLocal((current) => {
-      const next = { ...current, ...patch };
+      const next = {
+        ...current,
+        ...(typeof patch === "function" ? patch(current) : patch),
+      };
 
       if (timer.current !== null) window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => {

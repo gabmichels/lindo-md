@@ -57,6 +57,25 @@ pub struct AppConfig {
     /// Skip files ignored by `.gitignore` when scanning a folder.
     #[serde(default = "default_true")]
     pub respect_gitignore: bool,
+
+    /// Show dotfiles and dot-directories in the rail.
+    #[serde(default)]
+    pub show_hidden_files: bool,
+
+    /// Reopen the most recent document on launch. Ignored when the OS handed us a
+    /// document to open — a double-clicked file always wins over the last one.
+    #[serde(default = "default_true")]
+    pub reopen_last_document: bool,
+
+    /// Reader's zoom, multiplied into the theme's base size. Deliberately not part
+    /// of the theme: nudging the text up for one document should not fork the
+    /// theme, and it must not be baked into an exported file.
+    #[serde(default = "default_zoom")]
+    pub zoom: f64,
+
+    /// Turn quotes, dashes and ellipses into their typographic forms.
+    #[serde(default)]
+    pub smart_punctuation: bool,
 }
 
 const MAX_RECENTS: usize = 20;
@@ -76,6 +95,13 @@ fn default_rail_width() -> u32 {
 fn default_true() -> bool {
     true
 }
+fn default_zoom() -> f64 {
+    1.0
+}
+
+/// Bounds for `zoom`. Below the floor the measure collapses to a few words a
+/// line; above the ceiling a heading no longer fits the canvas.
+const ZOOM_RANGE: std::ops::RangeInclusive<f64> = 0.6..=2.5;
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -90,6 +116,10 @@ impl Default for AppConfig {
             last_folder: None,
             block_remote_images: true,
             respect_gitignore: true,
+            show_hidden_files: false,
+            reopen_last_document: true,
+            zoom: default_zoom(),
+            smart_punctuation: false,
         }
     }
 }
@@ -101,6 +131,13 @@ impl AppConfig {
         self.version = CURRENT_VERSION;
         self.rail_width = self.rail_width.clamp(200, 420);
         self.recent_files.truncate(MAX_RECENTS);
+        // A NaN here would reach CSS as `NaNpx` and blank the document, and NaN
+        // survives `clamp`, so it is replaced rather than bounded.
+        self.zoom = if self.zoom.is_finite() {
+            self.zoom.clamp(*ZOOM_RANGE.start(), *ZOOM_RANGE.end())
+        } else {
+            default_zoom()
+        };
         self
     }
 
@@ -191,6 +228,34 @@ mod tests {
         let migrated = config.migrate();
         assert_eq!(migrated.rail_width, 420);
         assert_eq!(migrated.recent_files.len(), MAX_RECENTS);
+    }
+
+    #[test]
+    fn migrate_bounds_zoom_and_rejects_non_finite_values() {
+        let clamped = AppConfig {
+            zoom: 40.0,
+            ..Default::default()
+        }
+        .migrate();
+        assert_eq!(clamped.zoom, *ZOOM_RANGE.end());
+
+        // NaN passes through `clamp` unchanged, so it has to be special-cased —
+        // it would otherwise reach the stylesheet as `NaNpx`.
+        let repaired = AppConfig {
+            zoom: f64::NAN,
+            ..Default::default()
+        }
+        .migrate();
+        assert_eq!(repaired.zoom, 1.0);
+    }
+
+    #[test]
+    fn a_config_written_before_these_settings_existed_still_loads() {
+        let parsed: AppConfig =
+            serde_json::from_str(r#"{"themeId":"nord","railWidth":300}"#).unwrap();
+        assert_eq!(parsed.zoom, 1.0);
+        assert!(parsed.reopen_last_document);
+        assert!(!parsed.smart_punctuation);
     }
 
     #[test]
