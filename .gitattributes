@@ -1,0 +1,9 @@
+# Normalize to LF in the repository. Contributors run Windows, macOS and Linux,
+# and the Rust snapshot tests compare rendered HTML byte for byte — a CRLF
+# checkout of a fixture would fail them on one platform only.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
+*.icns binary
+*.woff2 binary

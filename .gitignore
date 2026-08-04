@@ -1,0 +1,13 @@
+# Dependencies / build output
+node_modules/
+dist/
+src-tauri/target/
+
+# Worktrees (worktrunk nested layout)
+.claude/worktrees/
+
+# Env / local
+.env
+.env.*
+.DS_Store
+Thumbs.db

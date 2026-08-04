@@ -1,0 +1,25 @@
+# Worktrunk project config for pretty-md (committed, shared)
+# https://worktrunk.dev
+#
+# Isolation model for this repo:
+#   - The Vite dev server port is pinned to 1420 by tauri.conf.json's `devUrl`,
+#     so two worktrees cannot run `tauri dev` at once. `git-wt dev` therefore
+#     starts Vite alone on a per-branch deterministic port for pure frontend
+#     work; running the actual desktop app is a `pnpm tauri dev` in one worktree
+#     at a time, by design.
+#   - node_modules and src-tauri/target both live inside the worktree, so builds
+#     are already isolated. There are no gitignored secrets to copy.
+
+[list]
+url = "http://localhost:{{ branch | hash_port }}"
+
+# Blocking setup, runs once when a worktree is created. Hooks run via Git Bash
+# on Windows, so POSIX tools are available.
+[pre-start]
+deps = "pnpm install"
+
+[aliases]
+# Frontend-only dev server on this worktree's deterministic port: `git-wt dev`.
+# For the full desktop app use `pnpm tauri dev` (port 1420, one worktree at a time).
+dev = "pnpm exec vite --port {{ branch | hash_port }} --strictPort"
+url = "echo http://localhost:{{ branch | hash_port }}"

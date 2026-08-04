@@ -1,0 +1,156 @@
+name: Release
+
+# Tag a commit (e.g. `git tag v0.1.0 && git push --tags`) to publish installers.
+#
+# Windows and Linux only, deliberately. All three platforms build fine in CI — macOS is not
+# excluded for technical reasons — but an unsigned macOS bundle fails Gatekeeper with
+# "pretty-md is damaged and can't be opened", which reads as a corrupt download rather than
+# a security prompt, and generates bug reports instead of `xattr` invocations. Windows'
+# SmartScreen at least states plainly what it is doing, and Linux has no gatekeeping at all.
+#
+# To add macOS later you need an Apple Developer Program membership for a Developer ID
+# certificate and notarization — not a Mac, since the runners build it. Re-add the
+# `macos-latest` matrix entry with `--target universal-apple-darwin` and supply the signing
+# secrets; until then macOS users build from source, which the README covers.
+#
+# Windows and Linux bundles are still unsigned, so the release notes below carry the steps to
+# open them. They live here rather than in the README: someone downloading a binary is reading
+# the release page, not the repo.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  # Required by attest-build-provenance to sign the attestation.
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    name: Bundle (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            args: ""
+          - os: windows-latest
+            args: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v0
+        id: tauri
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "pretty-md ${{ github.ref_name }}"
+          releaseBody: |
+            A Markdown viewer with editorial typography, full GitHub-flavored rendering
+            (including Mermaid diagrams) and deeply customizable themes. Works entirely offline.
+
+            ### Windows and Linux
+
+            **These builds are unsigned**, so your OS will object the first time:
+
+            - **Windows** — SmartScreen shows "Windows protected your PC". Choose
+              **More info → Run anyway**.
+            - **Linux** — mark the AppImage executable: `chmod +x pretty-md_*.AppImage`
+
+            ### Verifying what you downloaded
+
+            These builds carry no code-signing certificate, so verify them this way instead.
+
+            Checksums are published as `checksums-*.txt`:
+
+            ```sh
+            sha256sum -c checksums-ubuntu-22.04.txt      # Linux
+            ```
+            ```powershell
+            Get-FileHash .\pretty-md_*_x64-setup.exe -Algorithm SHA256   # Windows
+            ```
+
+            Every artifact also has signed build provenance tying it to this repository, commit
+            and workflow run — stronger than a checksum, since it proves *where* the binary came
+            from rather than only that it is intact:
+
+            ```sh
+            gh attestation verify <file> --repo gabmichels/pretty-md
+            ```
+
+            ### macOS
+
+            No macOS build is published yet. It compiles fine, but an unsigned bundle fails
+            Gatekeeper with "pretty-md is damaged and can't be opened" — which looks like a
+            broken download rather than a security prompt. Homebrew removed `--no-quarantine` in
+            5.1, so a cask is no longer a way around it either.
+
+            Building from source avoids the problem entirely: a binary you compiled locally was
+            never downloaded, so it is never quarantined.
+
+            ```sh
+            git clone https://github.com/gabmichels/pretty-md.git
+            cd pretty-md && pnpm install && pnpm tauri build
+            ```
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+
+      # Neither of the next two steps depends on a paid certificate, which is the point: they are
+      # the trust signals available to an unsigned project. Checksums let anyone confirm the file
+      # they downloaded is the file that was published; provenance ties that file to this repo,
+      # this commit and this workflow run, verifiable with `gh attestation verify`.
+
+      - name: Publish SHA256 checksums
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # tauri-action reports every artifact it uploaded; hashing those exact paths avoids
+          # guessing at bundle layouts, which differ per platform and per tauri version.
+          paths=$(echo '${{ steps.tauri.outputs.artifactPaths }}' | jq -r '.[]')
+          [ -n "$paths" ] || { echo "no artifacts reported; nothing to checksum"; exit 0; }
+
+          out="checksums-${{ matrix.os }}.txt"
+          : > "$out"
+          while IFS= read -r p; do
+            [ -f "$p" ] || continue
+            # Bare filenames, so `sha256sum -c` works from the directory of the downloads.
+            (cd "$(dirname "$p")" && sha256sum "$(basename "$p")") >> "$GITHUB_WORKSPACE/$out"
+          done <<< "$paths"
+
+          cat "$out"
+          gh release upload "${{ github.ref_name }}" "$out" --clobber
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          # subject-path takes a comma- or newline-separated list; a GitHub Actions expression
+          # cannot emit a literal newline, so comma it is.
+          subject-path: ${{ join(fromJSON(steps.tauri.outputs.artifactPaths), ',') }}

@@ -1,0 +1,213 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Bundled reading faces. @font-face declarations only trigger a download once a
+   family is actually referenced, so importing the whole library here costs
+   nothing until a theme selects one. Everything ships with the app — pretty-md
+   never touches the network. */
+@import "@fontsource-variable/source-serif-4";
+@import "@fontsource-variable/literata";
+@import "@fontsource-variable/newsreader";
+@import "@fontsource-variable/eb-garamond";
+@import "@fontsource-variable/lora";
+@import "@fontsource-variable/inter-tight";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/source-sans-3";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/atkinson-hyperlegible/400.css";
+@import "@fontsource/atkinson-hyperlegible/700.css";
+@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource-variable/source-code-pro";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+
+/* ===========================================================================
+   TOKENS
+   Two namespaces, deliberately never mixed (see DESIGN.md):
+
+     --ui-*   the tool. Constant. Owned by this file. Always dark.
+     --doc-*  the paper. Owned by lib/theme/apply.ts, rewritten on every theme
+              change. The values below are the House Light defaults, present so
+              the first paint is already correct before React mounts.
+
+   A chrome component must never read a --doc-* variable, and nothing inside the
+   document canvas may read a --ui-* variable. `src/lib/theme/apply.test.ts`
+   enforces this.
+   =========================================================================== */
+
+:root {
+  /* --- the tool ---------------------------------------------------------- */
+
+  /* Depth comes from stacked planes, not borders. Three steps is the whole
+     vocabulary: base for the rail, plane-1 for hover/inputs, plane-2 for
+     popovers and the active row. */
+  --ui-base: oklch(0.19 0.012 265);
+  --ui-plane-1: oklch(0.225 0.012 265);
+  --ui-plane-2: oklch(0.26 0.013 265);
+  --ui-sunken: oklch(0.155 0.012 265);
+
+  --ui-text: oklch(0.8 0.01 265);
+  --ui-text-strong: oklch(0.93 0.008 265);
+  --ui-text-muted: oklch(0.6 0.012 265);
+  --ui-text-faint: oklch(0.48 0.012 265);
+
+  --ui-hairline: color-mix(in oklab, white 8%, transparent);
+  --ui-hairline-strong: color-mix(in oklab, white 15%, transparent);
+
+  /* "Ember" — the single chrome accent. Warm amber-ochre, chosen to sit against
+     a cool dark rail without competing with any document theme's own palette.
+     The document canvas never uses it, except for the reading-progress hairline. */
+  --ui-ember: oklch(0.74 0.15 62);
+  --ui-ember-dim: oklch(0.62 0.12 62);
+  --ui-ember-wash: color-mix(in oklab, oklch(0.74 0.15 62) 14%, transparent);
+
+  --ui-danger: oklch(0.58 0.2 25);
+
+  /* A chosen radius scale — 4 / 7 / 11 — not the framework's 6 / 8 / 12. */
+  --ui-r-sm: 4px;
+  --ui-r-md: 7px;
+  --ui-r-lg: 11px;
+
+  --ui-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ui-dur: 140ms;
+  --ui-dur-panel: 220ms;
+
+  /* 4px base grid. */
+  --ui-rail-w: 264px;
+  --ui-rail-collapsed-w: 52px;
+  --ui-row-h: 30px;
+  --ui-pad: 10px;
+  --ui-titlebar-h: 38px;
+
+  --ui-font: "Inter Tight Variable", "Inter Variable", system-ui, sans-serif;
+
+  /* --- the paper (House Light defaults; overwritten by applyTheme) -------- */
+
+  --doc-bg: oklch(0.985 0.004 85);
+  --doc-surface: oklch(0.965 0.006 85);
+  --doc-text: oklch(0.28 0.01 60);
+  --doc-text-muted: oklch(0.52 0.012 60);
+  --doc-heading: oklch(0.22 0.012 60);
+  --doc-link: oklch(0.48 0.09 200);
+  --doc-link-hover: oklch(0.38 0.1 200);
+  --doc-border: oklch(0.88 0.006 85);
+  --doc-code-bg: oklch(0.955 0.007 85);
+  --doc-code-border: oklch(0.9 0.007 85);
+  --doc-accent: oklch(0.48 0.09 200);
+  --doc-quote-bar: oklch(0.82 0.02 70);
+  --doc-selection: color-mix(in oklab, oklch(0.48 0.09 200) 20%, transparent);
+
+  --doc-alert-note: oklch(0.55 0.11 250);
+  --doc-alert-tip: oklch(0.52 0.11 155);
+  --doc-alert-important: oklch(0.52 0.13 300);
+  --doc-alert-warning: oklch(0.62 0.13 75);
+  --doc-alert-caution: oklch(0.55 0.16 25);
+
+  --doc-font-body: "Source Serif 4 Variable", Georgia, serif;
+  --doc-font-heading: "Inter Tight Variable", system-ui, sans-serif;
+  --doc-font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --doc-size: 19.5px;
+  --doc-scale: 1.22;
+  --doc-leading: 1.62;
+  --doc-measure: 66ch;
+  --doc-para-space: 1.15em;
+  --doc-tracking: 0em;
+  --doc-heading-weight: 600;
+}
+
+/* Expose the tokens as Tailwind utilities (bg-ui-base, text-doc-text, …) so
+   components never hardcode a color literal. */
+@theme inline {
+  --color-ui-base: var(--ui-base);
+  --color-ui-plane-1: var(--ui-plane-1);
+  --color-ui-plane-2: var(--ui-plane-2);
+  --color-ui-sunken: var(--ui-sunken);
+  --color-ui-text: var(--ui-text);
+  --color-ui-text-strong: var(--ui-text-strong);
+  --color-ui-text-muted: var(--ui-text-muted);
+  --color-ui-text-faint: var(--ui-text-faint);
+  --color-ui-hairline: var(--ui-hairline);
+  --color-ui-hairline-strong: var(--ui-hairline-strong);
+  --color-ui-ember: var(--ui-ember);
+  --color-ui-ember-dim: var(--ui-ember-dim);
+  --color-ui-ember-wash: var(--ui-ember-wash);
+  --color-ui-danger: var(--ui-danger);
+
+  --color-doc-bg: var(--doc-bg);
+  --color-doc-surface: var(--doc-surface);
+  --color-doc-text: var(--doc-text);
+  --color-doc-text-muted: var(--doc-text-muted);
+  --color-doc-heading: var(--doc-heading);
+  --color-doc-link: var(--doc-link);
+  --color-doc-border: var(--doc-border);
+
+  --radius-ui-sm: var(--ui-r-sm);
+  --radius-ui-md: var(--ui-r-md);
+  --radius-ui-lg: var(--ui-r-lg);
+
+  --font-ui: var(--ui-font);
+  --font-doc: var(--doc-font-body);
+  --font-doc-heading: var(--doc-font-heading);
+  --font-doc-mono: var(--doc-font-mono);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--ui-base);
+    color: var(--ui-text);
+    font-family: var(--ui-font);
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* The window is frameless: nothing in the chrome should be text-selectable
+       or drag-to-scroll, or dragging the titlebar starts a selection instead. */
+    user-select: none;
+    overflow: hidden;
+  }
+
+  /* Focus is always Ember, always a ring, never a browser default outline. */
+  :focus-visible {
+    outline: 2px solid var(--ui-ember);
+    outline-offset: 2px;
+    border-radius: var(--ui-r-sm);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* Small, named utilities for the two things Tailwind cannot express well:
+   the frameless-window drag regions and the tool's label typography. */
+@utility drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+@utility no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+@utility rail-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-text-faint);
+  font-variant-numeric: tabular-nums;
+}
