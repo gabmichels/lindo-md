@@ -124,6 +124,22 @@ export function setConfig(config: AppConfig): Promise<void> {
 
 export type { Theme };
 
+// --- files the user picks in a dialog ---------------------------------------
+// Narrow commands rather than a webview `fs` permission: each takes one path
+// that came from an OS dialog and refuses any extension but its own.
+
+export function readThemeFile(path: string): Promise<string> {
+  return call("read_theme_file", z.string(), { path });
+}
+
+export function writeThemeFile(path: string, contents: string): Promise<void> {
+  return call("write_theme_file", z.void(), { path, contents });
+}
+
+export function writeHtmlFile(path: string, contents: string): Promise<void> {
+  return call("write_html_file", z.void(), { path, contents });
+}
+
 // --- events -----------------------------------------------------------------
 
 function subscribe<T>(

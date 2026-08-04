@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* The paper's own stylesheet. Kept in its own file because it is a different
+   design system from the chrome and shares nothing with it but the cascade. */
+@import "./document.css";
+
 /* Bundled reading faces. @font-face declarations only trigger a download once a
    family is actually referenced, so importing the whole library here costs
    nothing until a theme selects one. Everything ships with the app — pretty-md
@@ -211,4 +215,16 @@
   text-transform: uppercase;
   color: var(--ui-text-faint);
   font-variant-numeric: tabular-nums;
+}
+
+/* Find highlights. Painted by the CSS Custom Highlight API (see hooks/useFind.ts)
+   rather than by wrapping matches in elements, which would destroy the decorated
+   code blocks and rendered diagrams the enhancement passes produced. */
+::highlight(pretty-md-find) {
+  background-color: var(--ui-ember-wash);
+}
+
+::highlight(pretty-md-find-active) {
+  background-color: var(--ui-ember);
+  color: black;
 }

@@ -1,6 +1,7 @@
 mod commands;
 mod config;
 mod error;
+mod export;
 mod files;
 mod markdown;
 
@@ -11,6 +12,7 @@ pub fn run() {
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_os::init())
         .manage(WatchState::default());
 
     // Logging is a development aid; a release build stays silent.
@@ -29,6 +31,9 @@ pub fn run() {
             commands::open_document,
             commands::scan_folder,
             commands::watch_paths,
+            commands::read_theme_file,
+            commands::write_theme_file,
+            commands::write_html_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running pretty-md");

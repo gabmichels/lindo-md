@@ -1,0 +1,277 @@
+import * as RadixSelect from "@radix-ui/react-select";
+import * as RadixSlider from "@radix-ui/react-slider";
+import * as RadixSwitch from "@radix-ui/react-switch";
+import { Check, ChevronDown } from "lucide-react";
+import type { ReactNode } from "react";
+
+import { cn } from "@/lib/utils";
+
+/**
+ * Radix primitives restyled to the `--ui-*` tokens.
+ *
+ * Radix is here for behavior only — focus management, keyboard handling, ARIA,
+ * dismissal. None of its default appearance survives: no stock radii, no
+ * borders drawn out of habit, and depth from planes rather than outlines
+ * (DESIGN.md).
+ */
+
+export function Field({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  /** The current value, shown right-aligned — a slider without a read-out is a
+   *  control you cannot return to a previous setting. */
+  value?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="py-1.5">
+      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+        <span className="text-[12.5px] text-ui-text">{label}</span>
+        {value !== undefined && (
+          <span className="font-variant-numeric-tabular text-[11.5px] text-ui-text-faint tabular-nums">
+            {value}
+          </span>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="border-t border-ui-hairline px-4 py-3 first:border-t-0">
+      <h3 className="rail-label mb-1">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+export function Slider({
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  label,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+  label: string;
+}) {
+  return (
+    <RadixSlider.Root
+      aria-label={label}
+      value={[value]}
+      min={min}
+      max={max}
+      step={step}
+      onValueChange={([next]) => next !== undefined && onChange(next)}
+      className="relative flex h-4 w-full touch-none items-center select-none"
+    >
+      <RadixSlider.Track className="relative h-[3px] w-full grow rounded-full bg-ui-sunken">
+        <RadixSlider.Range className="absolute h-full rounded-full bg-ui-ember-dim" />
+      </RadixSlider.Track>
+      <RadixSlider.Thumb
+        className={cn(
+          "block size-3.5 rounded-full bg-ui-text-strong",
+          "transition-transform duration-[var(--ui-dur)] ease-[var(--ui-ease)]",
+          "hover:scale-110 focus-visible:outline-2 focus-visible:outline-ui-ember",
+        )}
+      />
+    </RadixSlider.Root>
+  );
+}
+
+export function Switch({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+}) {
+  return (
+    <RadixSwitch.Root
+      aria-label={label}
+      checked={checked}
+      onCheckedChange={onChange}
+      className={cn(
+        "relative h-[18px] w-8 shrink-0 rounded-full transition-colors duration-[var(--ui-dur)]",
+        checked ? "bg-ui-ember-dim" : "bg-ui-sunken",
+      )}
+    >
+      <RadixSwitch.Thumb
+        className={cn(
+          "block size-3.5 translate-x-[2px] rounded-full bg-ui-text-strong",
+          "transition-transform duration-[var(--ui-dur)] ease-[var(--ui-ease)]",
+          "data-[state=checked]:translate-x-[16px]",
+        )}
+      />
+    </RadixSwitch.Root>
+  );
+}
+
+export function Row({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-3 py-1.5 text-[12.5px] text-ui-text">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+export interface SelectOption {
+  value: string;
+  label: string;
+  /** Rendered in the option's own font, so a font picker shows the face. */
+  fontFamily?: string;
+}
+
+export function Select({
+  value,
+  options,
+  onChange,
+  label,
+}: {
+  value: string;
+  options: SelectOption[];
+  onChange: (value: string) => void;
+  label: string;
+}) {
+  const current = options.find((option) => option.value === value);
+
+  return (
+    <RadixSelect.Root value={value} onValueChange={onChange}>
+      <RadixSelect.Trigger
+        aria-label={label}
+        className={cn(
+          "flex w-full items-center justify-between gap-2 rounded-ui-md bg-ui-plane-1 px-2 py-1.5",
+          "text-left text-[12.5px] text-ui-text transition-colors duration-[var(--ui-dur)]",
+          "hover:bg-ui-plane-2",
+        )}
+      >
+        <span
+          className="truncate"
+          style={current?.fontFamily ? { fontFamily: current.fontFamily } : undefined}
+        >
+          <RadixSelect.Value />
+        </span>
+        <ChevronDown size={13} strokeWidth={1.5} className="shrink-0 opacity-60" aria-hidden />
+      </RadixSelect.Trigger>
+
+      <RadixSelect.Portal>
+        <RadixSelect.Content
+          position="popper"
+          sideOffset={4}
+          className={cn(
+            "z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden",
+            "rounded-ui-lg bg-ui-plane-2 p-1 shadow-2xl",
+          )}
+        >
+          <RadixSelect.Viewport>
+            {options.map((option) => (
+              <RadixSelect.Item
+                key={option.value}
+                value={option.value}
+                className={cn(
+                  "flex cursor-default items-center justify-between gap-2 rounded-ui-sm px-2 py-1.5",
+                  "text-[12.5px] text-ui-text outline-none",
+                  "data-[highlighted]:bg-ui-ember-wash data-[highlighted]:text-ui-text-strong",
+                )}
+              >
+                <RadixSelect.ItemText>
+                  <span style={option.fontFamily ? { fontFamily: option.fontFamily } : undefined}>
+                    {option.label}
+                  </span>
+                </RadixSelect.ItemText>
+                <RadixSelect.ItemIndicator>
+                  <Check size={13} strokeWidth={2} className="text-ui-ember" aria-hidden />
+                </RadixSelect.ItemIndicator>
+              </RadixSelect.Item>
+            ))}
+          </RadixSelect.Viewport>
+        </RadixSelect.Content>
+      </RadixSelect.Portal>
+    </RadixSelect.Root>
+  );
+}
+
+/** A native color input, restyled to a swatch. Native because the OS picker is
+ *  better than anything worth writing here, and users arrive with a hex code. */
+export function ColorSwatch({
+  value,
+  onChange,
+  label,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-3 py-1 text-[12px] text-ui-text-muted">
+      <span className="truncate">{label}</span>
+      <span className="flex items-center gap-2">
+        <input
+          type="color"
+          aria-label={label}
+          value={toHex(value)}
+          onChange={(event) => onChange(event.target.value)}
+          className="size-5 cursor-pointer rounded-ui-sm border-0 bg-transparent p-0"
+        />
+      </span>
+    </label>
+  );
+}
+
+/**
+ * `<input type="color">` only accepts `#rrggbb`, but presets are authored in
+ * oklch and users may paste anything. Resolving through the browser is the only
+ * way to convert without shipping a color library.
+ */
+function toHex(value: string): string {
+  if (/^#[0-9a-f]{6}$/i.test(value)) return value;
+  if (typeof document === "undefined") return "#000000";
+
+  const probe = document.createElement("span");
+  probe.style.color = value;
+  document.body.append(probe);
+  const computed = getComputedStyle(probe).color;
+  probe.remove();
+
+  const match = computed.match(/-?[\d.]+/g);
+  if (!match || match.length < 3) return "#000000";
+  return (
+    "#" +
+    match
+      .slice(0, 3)
+      .map((part) => clampByte(Number(part)).toString(16).padStart(2, "0"))
+      .join("")
+  );
+}
+
+function clampByte(value: number): number {
+  // `getComputedStyle` may return floats, or a wide-gamut color outside 0-255.
+  return Math.min(255, Math.max(0, Math.round(value)));
+}
+
+export const _toHex = toHex;

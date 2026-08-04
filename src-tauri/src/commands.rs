@@ -8,6 +8,7 @@ use tauri::{AppHandle, State};
 
 use crate::config::{self, AppConfig};
 use crate::error::PrettyResult;
+use crate::export;
 use crate::files::{self, Document, TreeNode, WatchState};
 
 #[tauri::command]
@@ -53,4 +54,19 @@ pub fn watch_paths(
         document.map(PathBuf::from),
         folder.map(PathBuf::from),
     )
+}
+
+#[tauri::command]
+pub fn read_theme_file(path: String) -> PrettyResult<String> {
+    export::read_theme(&PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn write_theme_file(path: String, contents: String) -> PrettyResult<()> {
+    export::write_theme(&PathBuf::from(path), &contents)
+}
+
+#[tauri::command]
+pub fn write_html_file(path: String, contents: String) -> PrettyResult<()> {
+    export::write_html(&PathBuf::from(path), &contents)
 }

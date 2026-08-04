@@ -1,0 +1,570 @@
+/* ===========================================================================
+   The paper.
+   Every rule here reads only --doc-* tokens, written by lib/theme/apply.ts.
+   Nothing in this file may reference a --ui-* token (DESIGN.md), and
+   src/lib/theme/theme.test.ts fails the build if the two namespaces mix.
+   =========================================================================== */
+
+.doc-scroller {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--doc-bg);
+  /* The document is the one place text is selectable — `body` disables it so
+     dragging the frameless titlebar does not start a selection. */
+  user-select: text;
+}
+
+.doc-scroller ::selection {
+  background: var(--doc-selection);
+}
+
+.doc {
+  max-width: var(--doc-measure);
+  margin-inline: auto;
+  padding: 3.5rem 2rem 8rem;
+  color: var(--doc-text);
+  background: var(--doc-bg);
+  font-family: var(--doc-font-body);
+  font-size: var(--doc-size);
+  line-height: var(--doc-leading);
+  letter-spacing: var(--doc-tracking);
+  text-align: var(--doc-align);
+  /* Justified text without hyphenation opens rivers; with it, it reads. */
+  hyphens: auto;
+  font-variant-numeric: oldstyle-nums proportional-nums;
+}
+
+/* --- headings -------------------------------------------------------------
+   Sizes come from the theme's modular scale. Margins are optical rather than
+   uniform: the space above a heading always exceeds the space below it, so a
+   heading binds to the text it introduces instead of floating between blocks. */
+
+.doc :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--doc-font-heading);
+  font-weight: var(--doc-heading-weight);
+  color: var(--doc-heading);
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  text-align: start;
+  text-wrap: balance;
+  scroll-margin-top: 1.5rem;
+}
+
+.doc h1 {
+  font-size: var(--doc-h1);
+  margin: 0 0 0.8em;
+  letter-spacing: -0.028em;
+}
+.doc h2 {
+  font-size: var(--doc-h2);
+  margin: 1.9em 0 0.55em;
+}
+.doc h3 {
+  font-size: var(--doc-h3);
+  margin: 1.7em 0 0.5em;
+}
+.doc h4 {
+  font-size: var(--doc-h4);
+  margin: 1.6em 0 0.45em;
+}
+.doc h5 {
+  font-size: var(--doc-h5);
+  margin: 1.5em 0 0.4em;
+}
+.doc h6 {
+  font-size: var(--doc-h6);
+  margin: 1.5em 0 0.4em;
+  color: var(--doc-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* comrak puts the id on an empty anchor inside the heading. It is a scroll
+   target, not a visible link. */
+.doc :is(h1, h2, h3, h4, h5, h6) > a[aria-hidden] {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* --- flow ------------------------------------------------------------------ */
+
+.doc p {
+  margin: 0 0 var(--doc-para-space);
+}
+
+.doc :is(h1, h2, h3, h4, h5, h6) + p {
+  /* A paragraph directly under its heading needs no extra space above it. */
+  margin-top: 0;
+}
+
+.doc a {
+  color: var(--doc-link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.08em;
+  text-decoration-color: color-mix(in oklab, var(--doc-link) 45%, transparent);
+  transition: color 140ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.doc a:hover {
+  color: var(--doc-link-hover);
+  text-decoration-thickness: 2px;
+  text-decoration-color: currentColor;
+}
+
+.doc strong {
+  font-weight: 650;
+  color: var(--doc-heading);
+}
+
+.doc hr {
+  border: 0;
+  height: 1px;
+  background: var(--doc-border);
+  margin: 3em 0;
+}
+
+.doc :is(ul, ol) {
+  margin: 0 0 var(--doc-para-space);
+  padding-left: 1.4em;
+}
+
+.doc li {
+  margin-bottom: 0.35em;
+}
+
+.doc li > :is(ul, ol) {
+  margin-top: 0.35em;
+  margin-bottom: 0;
+}
+
+.doc :is(dt) {
+  font-weight: 650;
+  color: var(--doc-heading);
+  margin-top: 0.8em;
+}
+
+.doc dd {
+  margin: 0 0 0.4em 1.4em;
+}
+
+/* Task lists sit flush with the paragraph text, not indented as a list would be. */
+.doc li.task-list-item {
+  list-style: none;
+  margin-left: -1.4em;
+  padding-left: 1.4em;
+  position: relative;
+}
+
+.doc li.task-list-item > input[type="checkbox"] {
+  position: absolute;
+  left: 0;
+  top: calc(0.5em * var(--doc-leading) - 0.35em);
+  accent-color: var(--doc-accent);
+  width: 0.85em;
+  height: 0.85em;
+}
+
+/* --- quotes ---------------------------------------------------------------
+   A rule and an optical hang into the margin, not a grey box. */
+
+.doc blockquote {
+  margin: 1.6em 0;
+  padding-left: 1.1em;
+  border-left: 2px solid var(--doc-quote-bar);
+  color: var(--doc-text-muted);
+  font-style: italic;
+}
+
+.doc blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* --- GitHub alerts --------------------------------------------------------- */
+
+.doc .markdown-alert {
+  margin: 1.6em 0;
+  padding: 0.9em 1.1em;
+  border-left: 3px solid var(--alert-color);
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in oklab, var(--alert-color) 7%, var(--doc-bg));
+}
+
+.doc .markdown-alert-note {
+  --alert-color: var(--doc-alert-note);
+}
+.doc .markdown-alert-tip {
+  --alert-color: var(--doc-alert-tip);
+}
+.doc .markdown-alert-important {
+  --alert-color: var(--doc-alert-important);
+}
+.doc .markdown-alert-warning {
+  --alert-color: var(--doc-alert-warning);
+}
+.doc .markdown-alert-caution {
+  --alert-color: var(--doc-alert-caution);
+}
+
+.doc .markdown-alert-title {
+  font-family: var(--doc-font-heading);
+  font-size: 0.8em;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--alert-color);
+  margin-bottom: 0.4em;
+}
+
+.doc .markdown-alert > :last-child {
+  margin-bottom: 0;
+}
+
+/* --- code ------------------------------------------------------------------ */
+
+.doc code {
+  font-family: var(--doc-font-mono);
+  font-size: 0.85em;
+  font-variant-ligatures: none;
+}
+
+.doc :not(pre) > code {
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  background: var(--doc-code-bg);
+  /* An inset hairline instead of a border: it does not add to the box's size,
+     so inline code cannot shift the line it sits on. */
+  box-shadow: inset 0 0 0 1px var(--doc-code-border);
+}
+
+.doc pre.code-block {
+  position: relative;
+  margin: 1.6em 0;
+  padding: 1em 1.1em;
+  border-radius: 8px;
+  background: var(--doc-code-bg);
+  box-shadow: inset 0 0 0 1px var(--doc-code-border);
+  overflow-x: auto;
+  line-height: 1.55;
+  text-align: start;
+  /* Code is never justified or hyphenated, whatever the prose setting is. */
+  hyphens: none;
+}
+
+.doc pre.code-block > code {
+  display: block;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  white-space: pre;
+}
+
+/* A fence that named a file gets a header, so a snippet says where it belongs. */
+.doc pre.code-block[data-title]::before {
+  content: attr(data-title);
+  display: block;
+  margin: -0.35em 0 0.8em;
+  font-family: var(--doc-font-heading);
+  font-size: 0.72em;
+  letter-spacing: 0.04em;
+  color: var(--doc-text-muted);
+}
+
+.doc .code-copy {
+  position: absolute;
+  top: 0.5em;
+  right: 0.5em;
+  padding: 0.2em 0.55em;
+  border: 0;
+  border-radius: 5px;
+  font-family: var(--doc-font-heading);
+  font-size: 0.66em;
+  letter-spacing: 0.03em;
+  color: var(--doc-text-muted);
+  background: color-mix(in oklab, var(--doc-bg) 80%, transparent);
+  cursor: pointer;
+  /* Hidden until the block is approached: a copy button on every code block is
+     visual noise in a document you are reading rather than using. */
+  opacity: 0;
+  transition:
+    opacity 140ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    color 140ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.doc pre.code-block:hover .code-copy,
+.doc .code-copy:focus-visible {
+  opacity: 1;
+}
+
+.doc .code-copy:hover {
+  color: var(--doc-text);
+}
+
+/* Line numbers, when the theme asks for them. Counter-based so they are never
+   selected or copied along with the code. */
+[data-line-numbers="true"] .doc pre.code-block > code {
+  counter-reset: line;
+}
+
+[data-line-numbers="true"] .doc pre.code-block > code .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 2.5ch;
+  margin-right: 1.5ch;
+  text-align: right;
+  color: var(--doc-text-muted);
+  opacity: 0.5;
+  user-select: none;
+}
+
+/* --- tables ---------------------------------------------------------------
+   Hairline rules, no full grid — a grid draws more attention to the container
+   than to the data in it. */
+
+.doc table {
+  width: 100%;
+  margin: 1.8em 0;
+  border-collapse: collapse;
+  font-size: 0.92em;
+  font-variant-numeric: tabular-nums lining-nums;
+  display: block;
+  overflow-x: auto;
+}
+
+.doc th {
+  font-family: var(--doc-font-heading);
+  font-size: 0.85em;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--doc-text-muted);
+  text-align: start;
+  padding: 0.5em 0.9em 0.5em 0;
+  border-bottom: 1px solid var(--doc-border);
+}
+
+.doc td {
+  padding: 0.55em 0.9em 0.55em 0;
+  border-bottom: 1px solid
+    color-mix(in oklab, var(--doc-border) 55%, transparent);
+}
+
+.doc :is(th, td):last-child {
+  padding-right: 0;
+}
+
+.doc tr:last-child td {
+  border-bottom: 0;
+}
+
+/* --- images & figures ------------------------------------------------------ */
+
+.doc img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+.doc img[data-blocked],
+.doc img[data-missing] {
+  display: inline-block;
+  min-width: 8ch;
+  min-height: 1.4em;
+  padding: 0.2em 0.5em;
+  border-radius: 4px;
+  border: 1px dashed var(--doc-border);
+  color: var(--doc-text-muted);
+  font-family: var(--doc-font-heading);
+  font-size: 0.75em;
+}
+
+.doc figure {
+  margin: 1.8em 0;
+  text-align: center;
+}
+
+.doc figcaption {
+  margin-top: 0.6em;
+  font-family: var(--doc-font-heading);
+  font-size: 0.75em;
+  color: var(--doc-text-muted);
+}
+
+/* --- mermaid ---------------------------------------------------------------
+   Diagrams are frequently wider than the measure, so they are allowed to scroll
+   rather than being squeezed into it. */
+
+.doc figure.mermaid {
+  overflow-x: auto;
+  padding: 1.2em;
+  border-radius: 8px;
+  background: var(--doc-surface);
+  cursor: zoom-in;
+}
+
+.doc figure.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.doc figure.mermaid-error {
+  cursor: default;
+  border-left: 3px solid var(--doc-alert-caution);
+  text-align: start;
+}
+
+.doc figure.mermaid-error figcaption {
+  margin: 0 0 0.7em;
+  color: var(--doc-alert-caution);
+  text-align: start;
+}
+
+/* --- details, kbd, footnotes ----------------------------------------------- */
+
+.doc details {
+  margin: 1.4em 0;
+  padding: 0.8em 1.1em;
+  border-radius: 8px;
+  background: var(--doc-surface);
+}
+
+.doc summary {
+  cursor: pointer;
+  font-family: var(--doc-font-heading);
+  font-weight: 600;
+  color: var(--doc-heading);
+}
+
+.doc details[open] summary {
+  margin-bottom: 0.7em;
+}
+
+.doc kbd {
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  border: 1px solid var(--doc-border);
+  border-bottom-width: 2px;
+  background: var(--doc-surface);
+  font-family: var(--doc-font-mono);
+  font-size: 0.8em;
+}
+
+.doc section[data-footnotes] {
+  margin-top: 3.5em;
+  padding-top: 1.5em;
+  border-top: 1px solid var(--doc-border);
+  font-size: 0.88em;
+  color: var(--doc-text-muted);
+}
+
+.doc section[data-footnotes] h2 {
+  /* comrak emits a "Footnotes" heading; the rule above already separates the
+     section, so the heading only has to label it quietly. */
+  font-size: 0.85em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--doc-text-muted);
+  margin: 0 0 0.8em;
+}
+
+.doc sup a {
+  text-decoration: none;
+  padding: 0 0.15em;
+}
+
+/* --- math ------------------------------------------------------------------ */
+
+.doc .katex {
+  font-size: 1.02em;
+}
+
+.doc .katex-display {
+  margin: 1.6em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.doc .math-error {
+  color: var(--doc-alert-caution);
+  font-family: var(--doc-font-mono);
+  font-size: 0.85em;
+}
+
+/* --- the blocked-images notice --------------------------------------------- */
+
+.doc-notice {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  padding: 0.55rem 1rem;
+  background: color-mix(in oklab, var(--doc-surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--doc-border);
+  color: var(--doc-text-muted);
+  font-family: var(--doc-font-heading);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.doc-notice button {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--doc-border);
+  border-radius: 5px;
+  background: var(--doc-bg);
+  color: var(--doc-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.doc-notice button:hover {
+  border-color: var(--doc-link);
+  color: var(--doc-link);
+}
+
+/* --- print -----------------------------------------------------------------
+   Export to PDF goes through the browser's print pipeline, so the print
+   stylesheet is the PDF's design: the chrome disappears, the measure widens a
+   little for paper, and nothing is allowed to break across a page awkwardly. */
+
+@media print {
+  .doc-scroller {
+    overflow: visible;
+    height: auto;
+  }
+
+  .doc {
+    max-width: none;
+    padding: 0;
+    font-size: 11pt;
+  }
+
+  .doc .code-copy,
+  .doc-notice {
+    display: none;
+  }
+
+  .doc :is(h1, h2, h3, h4, h5, h6) {
+    break-after: avoid;
+  }
+
+  .doc :is(pre, table, figure, blockquote, .markdown-alert) {
+    break-inside: avoid;
+  }
+
+  .doc a[data-external]::after {
+    /* A printed page cannot be clicked, so an external link has to say where it
+       went. */
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: var(--doc-text-muted);
+    word-break: break-all;
+  }
+}
