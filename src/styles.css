@@ -114,6 +114,7 @@
   --doc-para-space: 1.15em;
   --doc-tracking: 0em;
   --doc-heading-weight: 600;
+  --doc-align: start;
 }
 
 /* Expose the tokens as Tailwind utilities (bg-ui-base, text-doc-text, …) so

@@ -29,7 +29,7 @@ tauri-plugin-log = "2"
 # Markdown pipeline: comrak parses GFM, ammonia sanitizes the resulting HTML.
 # `unsafe_` rendering is enabled in markdown.rs so <details>/<kbd> survive, which
 # makes the ammonia pass mandatory rather than optional.
-comrak = "0.44"
+comrak = { version = "0.44", features = ["shortcodes"] }
 ammonia = "4"
 
 # Folder scanning (respects .gitignore) and live reload.

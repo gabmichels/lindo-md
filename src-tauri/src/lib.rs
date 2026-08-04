@@ -1,12 +1,17 @@
 mod commands;
 mod config;
 mod error;
+mod files;
+mod markdown;
+
+use files::WatchState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init());
+        .plugin(tauri_plugin_opener::init())
+        .manage(WatchState::default());
 
     // Logging is a development aid; a release build stays silent.
     if cfg!(debug_assertions) {
@@ -21,6 +26,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::set_config,
+            commands::open_document,
+            commands::scan_folder,
+            commands::watch_paths,
         ])
         .run(tauri::generate_context!())
         .expect("error while running pretty-md");
