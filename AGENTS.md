@@ -115,3 +115,29 @@ git-wt merge
 - **Shiki and Mermaid are large.** Both are dynamically imported so Vite code-splits them, and both
   run lazily behind an `IntersectionObserver`. Do not move either to a static import.
 - **`pnpm tauri icon` rejects XML comments containing `--`.** The source mark is `docs/icon.svg`.
+- **Mermaid cannot parse `oklch()`** — it throws `Unsupported color format` and the diagram fails.
+  Every colour handed to it goes through `toHex` in `src/lib/theme/color.ts` first. The same applies
+  to `<input type="color">`, which only accepts `#rrggbb`.
+- **Mermaid sizes each label box from a DOM text measurement.** It has to be measured in the same
+  type context the SVG renders in, in an element that is attached and laid out — see
+  `measuringHost` in `src/lib/render/mermaid.ts`. `display: none`, `height: 0` or a different
+  font-size all produce boxes too small for their text. Its flowchart viewBox is unreliable
+  regardless, so `normalizeViewBox` recomputes it from the drawn geometry.
+- **Do not set `scrollbar-width` or `scrollbar-color` next to `::-webkit-scrollbar` rules.**
+  Chromium ignores the `::-webkit-` rules entirely if the standard properties are present, and the
+  OS scrollbar comes back.
+
+## Driving the running app
+
+The window is a WebView2 with no automation surface, and `SendKeys` does not reach it. Launch with
+remote debugging and drive it over CDP instead — this is how the rendering was verified:
+
+```bash
+pnpm dev &                                   # the app needs the dev server at :1420
+WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9222"   ./src-tauri/target/debug/pretty-md.exe test/fixtures/kitchen-sink.md
+curl -s http://127.0.0.1:9222/json           # find the page target
+```
+
+From there `Runtime.evaluate` scrolls or clicks and `Page.captureScreenshot` captures the result.
+Passing a path on the command line works because of the file-association handling in `assoc.rs`, so
+no dialog has to be driven to open a document.

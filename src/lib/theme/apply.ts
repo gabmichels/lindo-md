@@ -1,3 +1,4 @@
+import { toHex } from "./color";
 import type { Theme } from "./schema";
 
 /**
@@ -94,34 +95,44 @@ export function applyTheme(theme: Theme, target: HTMLElement): void {
  */
 export function mermaidThemeVariables(theme: Theme): Record<string, string> {
   const { colors, typography: type } = theme;
+  // Every colour goes through `toHex` first: Mermaid parses these with a library
+  // that only knows hex/rgb/hsl, and an `oklch()` — which is how the House theme
+  // is authored — makes it throw "Unsupported color format" and fail the whole
+  // diagram. `color.test.ts` guards this for every preset.
+  const c = (value: string, fallback: string) => toHex(value, fallback);
+  const neutral = theme.appearance === "light" ? "#ffffff" : "#000000";
+  const ink = theme.appearance === "light" ? "#000000" : "#ffffff";
   return {
-    background: colors.bg,
-    primaryColor: colors.surface,
-    primaryTextColor: colors.text,
-    primaryBorderColor: colors.border,
-    secondaryColor: colors.codeBg,
-    tertiaryColor: colors.bg,
-    lineColor: colors.textMuted,
-    textColor: colors.text,
-    mainBkg: colors.surface,
-    nodeBorder: colors.border,
-    clusterBkg: colors.bg,
-    clusterBorder: colors.border,
-    edgeLabelBackground: colors.bg,
-    titleColor: colors.heading,
-    noteBkgColor: colors.codeBg,
-    noteTextColor: colors.text,
-    noteBorderColor: colors.border,
-    actorBkg: colors.surface,
-    actorBorder: colors.border,
-    actorTextColor: colors.text,
-    signalColor: colors.text,
-    signalTextColor: colors.text,
-    labelBoxBkgColor: colors.surface,
-    labelBoxBorderColor: colors.border,
-    labelTextColor: colors.text,
-    loopTextColor: colors.text,
-    fontFamily: type.bodyFont,
-    fontSize: `${type.baseSize * 0.8}px`,
+    background: c(colors.bg, neutral),
+    primaryColor: c(colors.surface, neutral),
+    primaryTextColor: c(colors.text, ink),
+    primaryBorderColor: c(colors.border, ink),
+    secondaryColor: c(colors.codeBg, neutral),
+    tertiaryColor: c(colors.bg, neutral),
+    lineColor: c(colors.textMuted, ink),
+    textColor: c(colors.text, ink),
+    mainBkg: c(colors.surface, neutral),
+    nodeBorder: c(colors.border, ink),
+    clusterBkg: c(colors.bg, neutral),
+    clusterBorder: c(colors.border, ink),
+    edgeLabelBackground: c(colors.bg, neutral),
+    titleColor: c(colors.heading, ink),
+    noteBkgColor: c(colors.codeBg, neutral),
+    noteTextColor: c(colors.text, ink),
+    noteBorderColor: c(colors.border, ink),
+    actorBkg: c(colors.surface, neutral),
+    actorBorder: c(colors.border, ink),
+    actorTextColor: c(colors.text, ink),
+    signalColor: c(colors.text, ink),
+    signalTextColor: c(colors.text, ink),
+    labelBoxBkgColor: c(colors.surface, neutral),
+    labelBoxBorderColor: c(colors.border, ink),
+    labelTextColor: c(colors.text, ink),
+    loopTextColor: c(colors.text, ink),
+    // The heading face, not the body face. `themeVariables.fontFamily` wins over
+    // the top-level `fontFamily` config, so this is the one that decides what
+    // diagram labels are set in — and what Mermaid measures them with.
+    fontFamily: type.headingFont,
+    fontSize: `${Math.round(type.baseSize * 0.8)}px`,
   };
 }

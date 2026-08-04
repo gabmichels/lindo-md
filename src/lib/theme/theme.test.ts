@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { applyTheme, docTokens, mermaidThemeVariables } from "./apply";
+import { toHex } from "./color";
 import {
   DEFAULT_PRESET_ID,
   PRESETS,
@@ -200,10 +201,12 @@ describe("applyTheme", () => {
 
 describe("mermaidThemeVariables", () => {
   it("draws its palette from the theme, so diagrams recolor with the page", () => {
+    // Compared through `toHex` because Mermaid is handed hex, not the authored
+    // colour — it cannot parse oklch. See lib/theme/color.ts.
     const vars = mermaidThemeVariables(house.dark);
-    expect(vars.background).toBe(house.dark.colors.bg);
-    expect(vars.textColor).toBe(house.dark.colors.text);
-    expect(vars.lineColor).toBe(house.dark.colors.textMuted);
+    expect(vars.background).toBe(toHex(house.dark.colors.bg));
+    expect(vars.textColor).toBe(toHex(house.dark.colors.text));
+    expect(vars.lineColor).toBe(toHex(house.dark.colors.textMuted));
   });
 
   it("differs between the light and dark halves of the same preset", () => {

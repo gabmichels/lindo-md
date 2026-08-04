@@ -128,6 +128,12 @@ export type { Theme };
 // Narrow commands rather than a webview `fs` permission: each takes one path
 // that came from an OS dialog and refuses any extension but its own.
 
+/** The document the app was launched with — a double-clicked `.md`, or
+ *  "Open with → pretty-md". `null` for a normal launch. */
+export function getInitialDocument(): Promise<string | null> {
+  return call("get_initial_document", z.string().nullable());
+}
+
 export function readThemeFile(path: string): Promise<string> {
   return call("read_theme_file", z.string(), { path });
 }
@@ -155,6 +161,14 @@ export function onDocumentChanged(
   handler: (path: string) => void,
 ): Promise<UnlistenFn> {
   return subscribe("document-changed", z.string(), handler);
+}
+
+/** A second launch handed us a document — the single-instance plugin routes it
+ *  here rather than opening another window. */
+export function onOpenDocumentRequested(
+  handler: (path: string) => void,
+): Promise<UnlistenFn> {
+  return subscribe("open-document", z.string(), handler);
 }
 
 /** Markdown files appeared or disappeared in the open folder. */

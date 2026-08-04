@@ -15,6 +15,8 @@ measure, considered rhythm — with the full GitHub feature set behind it.
 It is a small native desktop app (Rust + Tauri), not an Electron shell, and it works entirely
 offline. Nothing you open leaves your machine.
 
+![pretty-md rendering a document in the House Light theme](docs/screenshot-light.png)
+
 ## What it renders
 
 Everything GitHub renders:
@@ -29,6 +31,8 @@ Everything GitHub renders:
 - YAML frontmatter, relative image paths, and relative links between documents
 
 ## Themes
+
+![The same document in House Dark, with a Mermaid diagram](docs/screenshot-dark.png)
 
 The default is **House**, a reading theme designed for this app: warm bone paper, Source Serif 4 at
 a 66-character measure, ink-teal links. Presets cover the themes people already read in — GitHub

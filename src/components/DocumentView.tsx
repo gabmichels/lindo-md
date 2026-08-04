@@ -99,7 +99,17 @@ export function DocumentView({
   }, [pendingAnchor, doc.path, onAnchorConsumed]);
 
   return (
-    <div ref={scrollerRef} className="doc-scroller">
+    <div
+      ref={scrollerRef}
+      className="doc-scroller"
+      // Tabbable, so a keyboard user can reach the document and scroll it with
+      // Page Up/Down. Not auto-focused: the focus ring would then be painted
+      // around the page permanently, on every document, for everyone.
+      // Keyboard scrolling without focusing is handled in App's key handler.
+      tabIndex={0}
+      role="region"
+      aria-label={`${doc.title}, document content`}
+    >
       {blocked && (
         <div className="doc-notice">
           <span>

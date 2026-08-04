@@ -228,3 +228,14 @@
   background-color: var(--ui-ember);
   color: black;
 }
+
+/* The seam between the tool and the paper.
+   A hairline plus a soft inward shadow, so the canvas reads as a sheet lying on
+   the rail. Both are drawn from the rail's own tokens, not the document's: this
+   edge belongs to the tool, and it has to stay legible whether the paper next to
+   it is bone white or near-black. */
+@utility canvas-edge {
+  box-shadow:
+    inset 1px 0 0 0 var(--ui-hairline-strong),
+    inset 12px 0 16px -12px rgb(0 0 0 / 0.45);
+}

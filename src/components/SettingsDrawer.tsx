@@ -117,13 +117,18 @@ export function SettingsDrawer({
   const type = theme.typography;
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    // Deliberately not modal, and with no dimming overlay: the document behind
+    // this panel is the live preview, and a scrim over it would mean judging a
+    // theme through a grey filter. Non-modal also lets the reader scroll the
+    // document to a table or a diagram while adjusting the type.
+    <Dialog.Root open={open} onOpenChange={onOpenChange} modal={false}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/25" />
         <Dialog.Content
           className={cn(
             "fixed top-0 right-0 z-50 flex h-full w-[320px] flex-col bg-ui-base",
             "shadow-[-24px_0_48px_-24px_rgba(0,0,0,0.6)]",
+            // Without a modal overlay Radix would otherwise let a click land on
+            // the document behind; the panel keeps its own surface opaque.
             "data-[state=open]:animate-in data-[state=open]:slide-in-from-right",
             "duration-[var(--ui-dur-panel)]",
           )}

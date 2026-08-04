@@ -4,6 +4,7 @@ import * as RadixSwitch from "@radix-ui/react-switch";
 import { Check, ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { toHex } from "@/lib/theme/color";
 import { cn } from "@/lib/utils";
 
 /**
@@ -243,35 +244,4 @@ export function ColorSwatch({
   );
 }
 
-/**
- * `<input type="color">` only accepts `#rrggbb`, but presets are authored in
- * oklch and users may paste anything. Resolving through the browser is the only
- * way to convert without shipping a color library.
- */
-function toHex(value: string): string {
-  if (/^#[0-9a-f]{6}$/i.test(value)) return value;
-  if (typeof document === "undefined") return "#000000";
 
-  const probe = document.createElement("span");
-  probe.style.color = value;
-  document.body.append(probe);
-  const computed = getComputedStyle(probe).color;
-  probe.remove();
-
-  const match = computed.match(/-?[\d.]+/g);
-  if (!match || match.length < 3) return "#000000";
-  return (
-    "#" +
-    match
-      .slice(0, 3)
-      .map((part) => clampByte(Number(part)).toString(16).padStart(2, "0"))
-      .join("")
-  );
-}
-
-function clampByte(value: number): number {
-  // `getComputedStyle` may return floats, or a wide-gamut color outside 0-255.
-  return Math.min(255, Math.max(0, Math.round(value)));
-}
-
-export const _toHex = toHex;

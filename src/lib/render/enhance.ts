@@ -4,6 +4,7 @@ import { renderDiagram } from "./mermaid";
 import { markExternalLinks } from "./links";
 import { resolveImages } from "./images";
 import { highlightBlock, isHighlighted } from "./shiki";
+import { enableDiagramZoom } from "./zoom";
 
 /**
  * Turns the sanitized HTML from Rust into the finished page.
@@ -59,7 +60,12 @@ export function enhance(
   // half-rendered formula is more jarring than a late code block.
   void renderMath(root);
 
-  return () => observer.disconnect();
+  const stopZoom = enableDiagramZoom(root);
+
+  return () => {
+    observer.disconnect();
+    stopZoom();
+  };
 }
 
 function pendingElements(root: HTMLElement, theme: Theme): HTMLElement[] {

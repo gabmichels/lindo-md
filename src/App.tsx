@@ -15,7 +15,11 @@ import { useFind } from "@/hooks/useFind";
 import { useHostPlatform } from "@/hooks/useHostPlatform";
 import { useOutline } from "@/hooks/useOutline";
 import { useTheme } from "@/hooks/useTheme";
-import { writeHtmlFile } from "@/lib/ipc";
+import {
+  getInitialDocument,
+  onOpenDocumentRequested,
+  writeHtmlFile,
+} from "@/lib/ipc";
 import { buildStandaloneHtml } from "@/lib/export/html";
 import documentCss from "@/document.css?inline";
 import { basename, dirname } from "@/lib/utils";
@@ -53,6 +57,36 @@ function Shell() {
   const doc = useDocument(folder);
   const outline = useOutline(doc.document?.toc ?? [], scroller);
   const find = useFind(scroller);
+
+  // A document handed to us by the OS — a double-clicked `.md`, or a second
+  // launch routed here by the single-instance plugin. Opening it also points the
+  // rail at its folder, so the reader lands somewhere navigable.
+  const openFromOs = useCallback(
+    (path: string) => {
+      setFolder((current) => current ?? dirname(path));
+      doc.open(path);
+    },
+    [doc],
+  );
+
+  const openedInitial = useRef(false);
+  useEffect(() => {
+    if (openedInitial.current) return;
+    openedInitial.current = true;
+    getInitialDocument().then(
+      (path) => {
+        if (path) openFromOs(path);
+      },
+      () => undefined,
+    );
+  }, [openFromOs]);
+
+  useEffect(() => {
+    const unlisten = onOpenDocumentRequested(openFromOs);
+    return () => {
+      void unlisten.then((off) => off());
+    };
+  }, [openFromOs]);
 
   const openFile = useCallback(async () => {
     const path = await openDialog({
@@ -98,6 +132,7 @@ function Shell() {
   }, [doc.document, scroller, theme]);
 
   useKeyboardShortcuts({
+    scroller,
     onFind: () => setFindOpen(true),
     onCloseFind: () => setFindOpen(false),
     onOpenFile: () => void openFile(),
@@ -143,8 +178,16 @@ function Shell() {
       />
 
       {/* The canvas: everything inside it is styled by --doc-* tokens, which
-          `useTheme` writes onto this element and nowhere else. */}
-      <main ref={setCanvas} className="relative flex min-w-0 flex-1 flex-col bg-doc-bg">
+          `useTheme` writes onto this element and nowhere else.
+
+          `canvas-edge` is load-bearing rather than decorative: a dark document
+          theme can land within a few percent of the rail's own value, and
+          without an explicit edge the two planes merge into one surface and the
+          whole tool/paper distinction disappears. */}
+      <main
+        ref={setCanvas}
+        className="canvas-edge relative flex min-w-0 flex-1 flex-col bg-doc-bg"
+      >
         <TitleBar
           breadcrumb={
             doc.document
@@ -218,6 +261,10 @@ function Message({ text }: { text: string }) {
  * anywhere in the window.
  */
 function useKeyboardShortcuts(handlers: {
+  /** Scrolled by the paging keys, so a reader never has to click the document
+   *  first — and so we do not have to auto-focus it and paint a focus ring
+   *  around every page. */
+  scroller: HTMLElement | null;
   onFind: () => void;
   onCloseFind: () => void;
   onOpenFile: () => void;
@@ -241,7 +288,14 @@ function useKeyboardShortcuts(handlers: {
         handlers.onCloseFind();
         return;
       }
-      if (!(event.ctrlKey || event.metaKey)) return;
+
+      if (!(event.ctrlKey || event.metaKey)) {
+        // Typing in the find box or any other field must not scroll the page.
+        const target = event.target as HTMLElement | null;
+        if (target?.closest("input, textarea, [contenteditable]")) return;
+        scrollByKey(event, handlers.scroller);
+        return;
+      }
 
       switch (event.key.toLowerCase()) {
         case "f":
@@ -279,4 +333,33 @@ function useKeyboardShortcuts(handlers: {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+}
+
+/** One page is a screen less two lines of overlap, so the reader keeps their
+ *  place across the jump instead of having to find it again. */
+function scrollByKey(event: KeyboardEvent, scroller: HTMLElement | null): void {
+  if (!scroller) return;
+  const page = scroller.clientHeight * 0.9;
+
+  const delta = {
+    PageDown: page,
+    PageUp: -page,
+    " ": event.shiftKey ? -page : page,
+    ArrowDown: 60,
+    ArrowUp: -60,
+  }[event.key];
+
+  if (delta !== undefined) {
+    event.preventDefault();
+    scroller.scrollBy({ top: delta, behavior: "instant" });
+    return;
+  }
+
+  if (event.key === "Home") {
+    event.preventDefault();
+    scroller.scrollTo({ top: 0, behavior: "smooth" });
+  } else if (event.key === "End") {
+    event.preventDefault();
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+  }
 }

@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, State};
 
+use crate::assoc;
 use crate::config::{self, AppConfig};
 use crate::error::PrettyResult;
 use crate::export;
@@ -69,4 +70,11 @@ pub fn write_theme_file(path: String, contents: String) -> PrettyResult<()> {
 #[tauri::command]
 pub fn write_html_file(path: String, contents: String) -> PrettyResult<()> {
     export::write_html(&PathBuf::from(path), &contents)
+}
+
+/// The document this process was launched with, if the OS handed us one.
+/// Returns `None` for a normal launch.
+#[tauri::command]
+pub fn get_initial_document() -> Option<String> {
+    assoc::initial_document().map(|path| path.display().to_string())
 }

@@ -36,6 +36,7 @@ ammonia = "4"
 ignore = "0.4"
 notify = "8"
 tauri-plugin-os = "2.3.2"
+tauri-plugin-single-instance = "2.4.3"
 
 [profile.release]
 codegen-units = 1
