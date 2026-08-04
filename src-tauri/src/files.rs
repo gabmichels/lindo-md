@@ -192,8 +192,8 @@ fn build_tree(root: &Path, files: &[PathBuf]) -> Vec<TreeNode> {
 
     // Folders above files, each alphabetical — the order a reader expects from a
     // file tree, and stable across platforms whose walk order differs.
-    dirs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-    leaves.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    dirs.sort_by_key(|node| node.name.to_lowercase());
+    leaves.sort_by_key(|node| node.name.to_lowercase());
     dirs.extend(leaves);
     dirs
 }
