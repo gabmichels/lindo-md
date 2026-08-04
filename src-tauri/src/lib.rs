@@ -1,6 +1,7 @@
 mod assoc;
 mod commands;
 mod config;
+mod defaults;
 mod error;
 mod export;
 mod files;
@@ -49,6 +50,8 @@ pub fn run() {
             commands::write_theme_file,
             commands::write_html_file,
             commands::get_initial_document,
+            commands::get_default_app_status,
+            commands::request_default_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running lindo-md");

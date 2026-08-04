@@ -31,6 +31,12 @@ import { cn } from "@/lib/utils";
  * mutating it, so "Nord" is always still Nord to go back to. The panel writes
  * through to settings on every change — there is no Apply button, because the
  * document behind the drawer *is* the preview.
+ *
+ * Only visual settings belong here, and that is what earns the drawer its
+ * unusual shape: every control below changes something you can watch change.
+ * Behavior — file associations, startup, the file tree — lives in
+ * `SettingsDialog`, where a modal costs nothing because there is nothing to
+ * preview.
  */
 
 interface SettingsDrawerProps {
@@ -149,7 +155,7 @@ export function SettingsDrawer({
             document is rendered with.
           </Dialog.Description>
 
-          <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+          <div className="ui-scroller min-h-0 flex-1 overflow-y-auto pb-6">
             <Section title="Theme">
               <ThemeGallery
                 activeId={config.themeId}
@@ -309,23 +315,6 @@ export function SettingsDrawer({
                   onChange={(value) => editColor(key, value)}
                 />
               ))}
-            </Section>
-
-            <Section title="Reading">
-              <Row label="Block remote images">
-                <Switch
-                  label="Block remote images"
-                  checked={config.blockRemoteImages}
-                  onChange={(blockRemoteImages) => onUpdateConfig({ blockRemoteImages })}
-                />
-              </Row>
-              <Row label="Respect .gitignore">
-                <Switch
-                  label="Respect gitignore when scanning folders"
-                  checked={config.respectGitignore}
-                  onChange={(respectGitignore) => onUpdateConfig({ respectGitignore })}
-                />
-              </Row>
             </Section>
 
             <Section title="Theme file">

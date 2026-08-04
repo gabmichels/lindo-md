@@ -93,6 +93,11 @@ export function useTabs(): TabsState {
     if (!loaded || hydrated.current) return;
     hydrated.current = true;
 
+    // "Reopen last document" governs whether the previous session comes back;
+    // the session is still saved either way, so turning it on restores what was
+    // open rather than starting from nothing.
+    const restored = config.reopenLastDocument ? config.session : EMPTY_SESSION;
+
     // Anything already open when the config arrives was opened before the
     // restore could run — a document the OS handed us at launch, typically.
     // It is folded into the restored session rather than replaced by it: a
@@ -100,13 +105,13 @@ export function useTabs(): TabsState {
     const early = current.current.tabs;
     const next = early.reduce(
       (session, tab) => openTab(session, tab.path, { id: tab.id }),
-      config.session,
+      restored,
     );
 
     current.current = next;
     setSession(next);
     if (early.length > 0) update({ session: next });
-  }, [loaded, config.session, update]);
+  }, [loaded, config.session, config.reopenLastDocument, update]);
 
   const apply = useCallback(
     (change: (session: Session) => Session) => {

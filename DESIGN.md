@@ -91,6 +91,20 @@ headings at `-0.02em`. Modular scale **1.22** — tighter than the usual 1.25, b
 viewer shows h1–h4 on one screen more often than a web page does. Heading margins follow an optical
 rhythm (space above a heading always exceeds space below it), not a uniform multiple.
 
+## Two settings surfaces, on purpose
+
+The **appearance drawer** is non-modal, has no scrim, and writes through on every change, because
+the document behind it is the preview — a scrim would mean judging a theme through a grey filter,
+and an Apply button would mean judging it from memory.
+
+The **settings dialog** is an ordinary centred modal with tabs. Nothing in it has a preview: no one
+needs to watch a paragraph while deciding whether the rail shows dotfiles.
+
+That is the whole rule. A visual setting belongs in the drawer; anything else belongs in the dialog.
+Merging them would give half the controls a shape that only the other half earns.
+
+`Ctrl / ⌘ + ,` opens the dialog — the conventional meaning — and `Ctrl / ⌘ + Shift + ,` the drawer.
+
 ## Geometry and motion
 
 - 4px base grid. Rail 264px, resizable 200–420, collapses to 52px. Row height 30px, rail padding 10px.

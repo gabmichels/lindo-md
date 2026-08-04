@@ -26,7 +26,7 @@ interface ToolbarProps {
   onBack: () => void;
   onForward: () => void;
   onFind: () => void;
-  onSettings: () => void;
+  onAppearance: () => void;
 }
 
 export function Toolbar({
@@ -37,7 +37,7 @@ export function Toolbar({
   onBack,
   onForward,
   onFind,
-  onSettings,
+  onAppearance,
 }: ToolbarProps) {
   return (
     <div className="flex h-[var(--ui-toolbar-h)] shrink-0 items-center gap-1 px-2">
@@ -58,9 +58,9 @@ export function Toolbar({
 
       <NavButton label="Find in document" icon={Search} onClick={onFind} />
       <NavButton
-        label="Appearance settings"
+        label="Appearance"
         icon={SlidersHorizontal}
-        onClick={onSettings}
+        onClick={onAppearance}
       />
     </div>
   );

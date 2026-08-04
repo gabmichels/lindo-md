@@ -78,10 +78,12 @@ export function openDocument(path: string): Promise<Document> {
 export function scanFolder(
   path: string,
   respectGitignore: boolean,
+  showHidden: boolean,
 ): Promise<TreeNode[]> {
   return call("scan_folder", z.array(TreeNodeSchema), {
     path,
     respectGitignore,
+    showHidden,
   });
 }
 
@@ -114,6 +116,10 @@ export const AppConfigSchema = z.object({
   lastFolder: z.string().nullish().transform((v) => v ?? null),
   blockRemoteImages: z.boolean(),
   respectGitignore: z.boolean(),
+  showHiddenFiles: z.boolean(),
+  reopenLastDocument: z.boolean(),
+  zoom: z.number(),
+  smartPunctuation: z.boolean(),
   session: StoredSessionSchema,
 });
 export type AppConfig = z.infer<typeof AppConfigSchema>;
@@ -148,6 +154,28 @@ export function writeThemeFile(path: string, contents: string): Promise<void> {
 
 export function writeHtmlFile(path: string, contents: string): Promise<void> {
   return call("write_html_file", z.void(), { path, contents });
+}
+
+// --- system integration -----------------------------------------------------
+
+export const DefaultAppStatusSchema = z.object({
+  /** False where lindo-md cannot inspect or request the association — anywhere
+   *  but Windows today. The settings row hides itself rather than offering a
+   *  control that cannot work. */
+  supported: z.boolean(),
+  isDefault: z.boolean(),
+  currentHandler: z.string().nullish().transform((v) => v ?? null),
+});
+export type DefaultAppStatus = z.infer<typeof DefaultAppStatusSchema>;
+
+export function getDefaultAppStatus(): Promise<DefaultAppStatus> {
+  return call("get_default_app_status", DefaultAppStatusSchema);
+}
+
+/** Opens the OS settings page for the association. It cannot be changed from
+ *  inside the app — Windows blocks that by design. */
+export function requestDefaultApp(): Promise<void> {
+  return call("request_default_app", z.void());
 }
 
 // --- events -----------------------------------------------------------------

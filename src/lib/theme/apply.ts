@@ -76,11 +76,20 @@ function round(value: number): number {
  * Writes the theme onto an element — the document canvas root, or a preview card
  * in the settings drawer, which is why the target is a parameter rather than
  * always `document.documentElement`.
+ *
+ * `zoom` scales the type here rather than in `docTokens`, and that placement is
+ * the point: it is the reader's view setting, not part of the theme. Exported
+ * HTML goes through `docTokens` alone, so a document exported while zoomed in
+ * still carries the theme's own size.
  */
-export function applyTheme(theme: Theme, target: HTMLElement): void {
+export function applyTheme(theme: Theme, target: HTMLElement, zoom = 1): void {
   for (const [property, value] of Object.entries(docTokens(theme))) {
     target.style.setProperty(property, value);
   }
+  target.style.setProperty(
+    "--doc-size",
+    `${round(theme.typography.baseSize * zoom)}px`,
+  );
   // Read by the code-block renderer for line numbers, and by `color-scheme` so
   // native form controls and scrollbars inside the document match the paper.
   target.dataset.appearance = theme.appearance;

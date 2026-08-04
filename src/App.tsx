@@ -7,6 +7,7 @@ import { DocumentDeck } from "@/components/DocumentDeck";
 import { EmptyState } from "@/components/EmptyState";
 import { FindBar } from "@/components/FindBar";
 import { Rail } from "@/components/Rail";
+import { SettingsDialog } from "@/components/SettingsDialog";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { TabGroupDialog } from "@/components/TabGroupDialog";
 import { TabStrip } from "@/components/TabStrip";
@@ -25,6 +26,7 @@ import {
   writeHtmlFile,
 } from "@/lib/ipc";
 import { buildStandaloneHtml } from "@/lib/export/html";
+import { stepZoom } from "@/lib/zoom";
 import documentCss from "@/document.css?inline";
 import { basename, dirname } from "@/lib/utils";
 
@@ -41,6 +43,7 @@ function Shell() {
 
   const [canvas, setCanvas] = useState<HTMLElement | null>(null);
   const [scroller, setScroller] = useState<HTMLElement | null>(null);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -54,8 +57,13 @@ function Shell() {
     config.appearance,
     config.customThemes,
     canvas,
+    config.zoom,
   );
-  const { tree } = useFileTree(folder, config.respectGitignore);
+  const { tree } = useFileTree(
+    folder,
+    config.respectGitignore,
+    config.showHiddenFiles,
+  );
 
   const tabs = useTabs();
   const { session } = tabs;
@@ -129,6 +137,10 @@ function Shell() {
   useEffect(() => {
     if (!loaded || openedInitial.current) return;
     openedInitial.current = true;
+
+    // "Reopen last document" is now the tab session coming back, restored in
+    // `useTabs`; all that is left here is the file the OS handed us, which
+    // always wins because the reader asked for that one by name.
     getInitialDocument().then(
       (path) => {
         if (path) openFromOs(path);
@@ -224,6 +236,14 @@ function Shell() {
     [active, runtime, docs, tabs],
   );
 
+  // Computed from the current value at apply time, not from this render's — a
+  // held Ctrl+`+` fires faster than React re-renders.
+  const zoomBy = useCallback(
+    (delta: number) =>
+      update((current) => ({ zoom: stepZoom(current.zoom, delta) })),
+    [update],
+  );
+
   useKeyboardShortcuts({
     scroller,
     onFind: () => setFindOpen(true),
@@ -231,6 +251,10 @@ function Shell() {
     onOpenFile: () => void openFile(),
     onOpenFolder: () => void openFolder(),
     onSettings: () => setSettingsOpen((open) => !open),
+    onAppearance: () => setAppearanceOpen((open) => !open),
+    onZoomIn: () => zoomBy(0.1),
+    onZoomOut: () => zoomBy(-0.1),
+    onZoomReset: () => update({ zoom: 1 }),
     onPrint: () => window.print(),
     onExport: () => void exportHtml(),
     onBack: () => step(-1),
@@ -280,6 +304,7 @@ function Shell() {
         activeHeadingId={outline.activeId}
         progress={outline.progress}
         onJumpTo={jumpTo}
+        onOpenAppearance={() => setAppearanceOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         onExport={() => void exportHtml()}
         onOpenAbout={() => setAboutOpen(true)}
@@ -338,7 +363,7 @@ function Shell() {
           onBack={() => step(-1)}
           onForward={() => step(1)}
           onFind={() => setFindOpen(true)}
-          onSettings={() => setSettingsOpen(true)}
+          onAppearance={() => setAppearanceOpen(true)}
         />
 
         {findOpen && (
@@ -395,9 +420,25 @@ function Shell() {
 
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
 
-      <SettingsDrawer
+      <SettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
+        config={config}
+        onUpdateConfig={update}
+        onOpenAppearance={() => setAppearanceOpen(true)}
+      />
+
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        config={config}
+        onUpdateConfig={update}
+        onOpenAppearance={() => setAppearanceOpen(true)}
+      />
+
+      <SettingsDrawer
+        open={appearanceOpen}
+        onOpenChange={setAppearanceOpen}
         config={config}
         theme={theme}
         onUpdateConfig={update}
@@ -431,8 +472,12 @@ function useKeyboardShortcuts(handlers: {
   onOpenFile: () => void;
   onOpenFolder: () => void;
   onSettings: () => void;
+  onAppearance: () => void;
   onPrint: () => void;
   onExport: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onZoomReset: () => void;
   onBack: () => void;
   onForward: () => void;
   onNewTab: () => void;
@@ -480,6 +525,7 @@ function useKeyboardShortcuts(handlers: {
       }
 
       // Ctrl+1..8 select that tab, Ctrl+9 the last one, as in every browser.
+      // Ctrl+0 is zoom reset and falls through to the switch below.
       if (/^[1-9]$/.test(event.key)) {
         event.preventDefault();
         handlers.onSelectTab(event.key === "9" ? "last" : Number(event.key) - 1);
@@ -496,9 +542,57 @@ function useKeyboardShortcuts(handlers: {
           if (event.shiftKey) handlers.onOpenFolder();
           else handlers.onOpenFile();
           break;
+        // Shift does not just set `shiftKey` for punctuation — it changes the
+        // character, so `Ctrl+Shift+,` arrives as `<` on a US layout and testing
+        // `shiftKey` alone would never match.
+        // Shift does not just set `shiftKey` for punctuation — it changes the
+        // character, so `Ctrl+Shift+,` arrives as `<` on a US layout and testing
+        // `shiftKey` alone would never match.
         case ",":
           event.preventDefault();
           handlers.onSettings();
+          break;
+        case "<":
+          event.preventDefault();
+          handlers.onAppearance();
+          break;
+        // Both the unshifted and shifted spellings of the zoom keys: on a US
+        // layout Ctrl and `+` means Ctrl+Shift+`=`, and reporting differs
+        // between layouts and browsers.
+        case "=":
+        case "+":
+          event.preventDefault();
+          handlers.onZoomIn();
+          break;
+        case "-":
+        case "_":
+          event.preventDefault();
+          handlers.onZoomOut();
+          break;
+        case "<":
+          event.preventDefault();
+          handlers.onAppearance();
+          break;
+        // Both the unshifted and shifted spellings of the zoom keys: on a US
+        // layout Ctrl and `+` means Ctrl+Shift+`=`, and reporting differs
+        // between layouts and browsers.
+        case "=":
+        case "+":
+          event.preventDefault();
+          handlers.onZoomIn();
+          break;
+        case "-":
+        case "_":
+          event.preventDefault();
+          handlers.onZoomOut();
+          break;
+        case "0":
+          event.preventDefault();
+          handlers.onZoomReset();
+          break;
+        case "0":
+          event.preventDefault();
+          handlers.onZoomReset();
           break;
         case "p":
           event.preventDefault();

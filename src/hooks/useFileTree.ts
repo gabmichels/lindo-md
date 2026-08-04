@@ -3,7 +3,11 @@ import { useCallback, useEffect, useState } from "react";
 import { onTreeChanged, scanFolder, type TreeNode } from "@/lib/ipc";
 
 /** Scans the open folder and re-scans when files appear or disappear. */
-export function useFileTree(folder: string | null, respectGitignore: boolean) {
+export function useFileTree(
+  folder: string | null,
+  respectGitignore: boolean,
+  showHidden: boolean,
+) {
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -15,7 +19,7 @@ export function useFileTree(folder: string | null, respectGitignore: boolean) {
       return;
     }
     setLoading(true);
-    scanFolder(folder, respectGitignore)
+    scanFolder(folder, respectGitignore, showHidden)
       .then((next) => {
         setTree(next);
         setError(null);
@@ -24,7 +28,7 @@ export function useFileTree(folder: string | null, respectGitignore: boolean) {
         setError(e instanceof Error ? e.message : String(e)),
       )
       .finally(() => setLoading(false));
-  }, [folder, respectGitignore]);
+  }, [folder, respectGitignore, showHidden]);
 
   useEffect(rescan, [rescan]);
 

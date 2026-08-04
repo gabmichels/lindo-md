@@ -38,6 +38,11 @@ notify = "8"
 tauri-plugin-os = "2.3.2"
 tauri-plugin-single-instance = "2.4.3"
 
+# Reading which application owns `.md`. Writing it is not possible — see
+# `src/defaults.rs` — so this is a read-only dependency on the registry.
+[target.'cfg(windows)'.dependencies]
+windows-registry = "0.5"
+
 [profile.release]
 codegen-units = 1
 lto = true
