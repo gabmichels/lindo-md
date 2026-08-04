@@ -10,6 +10,12 @@ const REPOSITORY = "https://github.com/gabmichels/lindo-md";
 const SHORTCUTS: Array<[string, string]> = [
   ["Ctrl / ⌘ + O", "Open a file"],
   ["Ctrl / ⌘ + Shift + O", "Open a folder"],
+  ["Ctrl / ⌘ + T", "Open a file in a new tab"],
+  ["Ctrl / ⌘ + W", "Close the tab"],
+  ["Ctrl / ⌘ + Shift + T", "Reopen the last closed tab"],
+  ["Ctrl / ⌘ + Tab", "Next tab"],
+  ["Ctrl / ⌘ + 1…9", "Select a tab"],
+  ["Ctrl / ⌘ + Shift + PgUp/PgDn", "Move the tab"],
   ["Ctrl / ⌘ + F", "Find in document"],
   ["Ctrl / ⌘ + ,", "Appearance settings"],
   ["Ctrl / ⌘ + E", "Export as HTML"],

@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { getConfig, setConfig, type AppConfig } from "@/lib/ipc";
+import { EMPTY_SESSION } from "@/lib/tabs/model";
 
 /**
  * Loads settings once at startup and holds them for the session.
@@ -39,6 +40,7 @@ const FALLBACK: AppConfig = {
   lastFolder: null,
   blockRemoteImages: true,
   respectGitignore: true,
+  session: EMPTY_SESSION,
 };
 
 const WRITE_DEBOUNCE_MS = 250;

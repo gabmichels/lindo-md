@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Rail } from "@/components/Rail";
+import { TabStrip } from "@/components/TabStrip";
+import {
+  activateTab,
+  closeTab,
+  moveGroup,
+  moveTab,
+  normalize,
+  setGroupCollapsed,
+  type Session,
+} from "@/lib/tabs/model";
 import { applyTheme } from "@/lib/theme/apply";
 import { PRESETS } from "@/lib/theme/presets";
 import type { Appearance } from "@/lib/theme/schema";
@@ -63,6 +73,7 @@ export default function Specimen() {
         onPickFolder={() => undefined}
         tree={TREE}
         activePath="/docs/guides/theming.md"
+        openPaths={new Set(["/docs/README.md", "/docs/guides/theming.md"])}
         onOpen={() => undefined}
         toc={TOC}
         activeHeadingId="installing"
@@ -71,7 +82,6 @@ export default function Specimen() {
         onOpenSettings={() => undefined}
         onExport={() => undefined}
         onOpenAbout={() => undefined}
-        insetTop={false}
       />
 
       <main className="canvas-edge min-w-0 flex-1 overflow-y-auto bg-ui-sunken p-6">
@@ -101,6 +111,8 @@ export default function Specimen() {
           </div>
         </header>
 
+        <TabStripStates />
+
         <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(340px,1fr))]">
           {PRESETS.map((preset) => (
             <PaperCard
@@ -115,6 +127,137 @@ export default function Specimen() {
     </div>
   );
 }
+
+/**
+ * Every state the tab strip can be in, at the widths that change its behaviour.
+ *
+ * The point is the squeeze: the same component at 1200px and at 520px has to
+ * stay legible, keep a drag region, and hand over to the overflow menu at the
+ * floor rather than shrinking into nothing.
+ */
+function TabStripStates() {
+  const [sessions, setSessions] = useState(() => SPECIMEN_SESSIONS);
+
+  /** Applies a change to one row's session and leaves the others alone. */
+  const edit = (index: number, change: (session: Session) => Session) =>
+    setSessions((current) =>
+      current.map((entry, position) =>
+        position === index ? { ...entry, session: change(entry.session) } : entry,
+      ),
+    );
+
+  return (
+    <section className="mb-8">
+      <p className="rail-label mb-2">Tab strip</p>
+      <div className="flex flex-col gap-3">
+        {sessions.map((entry, index) => (
+          <div key={entry.label}>
+            <p className="mb-1 text-[11px] text-ui-text-faint">
+              {entry.label} · {entry.width}px
+            </p>
+            <div
+              className="flex h-[var(--ui-titlebar-h)] items-stretch overflow-hidden rounded-ui-md bg-ui-base"
+              style={{ width: entry.width }}
+            >
+              <TabStrip
+                session={entry.session}
+                onActivate={(id) => edit(index, (s) => activateTab(s, id))}
+                onClose={(id) => edit(index, (s) => closeTab(s, id))}
+                onNewTab={() => undefined}
+                onToggleGroup={(groupId) =>
+                  edit(index, (s) => {
+                    const group = s.groups.find((g) => g.id === groupId);
+                    return group
+                      ? setGroupCollapsed(s, groupId, !group.collapsed)
+                      : s;
+                  })
+                }
+                onReorder={(id, seam, intent) =>
+                  edit(index, (s) => moveTab(s, id, seam, intent))
+                }
+                onReorderGroup={(groupId, seam) =>
+                  edit(index, (s) => moveGroup(s, groupId, seam))
+                }
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function tabSession(
+  names: string[],
+  options: { group?: [number, number]; collapsed?: boolean; preview?: string } = {},
+): Session {
+  const [from, to] = options.group ?? [-1, -1];
+
+  return normalize({
+    tabs: names.map((name, index) => ({
+      id: name,
+      path: `/docs/${name}.md`,
+      groupId: index >= from && index <= to ? "g" : null,
+      preview: name === options.preview,
+      openerId: null,
+    })),
+    groups:
+      from < 0
+        ? []
+        : [
+            {
+              id: "g",
+              name: "Specs",
+              color: "teal" as const,
+              collapsed: options.collapsed ?? false,
+            },
+          ],
+    activeTabId: names[0] ?? null,
+  });
+}
+
+const SPECIMEN_SESSIONS = [
+  { label: "One tab", width: 1200, session: tabSession(["README"]) },
+  {
+    label: "A few, capped at their maximum",
+    width: 1200,
+    session: tabSession(["README", "CHANGELOG", "theming", "shortcuts"]),
+  },
+  {
+    label: "Preview tab, italic — replaced by the next single click",
+    width: 1200,
+    session: tabSession(["README", "theming"], { preview: "theming" }),
+  },
+  {
+    label: "A group, expanded",
+    width: 1200,
+    session: tabSession(["inbox", "api", "db", "todo"], { group: [1, 2] }),
+  },
+  {
+    label: "The same group, collapsed to its pill",
+    width: 1200,
+    session: tabSession(["inbox", "api", "db", "todo"], {
+      group: [1, 2],
+      collapsed: true,
+    }),
+  },
+  {
+    label: "Squeezed",
+    width: 760,
+    session: tabSession([
+      "README", "CHANGELOG", "theming", "shortcuts", "install",
+      "faq", "api", "db", "roadmap",
+    ]),
+  },
+  {
+    label: "At the floor — the strip scrolls and the overflow menu appears",
+    width: 520,
+    session: tabSession([
+      "README", "CHANGELOG", "theming", "shortcuts", "install",
+      "faq", "api", "db", "roadmap", "changelog-2", "notes", "scratch",
+    ]),
+  },
+];
 
 /** A theme applied to a real element, so what is on screen is what `applyTheme`
  *  produces rather than an approximation of it. */

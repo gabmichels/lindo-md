@@ -23,6 +23,12 @@ interface DocumentViewProps {
   onAnchorConsumed: () => void;
   onOpenDocument: (path: string, fragment: string) => void;
   onScrollerReady: (element: HTMLElement | null) => void;
+  /** False for a background tab: still mounted, so its highlighted code and
+   *  rendered diagrams survive, but not drawn. */
+  visible?: boolean;
+  /** Where this tab was scrolled to when it was last on screen. */
+  restoreScrollTop?: number;
+  onScrollChange?: (scrollTop: number) => void;
 }
 
 export function DocumentView({
@@ -33,15 +39,19 @@ export function DocumentView({
   onAnchorConsumed,
   onOpenDocument,
   onScrollerReady,
+  visible = true,
+  restoreScrollTop = 0,
+  onScrollChange,
 }: DocumentViewProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
+    if (!visible) return;
     onScrollerReady(scrollerRef.current);
     return () => onScrollerReady(null);
-  }, [onScrollerReady]);
+  }, [onScrollerReady, visible]);
 
   // Layout effect, not effect: the HTML has to be in place before the browser
   // paints, or every document open flashes empty first.
@@ -51,6 +61,40 @@ export function DocumentView({
     article.innerHTML = doc.html;
     scrollerRef.current?.scrollTo({ top: 0 });
   }, [doc.path, doc.html]);
+
+  // Hiding a tab with `display: none` destroys its layout box and with it the
+  // scroll offset, so coming back has to put it there again. Deliberately keyed
+  // on `visible` alone: a genuine load resets to the top in the effect above,
+  // and this must not undo that.
+  const restore = useRef(restoreScrollTop);
+  restore.current = restoreScrollTop;
+  useLayoutEffect(() => {
+    if (!visible) return;
+    scrollerRef.current?.scrollTo({ top: restore.current });
+  }, [visible]);
+
+  // Reported continuously rather than captured on the way out: by the time an
+  // effect cleanup runs, `display: none` has already been applied and the
+  // offset is gone.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller || !onScrollChange) return;
+
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        onScrollChange(scroller.scrollTop);
+      });
+    };
+
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      scroller.removeEventListener("scroll", onScroll);
+    };
+  }, [onScrollChange]);
 
   // Re-runs on a theme change too: syntax highlighting and Mermaid both bake the
   // palette in, so they have to be redone when it changes.
@@ -102,6 +146,12 @@ export function DocumentView({
     <div
       ref={scrollerRef}
       className="doc-scroller"
+      // `display: none` rather than unmounting: the enhancement passes mark the
+      // code blocks and diagrams they have already done, and those markers live
+      // on the DOM nodes. Keep the nodes and re-showing a tab is free; throw
+      // them away and every switch re-highlights and re-renders from scratch.
+      style={visible ? undefined : { display: "none" }}
+      aria-hidden={visible ? undefined : true}
       // Tabbable, so a keyboard user can reach the document and scroll it with
       // Page Up/Down. Not auto-focused: the focus ring would then be painted
       // around the page permanently, on every document, for everyone.

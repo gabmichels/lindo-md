@@ -47,8 +47,29 @@ Text runs `--ui-text` → `--ui-text-muted` → `--ui-text-faint`; anything that
 ### Ember
 
 One chrome accent: `oklch(0.74 0.15 62)`, a warm amber-ochre. It marks the active file, focus rings,
-and the reading-progress hairline — nothing else. It is warm on purpose, so it never reads as
-"part of" a document theme, and it is not the blue-violet every desktop app defaults to.
+and the reading-progress hairline — nothing else. It
+is warm on purpose, so it never reads as "part of" a document theme, and it is not the blue-violet
+every desktop app defaults to.
+
+### Tab-group colours
+
+The one other colour family in the chrome, and a deliberate exception to the rule above. Eight hues,
+`--ui-group-clay` through `--ui-group-rose`, every one pinned to the same lightness and chroma:
+
+```
+oklch(0.62 0.09 H)   H ∈ 15, 75, 140, 195, 240, 280, 320, 355
+```
+
+They are an exception because they are **user data, not brand**: the reader picks them to tell their
+own groups apart, so the app cannot be the one choosing. The constraints that keep them honest:
+
+- Fixed `0.62 / 0.09` — below Ember's `0.74 / 0.15` in both. No group colour can out-shout the
+  active-file marker, whatever the reader picks.
+- They may tint exactly two things: a group's pill, and the band drawn behind that group's run of
+  tabs. Never a tab body, never text, never an icon.
+- Membership is legible without them — the band's shape says which tabs belong together, so the
+  colour is a label, not the signal. It has to survive being invisible to a reader who cannot
+  distinguish two of the hues.
 
 ### The paper
 
@@ -73,6 +94,9 @@ rhythm (space above a heading always exceeds space below it), not a uniform mult
 ## Geometry and motion
 
 - 4px base grid. Rail 264px, resizable 200–420, collapses to 52px. Row height 30px, rail padding 10px.
+- Chrome is two rows: a 38px titlebar holding the tabs and the window controls, and a 34px toolbar
+  under it. Tabs are 28px tall, 76–208px wide, and share the strip evenly — widening as tabs close,
+  squeezing as they open, then scrolling once they hit the floor.
 - Radius scale **4 / 7 / 11**. Rail items are 7. Chosen, not inherited.
 - Icons: lucide at 15px, 1.5 stroke, optically centered in a 20px box.
 - Motion: 140ms `cubic-bezier(.2,.7,.2,1)` for state, 220ms for panels. Nothing animates position and
@@ -85,9 +109,19 @@ rhythm (space above a heading always exceeds space below it), not a uniform mult
 3. Focus is always an Ember ring, never a browser outline, and never removed.
 4. Every icon-only control carries an `aria-label`.
 5. Document styles are scoped under `.doc` and are the only place `--doc-*` may be read.
+6. The window must always have somewhere to be dragged by. The tab strip reserves 56px of
+   `drag-region` at its end whatever happens, and the rail reserves the whole titlebar band — on a
+   frameless window a full strip with no drag region is a window that cannot be moved.
+7. Gaps between two `no-drag` elements in the titlebar are drawn as padding, never as margin. A
+   margin leaves a live drag sliver, and a click landing in it moves the window.
 
 ## Keeping it honest
 
 `src/Specimen.tsx` (open the app with `?specimen`) renders every chrome state — rail, tree, outline,
-settings drawer, find bar, dialogs, empty state, all window-control states — beside the kitchen-sink
-document. Review it at 1024 / 1440 / 1920 in both appearances before calling any visual work done.
+tab strip, settings drawer, find bar, dialogs, empty state, all window-control states — beside the
+kitchen-sink document. Review it at 1024 / 1440 / 1920 in both appearances before calling any visual
+work done.
+
+The tab strips in the specimen are live: they reorder, group and collapse, so the squeeze and the
+drag can be judged by using them rather than by looking at a still. They are also the only place the
+strip can be driven outside a Tauri host, which is why `TabStrip` contains no Tauri call.

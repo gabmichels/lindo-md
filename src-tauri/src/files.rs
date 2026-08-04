@@ -205,14 +205,18 @@ pub struct WatchState {
     watcher: Mutex<Option<notify::RecommendedWatcher>>,
 }
 
-/// Watches the open document and, optionally, the open folder. Emits:
+/// Watches every open document and, optionally, the open folder. Emits:
 ///
-/// - `document-changed` with the path, when the open file's contents change
+/// - `document-changed` with the path, when an open file's contents change
 /// - `tree-changed`, when Markdown files appear or disappear in the folder
+///
+/// Takes the whole set of open documents rather than one: with tabs, a file
+/// edited outside the app has to live-reload whether or not its tab happens to
+/// be the visible one.
 pub fn watch(
     app: &AppHandle,
     state: &WatchState,
-    document: Option<PathBuf>,
+    documents: Vec<PathBuf>,
     folder: Option<PathBuf>,
 ) -> LindoResult<()> {
     let (tx, rx) = mpsc::channel();
@@ -225,21 +229,32 @@ pub fn watch(
     })
     .map_err(|e| LindoError::msg(format!("Could not start watching for changes: {e}")))?;
 
-    // The file itself is watched through its parent directory: editors that save
-    // by rename replace the inode, and a watch on the old one goes deaf.
-    if let Some(parent) = document.as_deref().and_then(Path::parent) {
-        watcher
-            .watch(parent, RecursiveMode::NonRecursive)
-            .map_err(|e| LindoError::msg(format!("Could not watch {}: {e}", parent.display())))?;
-    }
     if let Some(folder) = &folder {
         watcher
             .watch(folder, RecursiveMode::Recursive)
             .map_err(|e| LindoError::msg(format!("Could not watch {}: {e}", folder.display())))?;
     }
 
+    // Each file is watched through its parent directory: editors that save by
+    // rename replace the inode, and a watch on the old one goes deaf. Parents
+    // already inside the recursive folder watch are skipped, and so are repeats
+    // — ten tabs on one folder must not mean ten watches on it.
+    let mut watched: Vec<PathBuf> = Vec::new();
+    for parent in documents.iter().filter_map(|path| path.parent()) {
+        let covered = folder
+            .as_deref()
+            .is_some_and(|folder| parent.starts_with(folder));
+        if covered || watched.iter().any(|seen| seen == parent) {
+            continue;
+        }
+        watched.push(parent.to_path_buf());
+        watcher
+            .watch(parent, RecursiveMode::NonRecursive)
+            .map_err(|e| LindoError::msg(format!("Could not watch {}: {e}", parent.display())))?;
+    }
+
     let handle = app.clone();
-    std::thread::spawn(move || debounce_loop(handle, rx, document));
+    std::thread::spawn(move || debounce_loop(handle, rx, documents));
 
     // Dropping the previous watcher here also ends its receiver thread, because
     // the channel sender it held goes with it.
@@ -255,7 +270,7 @@ pub fn watch(
 fn debounce_loop(
     app: AppHandle,
     rx: mpsc::Receiver<notify::Event>,
-    document: Option<PathBuf>,
+    documents: Vec<PathBuf>,
 ) -> Option<()> {
     loop {
         // Block until something happens, then drain whatever else arrives inside
@@ -269,11 +284,9 @@ fn debounce_loop(
             }
         }
 
-        let (document_changed, tree_changed) = classify(&batch, document.as_deref());
-        if document_changed {
-            if let Some(path) = &document {
-                let _ = app.emit("document-changed", path.display().to_string());
-            }
+        let (changed, tree_changed) = classify(&batch, &documents);
+        for path in changed {
+            let _ = app.emit("document-changed", path.display().to_string());
         }
         if tree_changed {
             let _ = app.emit("tree-changed", ());
@@ -281,26 +294,38 @@ fn debounce_loop(
     }
 }
 
-/// Splits a batch of events into "the open document changed" and "the set of
+/// Splits a batch of events into "these open documents changed" and "the set of
 /// documents changed". Split out from the loop so it can be tested without a
 /// filesystem or a running app.
-fn classify(events: &[notify::Event], document: Option<&Path>) -> (bool, bool) {
-    let mut document_changed = false;
+///
+/// Each changed document appears once however many events named it, so a save
+/// burst across several open files produces one reload each.
+fn classify(events: &[notify::Event], documents: &[PathBuf]) -> (Vec<PathBuf>, bool) {
+    let mut changed: Vec<PathBuf> = Vec::new();
     let mut tree_changed = false;
 
     for event in events {
         for path in &event.paths {
-            if Some(path.as_path()) == document {
-                document_changed = true;
-            } else if is_markdown(path) || path.extension().is_none() {
+            match documents
+                .iter()
+                .find(|open| open.as_path() == path.as_path())
+            {
+                Some(open) => {
+                    if !changed.contains(open) {
+                        changed.push(open.clone());
+                    }
+                }
                 // A path with no extension is most likely a directory being added
                 // or removed; either way the tree needs a refresh.
-                tree_changed = true;
+                None if is_markdown(path) || path.extension().is_none() => {
+                    tree_changed = true;
+                }
+                None => {}
             }
         }
     }
 
-    (document_changed, tree_changed)
+    (changed, tree_changed)
 }
 
 #[cfg(test)]
@@ -356,34 +381,49 @@ mod tests {
         }
     }
 
+    fn open(paths: &[&str]) -> Vec<PathBuf> {
+        paths.iter().map(PathBuf::from).collect()
+    }
+
     #[test]
     fn classify_reports_the_open_document_separately_from_the_tree() {
-        let open = PathBuf::from("/r/open.md");
+        let documents = open(&["/r/open.md"]);
 
-        let (doc, tree) = classify(&[event(&["/r/open.md"])], Some(&open));
-        assert!(doc && !tree, "editing the open file is a document change");
+        let (docs, tree) = classify(&[event(&["/r/open.md"])], &documents);
+        assert!(!docs.is_empty() && !tree, "editing an open file reloads it");
 
-        let (doc, tree) = classify(&[event(&["/r/other.md"])], Some(&open));
-        assert!(!doc && tree, "another markdown file is a tree change");
+        let (docs, tree) = classify(&[event(&["/r/other.md"])], &documents);
+        assert!(
+            docs.is_empty() && tree,
+            "another markdown file is a tree change"
+        );
+    }
+
+    #[test]
+    fn classify_reports_every_open_tab_that_changed() {
+        // A background tab must live-reload too, which is the whole reason the
+        // watch set is a list rather than one path.
+        let documents = open(&["/r/a.md", "/r/b.md", "/r/c.md"]);
+        let (docs, tree) = classify(&[event(&["/r/a.md", "/r/c.md"])], &documents);
+        assert_eq!(docs, open(&["/r/a.md", "/r/c.md"]));
+        assert!(!tree);
     }
 
     #[test]
     fn classify_ignores_unrelated_files() {
-        let open = PathBuf::from("/r/open.md");
-        let (doc, tree) = classify(&[event(&["/r/notes.txt"])], Some(&open));
-        assert!(!doc && !tree);
+        let (docs, tree) = classify(&[event(&["/r/notes.txt"])], &open(&["/r/open.md"]));
+        assert!(docs.is_empty() && !tree);
     }
 
     #[test]
     fn classify_coalesces_a_save_burst_into_one_document_change() {
-        let open = PathBuf::from("/r/open.md");
+        let documents = open(&["/r/open.md"]);
         let burst = vec![
             event(&["/r/open.md"]),
             event(&["/r/open.md"]),
             event(&["/r/open.md"]),
         ];
-        // The point is the pair, not a count: the caller emits at most once per
-        // kind per batch.
-        assert_eq!(classify(&burst, Some(&open)), (true, false));
+        // One reload per file per batch, however noisy the editor's save was.
+        assert_eq!(classify(&burst, &documents), (open(&["/r/open.md"]), false));
     }
 }

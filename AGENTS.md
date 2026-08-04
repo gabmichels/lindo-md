@@ -55,6 +55,8 @@ src/
   hooks/         one concern each, colocated tests
   lib/
     ipc.ts       the ONLY place `invoke` is called; every response zod-parsed
+    tabs/        the tab session: model.ts (order + groups), layout.ts (widths),
+                 drag.ts (the gesture), schema.ts (what gets persisted)
     render/      post-render enhancement passes (shiki, mermaid, katex, links, images)
     theme/       Theme schema, presets, applyTheme, import/export
     export/      standalone HTML + print
@@ -86,8 +88,10 @@ are called with `camelCase` keys.
 - **Tokens only.** No color literal in a component. No hardcoded radius — use `--ui-r-sm|md|lg`.
 - **`aria-label` on every icon-only control.** The rail is almost all icon-only controls.
 - **New setting?** It has to land in four places: the Rust struct in `config.rs`, the zod schema and
-  TS type in `src/lib/ipc.ts` / `src/lib/types.ts`, and the settings UI. Themes are the deliberate
-  exception — Rust stores them as opaque JSON so the schema lives in one place, the frontend.
+  TS type in `src/lib/ipc.ts` / `src/lib/types.ts`, and the settings UI. Themes and the tab session
+  are the deliberate exceptions — Rust stores both as opaque JSON so each schema lives in one place,
+  the frontend. Reach for that exception only when the same three things hold as for themes: the
+  shape is nested, the frontend already validates it, and Rust never reads inside it.
 - **Tests are part of the change, not a follow-up.** Every new pure function gets a unit test; every
   new Markdown construct gets a case in `test/fixtures/kitchen-sink.md` and a Rust snapshot test;
   every sanitizer-relevant change gets a test proving the hostile input is neutralized.
@@ -101,6 +105,42 @@ git-wt switch --create feat/my-change
 # ... work, `git-wt dev` for the dev server ...
 git-wt merge
 ```
+
+## Tabs
+
+The reader keeps a set of documents open, in Chrome-style groups. Almost all of it is pure code in
+`src/lib/tabs/`, which is where the tests are and where a change should start:
+
+- **`model.ts`** owns the order. Its one hard invariant is that a group's tabs are a *contiguous*
+  run, held by writing every mutator as remove-then-insert with a clamped seam — remove first and
+  the run closes before any insertion maths happens, so a group with a hole in it is never
+  representable. `normalize()` is the single repair point and is idempotent; it runs after every
+  mutator and on load, which is the case that matters, since `config.json` is a file a user can
+  edit. A file is never open in two tabs.
+- **`layout.ts`** computes widths, because the drag maths needs exact geometry and an animated
+  `width` gives the squeeze for free. Widths are integers with an explicit remainder pass — round
+  each tab on its own and the total drifts, and the stray pixel lands on a different tab every time
+  the `ResizeObserver` fires.
+- **`drag.ts`** is the gesture as a pure reducer, so the state machine is testable without a DOM.
+  Dragging only ever *reorders* — see below. Drop targeting compares against where the other tabs
+  have already **slid to**, not their frozen positions: use the frozen ones and a swap needs a full
+  tab-width of travel instead of half, and the tab visibly lags the pointer.
+
+**Groups are made from the menu, not by dragging one tab onto another.** This was tried and
+removed, so it is worth knowing why before trying again: lifting a tab lets its right-hand
+neighbour slide into the slot just vacated, so *hovering the tab to my right* and *having not moved
+at all* are the same pointer position. An overlap gesture cannot be told apart from an ordinary
+drag; a travel guard that suppressed the false positives also made deliberate rightward grouping
+unreachable, while leftward still worked — which is exactly the kind of bug that passes a test and
+fails a person. Chrome has no tab-onto-tab grouping for the same reason. Dragging a tab *into* an
+existing group's run does still join it, and that is ordinary reordering with a `join` intent.
+- **`useTabs`** holds the session and persists it; **`useTabDocuments`** holds one document,
+  history and scroll offset per tab. Tabs hydrate lazily — a restored ten-tab session opens one
+  file, not ten, which also avoids ten `config.json` rewrites at startup (`open_document` records a
+  recent on every call).
+- **`DocumentDeck`** keeps background tabs mounted and hidden rather than unmounting them. This is
+  the whole performance story: `enhance()` records what it has already done on the DOM nodes, so
+  keeping them alive makes switching back nearly free.
 
 ## Gotchas
 
@@ -126,6 +166,17 @@ git-wt merge
 - **Do not set `scrollbar-width` or `scrollbar-color` next to `::-webkit-scrollbar` rules.**
   Chromium ignores the `::-webkit-` rules entirely if the standard properties are present, and the
   OS scrollbar comes back.
+- **The gap between two tabs is padding, never margin.** A margin between two `no-drag` elements in
+  the titlebar is a live `drag-region` sliver, and a click landing in it moves the window instead of
+  selecting a tab. For the same reason the tab track is `no-drag` as a whole, not tab by tab.
+- **Never reparent a tab mid-drag** to raise it above its neighbours. Chromium fires
+  `lostpointercapture` when a captured element leaves the document, which ends the gesture. Raise it
+  with `z-index` on an isolated track instead.
+- **Nothing in the drag waits on `transitionend`.** The global `prefers-reduced-motion` block forces
+  every transition to 0.01ms, at which point that event fires unreliably or coalesces away. The
+  model is committed synchronously on release; the animation is the DOM catching up.
+- **`document.fonts.ready` before measuring chrome text.** A group pill sized from the fallback face
+  is a few pixels narrow and truncates its own name, so `usePillWidths` measures twice.
 
 ## Driving the running app
 

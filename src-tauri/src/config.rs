@@ -57,6 +57,18 @@ pub struct AppConfig {
     /// Skip files ignored by `.gitignore` when scanning a folder.
     #[serde(default = "default_true")]
     pub respect_gitignore: bool,
+
+    /// The open tab session: which files are open, in what order, how they are
+    /// grouped, and which is active.
+    ///
+    /// Opaque for the same reasons as `custom_themes` (see module doc): the
+    /// shape is nested, still settling, and fully owned and validated by the
+    /// frontend — `normalize()` in `src/lib/tabs/model.ts` is the single
+    /// arbiter of whether a session is well-formed, and it already runs on
+    /// every load. Rust never reads inside it, so a second declaration here
+    /// would only be a copy that could disagree.
+    #[serde(default)]
+    pub session: serde_json::Value,
 }
 
 const MAX_RECENTS: usize = 20;
@@ -90,6 +102,7 @@ impl Default for AppConfig {
             last_folder: None,
             block_remote_images: true,
             respect_gitignore: true,
+            session: serde_json::Value::Null,
         }
     }
 }
@@ -200,6 +213,32 @@ mod tests {
         config.push_recent("b.md");
         config.push_recent("a.md");
         assert_eq!(config.recent_files, vec!["a.md", "b.md"]);
+    }
+
+    #[test]
+    fn a_config_written_before_tabs_existed_still_loads() {
+        let parsed: AppConfig = serde_json::from_str(r#"{"themeId":"nord"}"#).unwrap();
+        assert!(
+            parsed.session.is_null(),
+            "no session means an empty session"
+        );
+    }
+
+    #[test]
+    fn the_session_survives_a_round_trip_untouched() {
+        // Rust must not reshape it: the frontend owns the schema.
+        let session = serde_json::json!({
+            "tabs": [{ "id": "t1", "path": "/a.md", "groupId": "g1" }],
+            "groups": [{ "id": "g1", "name": "Specs", "color": "teal" }],
+            "activeTabId": "t1",
+        });
+        let config = AppConfig {
+            session: session.clone(),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.session, session);
     }
 
     #[test]
