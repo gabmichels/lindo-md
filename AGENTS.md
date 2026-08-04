@@ -141,3 +141,16 @@ curl -s http://127.0.0.1:9222/json           # find the page target
 From there `Runtime.evaluate` scrolls or clicks and `Page.captureScreenshot` captures the result.
 Passing a path on the command line works because of the file-association handling in `assoc.rs`, so
 no dialog has to be driven to open a document.
+
+## Windows packaging
+
+- **`bundle.publisher` must be set explicitly.** Without it Tauri derives the publisher from the
+  second segment of the identifier, so `io.github.gabmichels.lindomd` showed up in Apps & Features
+  as published by "github".
+- **`fileAssociations[].name` becomes the Windows ProgID**, so it has to be unique to this app —
+  `LindoMd.Markdown`, not a generic `Markdown Document` that another Markdown viewer could also
+  claim and overwrite. `description` is what Explorer shows in the Type column.
+- **Registering the association does not steal the default handler.** Windows honours
+  `HKCU\...\Explorer\FileExts\.md\UserChoice` above `HKCU\Software\Classes\.md`, so a user who has
+  already chosen an editor keeps it and lindo-md appears under "Open with". Do not try to override
+  `UserChoice` — it is hash-protected, and doing so is what malware does.

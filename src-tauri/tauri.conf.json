@@ -38,6 +38,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Gabriel Michels",
     "category": "Productivity",
     "shortDescription": "A beautiful Markdown viewer",
     "longDescription": "lindo-md renders local Markdown files with editorial typography and full GitHub-flavored support — tables, alerts, footnotes, math, syntax-highlighted code and Mermaid diagrams — with deeply customizable themes. Everything runs offline.",
@@ -51,7 +52,7 @@
     "fileAssociations": [
       {
         "ext": ["md", "markdown", "mdown", "mkd"],
-        "name": "Markdown Document",
+        "name": "LindoMd.Markdown",
         "description": "Markdown Document",
         "role": "Viewer",
         "mimeType": "text/markdown"
