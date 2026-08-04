@@ -78,6 +78,12 @@ export interface TabStripProps {
   pathFor?: (tab: Tab) => string;
 }
 
+/** Left inset, so the tabs sit on the same margin as the toolbar's controls in
+ *  the row below and the two bands of chrome share one edge. A number rather
+ *  than a `pl-2` class because the strip measures itself and has to subtract
+ *  it. */
+const STRIP_INSET = 8;
+
 /** Not exported: a module that exports both components and plain functions
  *  cannot Fast Refresh, and the whole file reloads on every edit instead. */
 function labelFor(tab: Tab): string {
@@ -103,14 +109,19 @@ export function TabStrip({
   onRevealInFolder,
   pathFor,
 }: TabStripProps) {
+  const strip = useRef<HTMLDivElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
+  // Measured on the whole strip rather than on the tab viewport, because the
+  // viewport is sized to its content — observing it would feed its own width
+  // back into the layout that produced it. `contentRect` excludes the inset,
+  // so the first read has to subtract it by hand to match the ones after.
   useLayoutEffect(() => {
-    const element = viewport.current;
+    const element = strip.current;
     if (!element) return;
-    setWidth(element.clientWidth);
+    setWidth(element.clientWidth - STRIP_INSET);
     const observer = new ResizeObserver(([entry]) => {
       setWidth(entry!.contentRect.width);
     });
@@ -121,7 +132,7 @@ export function TabStrip({
   const pillWidths = usePillWidths(session.groups);
   const { slots, overflow, trackWidth } = layoutTabs({
     session,
-    stripWidth: width + PLUS_W + DRAG_RESERVE,
+    stripWidth: width,
     pillWidths,
   });
 
@@ -304,14 +315,20 @@ export function TabStrip({
   };
 
   return (
-    // Inset on the left to sit on the same margin as the toolbar's controls
-    // below it, so the two rows of chrome share one edge instead of the tabs
-    // running into the seam against the rail. Applied here rather than on the
-    // measured viewport, whose width is the drag layer's coordinate space.
-    <div className="flex h-full min-w-0 flex-1 items-stretch pl-2">
+    <div
+      ref={strip}
+      className="flex h-full min-w-0 flex-1 items-stretch"
+      style={{ paddingLeft: STRIP_INSET }}
+    >
       <div
         ref={viewport}
-        className="tab-track no-drag relative min-w-0 flex-1 overflow-x-auto"
+        // Sized to the track rather than to the space available: the `+` button
+        // is the viewport's next sibling, so a viewport that always filled the
+        // strip would strand it at the far right instead of beside the last
+        // tab. It is the only shrinkable child, so once the tabs stop fitting
+        // it takes the whole squeeze and scrolls.
+        style={{ width: trackWidth }}
+        className="tab-track no-drag relative min-w-0 shrink overflow-x-auto"
         role="tablist"
         aria-label="Open documents"
         aria-orientation="horizontal"
@@ -516,8 +533,10 @@ export function TabStrip({
       </div>
 
       {/* Always draggable, however many tabs are open — on a frameless window
-          this is the only way left to move or maximize it. */}
-      <div className="drag-region shrink-0" style={{ width: DRAG_RESERVE }} aria-hidden />
+          this is the only way left to move or maximize it. It also takes every
+          pixel the tabs left behind, so the empty run after a short strip is
+          draggable rather than dead. */}
+      <div className="drag-region flex-1" style={{ minWidth: DRAG_RESERVE }} aria-hidden />
     </div>
   );
 }
