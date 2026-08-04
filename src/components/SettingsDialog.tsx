@@ -89,9 +89,9 @@ export function SettingsDialog({
                 <DefaultAppSection open={open} />
 
                 <Section title="Startup">
-                  <Row label="Reopen the last document">
+                  <Row label="Reopen the last tabs">
                     <Switch
-                      label="Reopen the last document on launch"
+                      label="Reopen the tabs from last time on launch"
                       checked={config.reopenLastDocument}
                       onChange={(reopenLastDocument) =>
                         onUpdateConfig({ reopenLastDocument })
@@ -99,7 +99,8 @@ export function SettingsDialog({
                     />
                   </Row>
                   <Note>
-                    A file you double-click always wins over the last one.
+                    Every tab comes back, in its groups. A file you double-click
+                    opens alongside them rather than instead of them.
                   </Note>
                 </Section>
               </Tabs.Content>

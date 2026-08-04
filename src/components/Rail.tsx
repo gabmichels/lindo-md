@@ -33,7 +33,10 @@ interface RailProps {
   onPickFolder: () => void;
   tree: TreeNode[];
   activePath: string | null;
-  onOpen: (path: string) => void;
+  /** Every file with a tab open, so the tree can mark them without pretending
+   *  they are all active. */
+  openPaths: Set<string>;
+  onOpen: (path: string, permanent: boolean) => void;
   toc: Heading[];
   activeHeadingId: string | null;
   progress: number;
@@ -42,8 +45,6 @@ interface RailProps {
   onOpenSettings: () => void;
   onExport: () => void;
   onOpenAbout: () => void;
-  /** macOS keeps its real traffic lights, so the rail's top has to clear them. */
-  insetTop: boolean;
 }
 
 export function Rail(props: RailProps) {
@@ -53,7 +54,7 @@ export function Rail(props: RailProps) {
         className="flex w-[var(--ui-rail-collapsed-w)] shrink-0 flex-col items-center gap-1 bg-ui-base py-2"
         aria-label="Tools"
       >
-        {props.insetTop && <div className="h-6 shrink-0" aria-hidden />}
+        <TopSpacer />
         <RailIconButton
           label="Expand sidebar"
           icon={PanelLeftOpen}
@@ -86,9 +87,9 @@ export function Rail(props: RailProps) {
       style={{ width: "var(--ui-rail-w)" }}
       aria-label="Documents and outline"
     >
-      {props.insetTop && <div className="drag-region h-6 shrink-0" aria-hidden />}
+      <TopSpacer />
 
-      <div className="drag-region flex h-[var(--ui-titlebar-h)] items-center gap-1 px-[var(--ui-pad)]">
+      <div className="flex h-[var(--ui-toolbar-h)] items-center gap-1 px-[var(--ui-pad)]">
         <FolderChip folder={props.folder} onPick={props.onPickFolder} />
         <RailIconButton
           label="Collapse sidebar"
@@ -102,6 +103,7 @@ export function Rail(props: RailProps) {
           <FileTree
             nodes={props.tree}
             activePath={props.activePath}
+            openPaths={props.openPaths}
             onOpen={props.onOpen}
           />
         )}
@@ -169,14 +171,33 @@ function FolderChip({
   );
 }
 
+/**
+ * Clears the titlebar band across the rail's full width.
+ *
+ * Load-bearing three times over: it keeps the rail's own rows aligned with the
+ * toolbar across the canvas seam, it clears macOS's real traffic lights, and —
+ * because it drags — it gives the window a grab handle on the left even when
+ * the tab strip on the right is full.
+ */
+function TopSpacer() {
+  return (
+    <div
+      className="drag-region h-[var(--ui-titlebar-h)] shrink-0"
+      aria-hidden
+    />
+  );
+}
+
 function FileTree({
   nodes,
   activePath,
+  openPaths,
   onOpen,
 }: {
   nodes: TreeNode[];
   activePath: string | null;
-  onOpen: (path: string) => void;
+  openPaths: Set<string>;
+  onOpen: (path: string, permanent: boolean) => void;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -212,6 +233,7 @@ function FileTree({
             expanded={expanded}
             onToggle={toggle}
             activePath={activePath}
+            openPaths={openPaths}
             onOpen={onOpen}
           />
         ))}
@@ -226,6 +248,7 @@ function TreeItem({
   expanded,
   onToggle,
   activePath,
+  openPaths,
   onOpen,
 }: {
   node: TreeNode;
@@ -233,16 +256,33 @@ function TreeItem({
   expanded: Set<string>;
   onToggle: (path: string) => void;
   activePath: string | null;
-  onOpen: (path: string) => void;
+  openPaths: Set<string>;
+  onOpen: (path: string, permanent: boolean) => void;
 }) {
   const isOpen = expanded.has(node.path);
   const isActive = !node.isDir && node.path === activePath;
+  const hasTab = !node.isDir && openPaths.has(node.path);
 
   return (
     <li role="treeitem" aria-expanded={node.isDir ? isOpen : undefined}>
       <button
         type="button"
-        onClick={() => (node.isDir ? onToggle(node.path) : onOpen(node.path))}
+        // A single click previews — it reuses one tab, so browsing a folder does
+        // not leave a trail behind. Double-click, Ctrl+click and middle-click all
+        // mean "keep this one", which is the gesture set a file tree teaches.
+        onClick={(event) =>
+          node.isDir
+            ? onToggle(node.path)
+            : onOpen(node.path, event.ctrlKey || event.metaKey)
+        }
+        onDoubleClick={() => {
+          if (!node.isDir) onOpen(node.path, true);
+        }}
+        onAuxClick={(event) => {
+          if (node.isDir || event.button !== 1) return;
+          event.preventDefault();
+          onOpen(node.path, true);
+        }}
         title={node.name}
         className={cn(
           "flex h-[var(--ui-row-h)] w-full items-center gap-1.5 rounded-ui-md pr-1.5",
@@ -277,6 +317,14 @@ function TreeItem({
           />
         )}
         <span className="truncate">{node.name}</span>
+        {/* Open, but not the tab you are looking at. A dot rather than the Ember
+            wash: only one file at a time is actually being read. */}
+        {hasTab && !isActive && (
+          <span
+            aria-hidden
+            className="ml-auto size-1.5 shrink-0 rounded-full bg-ui-text-faint"
+          />
+        )}
       </button>
 
       {node.isDir && isOpen && (
@@ -289,6 +337,7 @@ function TreeItem({
               expanded={expanded}
               onToggle={onToggle}
               activePath={activePath}
+              openPaths={openPaths}
               onOpen={onOpen}
             />
           ))}

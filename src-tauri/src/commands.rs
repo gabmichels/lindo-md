@@ -62,18 +62,18 @@ pub fn scan_folder(
     )
 }
 
-/// Replaces the current watch set. Passing `None` for both stops watching.
+/// Replaces the current watch set. An empty list and no folder stops watching.
 #[tauri::command]
 pub fn watch_paths(
     app: AppHandle,
     state: State<'_, WatchState>,
-    document: Option<String>,
+    documents: Vec<String>,
     folder: Option<String>,
 ) -> LindoResult<()> {
     files::watch(
         &app,
         &state,
-        document.map(PathBuf::from),
+        documents.into_iter().map(PathBuf::from).collect(),
         folder.map(PathBuf::from),
     )
 }

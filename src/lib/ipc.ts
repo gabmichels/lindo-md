@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { z } from "zod";
 
+import { StoredSessionSchema } from "./tabs/schema";
 import { ThemeSchema, type Theme } from "./theme/schema";
 
 /**
@@ -86,12 +87,14 @@ export function scanFolder(
   });
 }
 
-/** Replaces the current watch set. Passing nothing stops watching. */
+/** Replaces the current watch set. Every open document is watched, not just the
+ *  visible one, so a background tab still live-reloads. An empty list and no
+ *  folder stops watching. */
 export function watchPaths(
-  document: string | null,
+  documents: string[],
   folder: string | null,
 ): Promise<void> {
-  return call("watch_paths", z.void(), { document, folder });
+  return call("watch_paths", z.void(), { documents, folder });
 }
 
 // --- settings ---------------------------------------------------------------
@@ -100,8 +103,8 @@ export const AppearanceModeSchema = z.enum(["light", "dark", "system"]);
 export type AppearanceMode = z.infer<typeof AppearanceModeSchema>;
 
 /** Mirrors `AppConfig` in `src-tauri/src/config.rs`. Adding a field means adding
- *  it in both places — except `customThemes`, which Rust stores opaquely so the
- *  `Theme` schema lives only here. */
+ *  it in both places — except `customThemes` and `session`, which Rust stores
+ *  opaquely so their schemas live only here. */
 export const AppConfigSchema = z.object({
   version: z.number(),
   themeId: z.string(),
@@ -117,6 +120,7 @@ export const AppConfigSchema = z.object({
   reopenLastDocument: z.boolean(),
   zoom: z.number(),
   smartPunctuation: z.boolean(),
+  session: StoredSessionSchema,
 });
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 

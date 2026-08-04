@@ -16,7 +16,12 @@ export default defineConfig(async () => ({
     host: false,
     watch: {
       // src-tauri is watched by cargo, not vite.
-      ignored: ["**/src-tauri/**"],
+      //
+      // Worktrees are nested inside the repo at `.claude/worktrees/<branch>`,
+      // so without excluding them this dev server watches every other branch
+      // checked out beside it — one worktree's edits reload another's app, and
+      // a tsconfig change over there wipes this server's dep cache.
+      ignored: ["**/src-tauri/**", "**/.claude/worktrees/**"],
     },
   },
   build: {

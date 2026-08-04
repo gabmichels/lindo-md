@@ -68,6 +68,21 @@
 
   --ui-danger: oklch(0.58 0.2 25);
 
+  /* Tab-group colours — the one other colour family in the chrome, and the
+     deliberate exception to "Ember and nothing else" (see DESIGN.md).
+     These are user data, not accent: the reader picks them to tell their own
+     groups apart. Every one is pinned to the same low chroma and lightness so
+     that none of them can out-shout Ember, and they are only ever allowed on a
+     group's pill and the hairline under its tabs. */
+  --ui-group-clay: oklch(0.62 0.09 15);
+  --ui-group-amber: oklch(0.62 0.09 75);
+  --ui-group-moss: oklch(0.62 0.09 140);
+  --ui-group-teal: oklch(0.62 0.09 195);
+  --ui-group-slate: oklch(0.62 0.09 240);
+  --ui-group-indigo: oklch(0.62 0.09 280);
+  --ui-group-plum: oklch(0.62 0.09 320);
+  --ui-group-rose: oklch(0.62 0.09 355);
+
   /* A chosen radius scale — 4 / 7 / 11 — not the framework's 6 / 8 / 12. */
   --ui-r-sm: 4px;
   --ui-r-md: 7px;
@@ -83,6 +98,9 @@
   --ui-row-h: 30px;
   --ui-pad: 10px;
   --ui-titlebar-h: 38px;
+  /* The row under the tabs: navigation, breadcrumb, find, settings. Thinner
+     than the titlebar because it holds no window controls. */
+  --ui-toolbar-h: 34px;
 
   --ui-font: "Inter Tight Variable", "Inter Variable", system-ui, sans-serif;
 
@@ -206,6 +224,32 @@
 @utility no-drag {
   -webkit-app-region: no-drag;
   app-region: no-drag;
+}
+
+/* The tab strip scrolls once tabs hit their minimum width. No scrollbar: a
+   horizontal bar inside a 38px titlebar is noise, and the overflow menu is the
+   real way to reach a tab you cannot see. Only the `::-webkit-` rule is set —
+   adding `scrollbar-width` here would make Chromium ignore it and paint the OS
+   scrollbar instead. */
+.tab-track::-webkit-scrollbar {
+  height: 0;
+}
+
+/* Tabs and group pills widen and squeeze as the strip fills up, and glide out
+   of the way of a dragged tab. Both are disabled while a drag is in flight:
+   the dragged tab must track the pointer exactly, and a width animating at the
+   same time as a transform is the one pair that visibly fights itself. */
+.tab-slot {
+  transition:
+    width var(--ui-dur) var(--ui-ease),
+    left var(--ui-dur) var(--ui-ease),
+    transform var(--ui-dur) var(--ui-ease),
+    background-color var(--ui-dur),
+    color var(--ui-dur);
+}
+
+[data-dragging] .tab-slot {
+  transition: transform var(--ui-dur) var(--ui-ease);
 }
 
 @utility rail-label {
