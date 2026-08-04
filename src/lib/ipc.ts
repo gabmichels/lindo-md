@@ -129,7 +129,7 @@ export type { Theme };
 // that came from an OS dialog and refuses any extension but its own.
 
 /** The document the app was launched with — a double-clicked `.md`, or
- *  "Open with → pretty-md". `null` for a normal launch. */
+ *  "Open with → lindo-md". `null` for a normal launch. */
 export function getInitialDocument(): Promise<string | null> {
   return call("get_initial_document", z.string().nullable());
 }

@@ -5,7 +5,7 @@ tags: [test, fixture]
 
 # Kitchen Sink
 
-Every construct pretty-md claims to support, in one file. Open it beside GitHub's
+Every construct lindo-md claims to support, in one file. Open it beside GitHub's
 rendering of the same file — that comparison is the acceptance test.
 
 ## Text
@@ -118,7 +118,7 @@ def fib(n: int) -> int:
 ```
 
 ```json
-{ "format": "pretty-md-theme", "version": 1 }
+{ "format": "lindo-md-theme", "version": 1 }
 ```
 
 ```bash
@@ -213,7 +213,7 @@ Press <kbd>Ctrl</kbd> + <kbd>F</kbd> to search.
 
 A local image, relative to this file:
 
-![The pretty-md mark](../../docs/icon.svg)
+![The lindo-md mark](../../docs/icon.svg)
 
 A remote image, which must be blocked until the reader asks for it:
 

@@ -9,13 +9,13 @@
 
 use std::path::Path;
 
-use crate::error::{PrettyError, PrettyResult};
+use crate::error::{LindoError, LindoResult};
 
 /// Cap on a theme file. A theme is a few kilobytes of JSON; anything at this
 /// size is not one, and parsing it would only waste the user's time.
 const MAX_THEME_BYTES: u64 = 1024 * 1024;
 
-fn require_extension(path: &Path, expected: &[&str]) -> PrettyResult<()> {
+fn require_extension(path: &Path, expected: &[&str]) -> LindoResult<()> {
     let extension = path
         .extension()
         .and_then(|e| e.to_str())
@@ -25,7 +25,7 @@ fn require_extension(path: &Path, expected: &[&str]) -> PrettyResult<()> {
     if expected.contains(&extension.as_str()) {
         return Ok(());
     }
-    Err(PrettyError::msg(format!(
+    Err(LindoError::msg(format!(
         "{} does not end in {}",
         path.display(),
         expected
@@ -36,40 +36,40 @@ fn require_extension(path: &Path, expected: &[&str]) -> PrettyResult<()> {
     )))
 }
 
-pub fn read_theme(path: &Path) -> PrettyResult<String> {
+pub fn read_theme(path: &Path) -> LindoResult<String> {
     require_extension(path, &["json"])?;
 
     let size = std::fs::metadata(path)
-        .map_err(|source| PrettyError::ReadFile {
+        .map_err(|source| LindoError::ReadFile {
             path: path.display().to_string(),
             source,
         })?
         .len();
     if size > MAX_THEME_BYTES {
-        return Err(PrettyError::msg(format!(
+        return Err(LindoError::msg(format!(
             "{} is too large to be a theme file",
             path.display()
         )));
     }
 
-    std::fs::read_to_string(path).map_err(|source| PrettyError::ReadFile {
+    std::fs::read_to_string(path).map_err(|source| LindoError::ReadFile {
         path: path.display().to_string(),
         source,
     })
 }
 
-pub fn write_theme(path: &Path, contents: &str) -> PrettyResult<()> {
+pub fn write_theme(path: &Path, contents: &str) -> LindoResult<()> {
     require_extension(path, &["json"])?;
     write(path, contents)
 }
 
-pub fn write_html(path: &Path, contents: &str) -> PrettyResult<()> {
+pub fn write_html(path: &Path, contents: &str) -> LindoResult<()> {
     require_extension(path, &["html", "htm"])?;
     write(path, contents)
 }
 
-fn write(path: &Path, contents: &str) -> PrettyResult<()> {
-    std::fs::write(path, contents).map_err(|source| PrettyError::WriteFile {
+fn write(path: &Path, contents: &str) -> LindoResult<()> {
+    std::fs::write(path, contents).map_err(|source| LindoError::WriteFile {
         path: path.display().to_string(),
         source,
     })
@@ -109,15 +109,12 @@ mod tests {
 
     #[test]
     fn round_trips_a_theme_through_a_temp_file() {
-        let dir = std::env::temp_dir().join("pretty-md-export-test");
+        let dir = std::env::temp_dir().join("lindo-md-export-test");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("theme.json");
 
-        write_theme(&path, r#"{"format":"pretty-md-theme"}"#).unwrap();
-        assert_eq!(
-            read_theme(&path).unwrap(),
-            r#"{"format":"pretty-md-theme"}"#
-        );
+        write_theme(&path, r#"{"format":"lindo-md-theme"}"#).unwrap();
+        assert_eq!(read_theme(&path).unwrap(), r#"{"format":"lindo-md-theme"}"#);
 
         std::fs::remove_file(&path).ok();
     }

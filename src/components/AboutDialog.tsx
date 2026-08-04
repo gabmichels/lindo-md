@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-const REPOSITORY = "https://github.com/gabmichels/pretty-md";
+const REPOSITORY = "https://github.com/gabmichels/lindo-md";
 
 const SHORTCUTS: Array<[string, string]> = [
   ["Ctrl / ⌘ + O", "Open a file"],
@@ -43,7 +43,7 @@ export function AboutDialog({
           )}
         >
           <Dialog.Title className="text-[15px] text-ui-text-strong">
-            pretty-md {version && <span className="text-ui-text-faint">{version}</span>}
+            lindo-md {version && <span className="text-ui-text-faint">{version}</span>}
           </Dialog.Title>
           <Dialog.Description className="mt-1 text-[12.5px] text-ui-text-muted">
             A Markdown viewer with editorial typography and deeply customizable

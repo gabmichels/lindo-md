@@ -14,7 +14,7 @@ use notify::{RecursiveMode, Watcher};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::error::{PrettyError, PrettyResult};
+use crate::error::{LindoError, LindoResult};
 use crate::markdown::{self, Heading};
 
 pub const MARKDOWN_EXTENSIONS: [&str; 4] = ["md", "markdown", "mdown", "mkd"];
@@ -71,12 +71,12 @@ pub fn is_markdown(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-pub fn read(app: &AppHandle, path: &Path) -> PrettyResult<Document> {
+pub fn read(app: &AppHandle, path: &Path) -> LindoResult<Document> {
     if !is_markdown(path) {
-        return Err(PrettyError::UnsupportedFile(path.display().to_string()));
+        return Err(LindoError::UnsupportedFile(path.display().to_string()));
     }
 
-    let source = std::fs::read_to_string(path).map_err(|source| PrettyError::ReadFile {
+    let source = std::fs::read_to_string(path).map_err(|source| LindoError::ReadFile {
         path: path.display().to_string(),
         source,
     })?;
@@ -113,9 +113,9 @@ pub fn read(app: &AppHandle, path: &Path) -> PrettyResult<Document> {
 /// Builds the document tree for a folder. Directories containing no Markdown at
 /// any depth are dropped, so opening a source repository shows the docs rather
 /// than the source layout.
-pub fn scan(root: &Path, respect_gitignore: bool) -> PrettyResult<Vec<TreeNode>> {
+pub fn scan(root: &Path, respect_gitignore: bool) -> LindoResult<Vec<TreeNode>> {
     if !root.is_dir() {
-        return Err(PrettyError::msg(format!(
+        return Err(LindoError::msg(format!(
             "{} is not a folder",
             root.display()
         )));
@@ -214,7 +214,7 @@ pub fn watch(
     state: &WatchState,
     document: Option<PathBuf>,
     folder: Option<PathBuf>,
-) -> PrettyResult<()> {
+) -> LindoResult<()> {
     let (tx, rx) = mpsc::channel();
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
         if let Ok(event) = event {
@@ -223,19 +223,19 @@ pub fn watch(
             let _ = tx.send(event);
         }
     })
-    .map_err(|e| PrettyError::msg(format!("Could not start watching for changes: {e}")))?;
+    .map_err(|e| LindoError::msg(format!("Could not start watching for changes: {e}")))?;
 
     // The file itself is watched through its parent directory: editors that save
     // by rename replace the inode, and a watch on the old one goes deaf.
     if let Some(parent) = document.as_deref().and_then(Path::parent) {
         watcher
             .watch(parent, RecursiveMode::NonRecursive)
-            .map_err(|e| PrettyError::msg(format!("Could not watch {}: {e}", parent.display())))?;
+            .map_err(|e| LindoError::msg(format!("Could not watch {}: {e}", parent.display())))?;
     }
     if let Some(folder) = &folder {
         watcher
             .watch(folder, RecursiveMode::Recursive)
-            .map_err(|e| PrettyError::msg(format!("Could not watch {}: {e}", folder.display())))?;
+            .map_err(|e| LindoError::msg(format!("Could not watch {}: {e}", folder.display())))?;
     }
 
     let handle = app.clone();
@@ -246,7 +246,7 @@ pub fn watch(
     *state
         .watcher
         .lock()
-        .map_err(|_| PrettyError::msg("Watch state was poisoned"))? = Some(watcher);
+        .map_err(|_| LindoError::msg("Watch state was poisoned"))? = Some(watcher);
     Ok(())
 }
 

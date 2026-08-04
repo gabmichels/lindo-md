@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Least-privilege surface for the pretty-md window. The webview gets no filesystem or shell access: reading files, scanning folders, watching for changes and writing exports all go through allowlisted #[tauri::command] functions in Rust. Window permissions are present because the window is frameless and the titlebar is drawn by us.",
+  "description": "Least-privilege surface for the lindo-md window. The webview gets no filesystem or shell access: reading files, scanning folders, watching for changes and writing exports all go through allowlisted #[tauri::command] functions in Rust. Window permissions are present because the window is frameless and the titlebar is drawn by us.",
   "windows": ["main"],
   "permissions": [
     "core:default",

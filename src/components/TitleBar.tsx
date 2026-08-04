@@ -87,7 +87,7 @@ function Breadcrumb({
   path: string | null;
 }) {
   if (!breadcrumb) {
-    return <div className="flex-1 text-center text-ui-text-faint">pretty-md</div>;
+    return <div className="flex-1 text-center text-ui-text-faint">lindo-md</div>;
   }
 
   return (

@@ -51,5 +51,5 @@ pub fn run() {
             commands::get_initial_document,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running pretty-md");
+        .expect("error while running lindo-md");
 }

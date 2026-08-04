@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    pretty_md_lib::run();
+    lindo_md_lib::run();
 }

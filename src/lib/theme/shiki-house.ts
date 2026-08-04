@@ -1,7 +1,7 @@
 import type { ThemeRegistrationRaw } from "shiki";
 
 /**
- * pretty-md's own syntax theme, in the two House appearances.
+ * lindo-md's own syntax theme, in the two House appearances.
  *
  * Every other preset points at the authentic VS Code theme of the same name.
  * House needs its own, because a borrowed one always reads as a foreign object
@@ -129,12 +129,12 @@ function build(
   };
 }
 
-export const HOUSE_LIGHT = build("pretty-md-house-light", "light", LIGHT);
-export const HOUSE_DARK = build("pretty-md-house-dark", "dark", DARK);
+export const HOUSE_LIGHT = build("lindo-md-house-light", "light", LIGHT);
+export const HOUSE_DARK = build("lindo-md-house-dark", "dark", DARK);
 
 /** Ids that must be registered from these objects rather than fetched from
  *  Shiki's bundle. `lib/render/shiki.ts` checks against this map. */
 export const HOUSE_THEMES: Record<string, ThemeRegistrationRaw> = {
-  "pretty-md-house-light": HOUSE_LIGHT,
-  "pretty-md-house-dark": HOUSE_DARK,
+  "lindo-md-house-light": HOUSE_LIGHT,
+  "lindo-md-house-dark": HOUSE_DARK,
 };

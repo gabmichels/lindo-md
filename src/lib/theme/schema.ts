@@ -69,7 +69,7 @@ export const ThemeTypographySchema = z.object({
 export type ThemeTypography = z.infer<typeof ThemeTypographySchema>;
 
 export const ThemeCodeSchema = z.object({
-  /** A Shiki theme id. `pretty-md-house-light` / `-dark` are ours, built from
+  /** A Shiki theme id. `lindo-md-house-light` / `-dark` are ours, built from
    *  the House tokens so code reads as part of the page; everything else is the
    *  preset's authentic VS Code theme. */
   shikiTheme: z.string().min(1),
@@ -106,7 +106,7 @@ export type ThemePreset = z.infer<typeof ThemePresetSchema>;
  * a user shared last year must still import after the schema grows a field.
  */
 export const ThemeFileSchema = z.object({
-  format: z.literal("pretty-md-theme"),
+  format: z.literal("lindo-md-theme"),
   version: z.literal(1),
   theme: ThemeSchema,
 });

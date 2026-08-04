@@ -24,8 +24,8 @@ export interface FindState {
   supported: boolean;
 }
 
-const HIGHLIGHT_ALL = "pretty-md-find";
-const HIGHLIGHT_ACTIVE = "pretty-md-find-active";
+const HIGHLIGHT_ALL = "lindo-md-find";
+const HIGHLIGHT_ACTIVE = "lindo-md-find-active";
 
 interface HighlightRegistry {
   set(name: string, highlight: unknown): void;

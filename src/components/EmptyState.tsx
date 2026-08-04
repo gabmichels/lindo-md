@@ -26,7 +26,7 @@ export function EmptyState({
   return (
     <div className="flex h-full items-center justify-center bg-doc-bg p-8">
       <div className="w-full max-w-md">
-        <h1 className="font-doc-heading text-doc-heading text-2xl">pretty-md</h1>
+        <h1 className="font-doc-heading text-doc-heading text-2xl">lindo-md</h1>
         <p className="mt-1 font-doc text-doc-text-muted">
           Open a Markdown file, or a folder of them.
         </p>

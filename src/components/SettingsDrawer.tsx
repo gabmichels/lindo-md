@@ -442,8 +442,8 @@ async function exportTheme(
 ): Promise<void> {
   const path = await saveFileDialog({
     title: "Export theme",
-    defaultPath: `${theme.id}.pretty-md-theme.json`,
-    filters: [{ name: "pretty-md theme", extensions: ["json"] }],
+    defaultPath: `${theme.id}.lindo-md-theme.json`,
+    filters: [{ name: "lindo-md theme", extensions: ["json"] }],
   });
   if (!path) return;
 
@@ -461,7 +461,7 @@ async function importTheme(
   const path = await openFileDialog({
     title: "Import theme",
     multiple: false,
-    filters: [{ name: "pretty-md theme", extensions: ["json"] }],
+    filters: [{ name: "lindo-md theme", extensions: ["json"] }],
   });
   if (typeof path !== "string") return;
 

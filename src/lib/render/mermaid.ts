@@ -207,7 +207,7 @@ function diagramFontSize(theme: Theme): number {
   return Math.round(theme.typography.baseSize * 0.8);
 }
 
-const HOST_ID = "pretty-md-mermaid-host";
+const HOST_ID = "lindo-md-mermaid-host";
 
 /** Mermaid's parse errors are multi-line with an ASCII pointer; the first line
  *  is the part a reader can act on. */

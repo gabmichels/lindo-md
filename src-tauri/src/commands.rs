@@ -8,22 +8,22 @@ use tauri::{AppHandle, State};
 
 use crate::assoc;
 use crate::config::{self, AppConfig};
-use crate::error::PrettyResult;
+use crate::error::LindoResult;
 use crate::export;
 use crate::files::{self, Document, TreeNode, WatchState};
 
 #[tauri::command]
-pub fn get_config(app: AppHandle) -> PrettyResult<AppConfig> {
+pub fn get_config(app: AppHandle) -> LindoResult<AppConfig> {
     config::load(&app)
 }
 
 #[tauri::command]
-pub fn set_config(app: AppHandle, config: AppConfig) -> PrettyResult<()> {
+pub fn set_config(app: AppHandle, config: AppConfig) -> LindoResult<()> {
     config::save(&app, &config)
 }
 
 #[tauri::command]
-pub fn open_document(app: AppHandle, path: String) -> PrettyResult<Document> {
+pub fn open_document(app: AppHandle, path: String) -> LindoResult<Document> {
     let document = files::read(&app, &PathBuf::from(&path))?;
 
     // Recording the open is part of opening it, not a separate call the frontend
@@ -37,7 +37,7 @@ pub fn open_document(app: AppHandle, path: String) -> PrettyResult<Document> {
 }
 
 #[tauri::command]
-pub fn scan_folder(path: String, respect_gitignore: bool) -> PrettyResult<Vec<TreeNode>> {
+pub fn scan_folder(path: String, respect_gitignore: bool) -> LindoResult<Vec<TreeNode>> {
     files::scan(&PathBuf::from(path), respect_gitignore)
 }
 
@@ -48,7 +48,7 @@ pub fn watch_paths(
     state: State<'_, WatchState>,
     document: Option<String>,
     folder: Option<String>,
-) -> PrettyResult<()> {
+) -> LindoResult<()> {
     files::watch(
         &app,
         &state,
@@ -58,17 +58,17 @@ pub fn watch_paths(
 }
 
 #[tauri::command]
-pub fn read_theme_file(path: String) -> PrettyResult<String> {
+pub fn read_theme_file(path: String) -> LindoResult<String> {
     export::read_theme(&PathBuf::from(path))
 }
 
 #[tauri::command]
-pub fn write_theme_file(path: String, contents: String) -> PrettyResult<()> {
+pub fn write_theme_file(path: String, contents: String) -> LindoResult<()> {
     export::write_theme(&PathBuf::from(path), &contents)
 }
 
 #[tauri::command]
-pub fn write_html_file(path: String, contents: String) -> PrettyResult<()> {
+pub fn write_html_file(path: String, contents: String) -> LindoResult<()> {
     export::write_html(&PathBuf::from(path), &contents)
 }
 

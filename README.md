@@ -1,6 +1,6 @@
 <div align="center">
   <img src="docs/icon.svg" width="88" alt="" />
-  <h1>pretty-md</h1>
+  <h1>lindo-md</h1>
   <p><strong>A Markdown viewer that makes documents worth reading.</strong></p>
   <p>
     <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
@@ -9,13 +9,13 @@
 </div>
 
 Local `.md` files usually open in a plain-text editor or a previewer that looks like a 2014 admin
-panel. pretty-md renders them the way a well-set page should look — editorial typography, real
+panel. lindo-md renders them the way a well-set page should look — editorial typography, real
 measure, considered rhythm — with the full GitHub feature set behind it.
 
 It is a small native desktop app (Rust + Tauri), not an Electron shell, and it works entirely
 offline. Nothing you open leaves your machine.
 
-![pretty-md rendering a document in the House Light theme](docs/screenshot-light.png)
+![lindo-md rendering a document in the House Light theme](docs/screenshot-light.png)
 
 ## What it renders
 
@@ -45,12 +45,12 @@ be adjusted, and the result exports to a JSON file you can share.
 
 ## Install
 
-Download the installer for your platform from [Releases](https://github.com/gabmichels/pretty-md/releases).
+Download the installer for your platform from [Releases](https://github.com/gabmichels/lindo-md/releases).
 
-- **Windows** — `.msi` or `.exe`. Associates `.md` files, so "Open with → pretty-md" works.
+- **Windows** — `.msi` or `.exe`. Associates `.md` files, so "Open with → lindo-md" works.
 - **Linux** — `.deb` or `.AppImage`.
 - **macOS** — `.dmg`. The build is unsigned, so the first launch needs
-  `xattr -cr /Applications/pretty-md.app`.
+  `xattr -cr /Applications/lindo-md.app`.
 
 ## Build from source
 

@@ -7,7 +7,7 @@
 
 /* Bundled reading faces. @font-face declarations only trigger a download once a
    family is actually referenced, so importing the whole library here costs
-   nothing until a theme selects one. Everything ships with the app — pretty-md
+   nothing until a theme selects one. Everything ships with the app — lindo-md
    never touches the network. */
 @import "@fontsource-variable/source-serif-4";
 @import "@fontsource-variable/literata";
@@ -220,11 +220,11 @@
 /* Find highlights. Painted by the CSS Custom Highlight API (see hooks/useFind.ts)
    rather than by wrapping matches in elements, which would destroy the decorated
    code blocks and rendered diagrams the enhancement passes produced. */
-::highlight(pretty-md-find) {
+::highlight(lindo-md-find) {
   background-color: var(--ui-ember-wash);
 }
 
-::highlight(pretty-md-find-active) {
+::highlight(lindo-md-find-active) {
   background-color: var(--ui-ember);
   color: black;
 }

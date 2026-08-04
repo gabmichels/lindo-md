@@ -11,7 +11,7 @@
  * `mermaid.ts`, and React never owns them.
  */
 
-const OVERLAY_ID = "pretty-md-zoom";
+const OVERLAY_ID = "lindo-md-zoom";
 
 export function enableDiagramZoom(root: HTMLElement): () => void {
   const onClick = (event: MouseEvent) => {

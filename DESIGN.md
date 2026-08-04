@@ -1,6 +1,6 @@
 # Design language
 
-pretty-md is a reading instrument. Its interface is authored, not defaulted: Radix supplies
+lindo-md is a reading instrument. Its interface is authored, not defaulted: Radix supplies
 behavior (focus management, dismissal, ARIA) and every visual decision is ours. There is no stock
 zinc palette, no framework radius scale, and no borders drawn out of habit.
 

@@ -4,7 +4,7 @@ name: Release
 #
 # Windows and Linux only, deliberately. All three platforms build fine in CI — macOS is not
 # excluded for technical reasons — but an unsigned macOS bundle fails Gatekeeper with
-# "pretty-md is damaged and can't be opened", which reads as a corrupt download rather than
+# "lindo-md is damaged and can't be opened", which reads as a corrupt download rather than
 # a security prompt, and generates bug reports instead of `xattr` invocations. Windows'
 # SmartScreen at least states plainly what it is doing, and Linux has no gatekeeping at all.
 #
@@ -69,7 +69,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "pretty-md ${{ github.ref_name }}"
+          releaseName: "lindo-md ${{ github.ref_name }}"
           releaseBody: |
             A Markdown viewer with editorial typography, full GitHub-flavored rendering
             (including Mermaid diagrams) and deeply customizable themes. Works entirely offline.
@@ -80,7 +80,7 @@ jobs:
 
             - **Windows** — SmartScreen shows "Windows protected your PC". Choose
               **More info → Run anyway**.
-            - **Linux** — mark the AppImage executable: `chmod +x pretty-md_*.AppImage`
+            - **Linux** — mark the AppImage executable: `chmod +x lindo-md_*.AppImage`
 
             ### Verifying what you downloaded
 
@@ -92,7 +92,7 @@ jobs:
             sha256sum -c checksums-ubuntu-22.04.txt      # Linux
             ```
             ```powershell
-            Get-FileHash .\pretty-md_*_x64-setup.exe -Algorithm SHA256   # Windows
+            Get-FileHash .\lindo-md_*_x64-setup.exe -Algorithm SHA256   # Windows
             ```
 
             Every artifact also has signed build provenance tying it to this repository, commit
@@ -100,13 +100,13 @@ jobs:
             from rather than only that it is intact:
 
             ```sh
-            gh attestation verify <file> --repo gabmichels/pretty-md
+            gh attestation verify <file> --repo gabmichels/lindo-md
             ```
 
             ### macOS
 
             No macOS build is published yet. It compiles fine, but an unsigned bundle fails
-            Gatekeeper with "pretty-md is damaged and can't be opened" — which looks like a
+            Gatekeeper with "lindo-md is damaged and can't be opened" — which looks like a
             broken download rather than a security prompt. Homebrew removed `--no-quarantine` in
             5.1, so a cask is no longer a way around it either.
 
@@ -114,8 +114,8 @@ jobs:
             never downloaded, so it is never quarantined.
 
             ```sh
-            git clone https://github.com/gabmichels/pretty-md.git
-            cd pretty-md && pnpm install && pnpm tauri build
+            git clone https://github.com/gabmichels/lindo-md.git
+            cd lindo-md && pnpm install && pnpm tauri build
             ```
           releaseDraft: true
           prerelease: false

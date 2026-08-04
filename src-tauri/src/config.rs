@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
-use crate::error::{PrettyError, PrettyResult};
+use crate::error::{LindoError, LindoResult};
 
 const CURRENT_VERSION: u32 = 1;
 
@@ -111,20 +111,20 @@ impl AppConfig {
     }
 }
 
-fn config_path(app: &AppHandle) -> PrettyResult<PathBuf> {
+fn config_path(app: &AppHandle) -> LindoResult<PathBuf> {
     let dir = app
         .path()
         .app_config_dir()
-        .map_err(|e| PrettyError::msg(format!("No config directory available: {e}")))?;
+        .map_err(|e| LindoError::msg(format!("No config directory available: {e}")))?;
     Ok(dir.join("config.json"))
 }
 
-pub fn load(app: &AppHandle) -> PrettyResult<AppConfig> {
+pub fn load(app: &AppHandle) -> LindoResult<AppConfig> {
     let path = config_path(app)?;
     if !path.exists() {
         return Ok(AppConfig::default());
     }
-    let raw = std::fs::read_to_string(&path).map_err(|source| PrettyError::ReadFile {
+    let raw = std::fs::read_to_string(&path).map_err(|source| LindoError::ReadFile {
         path: path.display().to_string(),
         source,
     })?;
@@ -132,27 +132,27 @@ pub fn load(app: &AppHandle) -> PrettyResult<AppConfig> {
     // tuned custom themes live in this file.
     serde_json::from_str::<AppConfig>(&raw)
         .map(AppConfig::migrate)
-        .map_err(|source| PrettyError::ConfigParse {
+        .map_err(|source| LindoError::ConfigParse {
             path: path.display().to_string(),
             source,
         })
 }
 
-pub fn save(app: &AppHandle, config: &AppConfig) -> PrettyResult<()> {
+pub fn save(app: &AppHandle, config: &AppConfig) -> LindoResult<()> {
     let path = config_path(app)?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
     let json = serde_json::to_string_pretty(config)
-        .map_err(|e| PrettyError::msg(format!("Could not serialize settings: {e}")))?;
+        .map_err(|e| LindoError::msg(format!("Could not serialize settings: {e}")))?;
 
     // Write-then-rename so an interrupted save cannot leave a half-written file.
     let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, json).map_err(|source| PrettyError::WriteFile {
+    std::fs::write(&tmp, json).map_err(|source| LindoError::WriteFile {
         path: tmp.display().to_string(),
         source,
     })?;
-    std::fs::rename(&tmp, &path).map_err(|source| PrettyError::WriteFile {
+    std::fs::rename(&tmp, &path).map_err(|source| LindoError::WriteFile {
         path: path.display().to_string(),
         source,
     })?;

@@ -194,7 +194,7 @@ export const PRESETS: ThemePreset[] = [
   preset({
     id: "house",
     name: "House",
-    note: "pretty-md's own — warm bone paper, serif body, ink-teal links",
+    note: "lindo-md's own — warm bone paper, serif body, ink-teal links",
     light: {
       // Bone: paper white with a warm cast, never #fff. Ink: a warm near-black.
       palette: {
@@ -207,7 +207,7 @@ export const PRESETS: ThemePreset[] = [
         border: "oklch(0.88 0.006 85)",
         codeBg: "oklch(0.955 0.007 85)",
       },
-      shiki: "pretty-md-house-light",
+      shiki: "lindo-md-house-light",
     },
     dark: {
       palette: {
@@ -220,7 +220,7 @@ export const PRESETS: ThemePreset[] = [
         border: "oklch(0.32 0.010 250)",
         codeBg: "oklch(0.22 0.010 250)",
       },
-      shiki: "pretty-md-house-dark",
+      shiki: "lindo-md-house-dark",
     },
   }),
 

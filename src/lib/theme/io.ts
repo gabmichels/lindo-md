@@ -5,7 +5,7 @@ import { ThemeFileSchema, ThemeSchema, type Theme } from "./schema";
  * lives on the frontend rather than being split across Rust and TypeScript.
  */
 
-const FORMAT = "pretty-md-theme" as const;
+const FORMAT = "lindo-md-theme" as const;
 const VERSION = 1 as const;
 
 export function serializeTheme(theme: Theme): string {
@@ -40,7 +40,7 @@ export function parseThemeFile(contents: string): ImportResult {
 
   return {
     theme: null,
-    error: `That file is not a pretty-md theme: ${describe(file.error.issues[0])}`,
+    error: `That file is not a lindo-md theme: ${describe(file.error.issues[0])}`,
   };
 }
 

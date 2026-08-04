@@ -78,7 +78,7 @@ writeFileSync(cargoPath, cargoNext);
 // Cargo.lock records the crate's own version too. Refresh just this package so the lock does not
 // show up dirty on the next build; other dependencies are untouched.
 try {
-  execFileSync("cargo", ["update", "-p", "pretty-md", "--offline"], {
+  execFileSync("cargo", ["update", "-p", "lindo-md", "--offline"], {
     cwd: join(root, "src-tauri"),
     stdio: "pipe",
   });

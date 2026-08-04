@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- pretty-md app mark. The design language in two objects: the dark tool
+  <!-- lindo-md app mark. The design language in two objects: the dark tool
        ground (ui-base) and a bone page (House theme doc-bg) with a single line
        marked in Ember. Only five shapes, so it still reads at 16px. -->
   <rect width="1024" height="1024" rx="220" fill="#1E222E" />

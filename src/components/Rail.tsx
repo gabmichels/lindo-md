@@ -68,7 +68,7 @@ export function Rail(props: RailProps) {
           icon={Share}
           onClick={props.onExport}
         />
-        <RailIconButton label="About pretty-md" icon={Info} onClick={props.onOpenAbout} />
+        <RailIconButton label="About lindo-md" icon={Info} onClick={props.onOpenAbout} />
       </nav>
     );
   }
@@ -125,7 +125,7 @@ export function Rail(props: RailProps) {
           icon={Share}
           onClick={props.onExport}
         />
-        <RailIconButton label="About pretty-md" icon={Info} onClick={props.onOpenAbout} />
+        <RailIconButton label="About lindo-md" icon={Info} onClick={props.onOpenAbout} />
       </div>
     </nav>
   );

@@ -1,7 +1,7 @@
 //! Opening a document the OS handed us.
 //!
 //! Registering as a `.md` handler (see `fileAssociations` in tauri.conf.json)
-//! means "Open with → pretty-md" and double-clicking a file both launch the app
+//! means "Open with → lindo-md" and double-clicking a file both launch the app
 //! with a path in `argv`. A second launch while the app is already running is
 //! routed to the running window by the single-instance plugin instead of opening
 //! a second one — a viewer with four copies of itself on the taskbar is a bug,
@@ -56,7 +56,7 @@ mod tests {
 
     #[test]
     fn finds_a_real_markdown_file_among_the_arguments() {
-        let dir = std::env::temp_dir().join("pretty-md-assoc-test");
+        let dir = std::env::temp_dir().join("lindo-md-assoc-test");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("doc.md");
         std::fs::write(&path, "# Hi").unwrap();

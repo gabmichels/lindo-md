@@ -218,12 +218,12 @@ describe("mermaidThemeVariables", () => {
 
 describe("theme files", () => {
   it("round-trips a theme through the export format", () => {
-    const file = { format: "pretty-md-theme", version: 1, theme: house.light };
+    const file = { format: "lindo-md-theme", version: 1, theme: house.light };
     const parsed = ThemeFileSchema.parse(JSON.parse(JSON.stringify(file)));
     expect(parsed.theme).toEqual(house.light);
   });
 
-  it("rejects a file that is not a pretty-md theme", () => {
+  it("rejects a file that is not a lindo-md theme", () => {
     expect(ThemeFileSchema.safeParse({ theme: house.light }).success).toBe(false);
     expect(
       ThemeFileSchema.safeParse({

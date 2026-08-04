@@ -2,7 +2,7 @@
 
 Working notes for anyone — human or agent — changing this repo.
 
-## What pretty-md is
+## What lindo-md is
 
 A desktop Markdown **viewer**. It renders local `.md` files with editorial typography and full
 GitHub-flavored support (tables, alerts, footnotes, math, highlighted code, Mermaid diagrams), and
@@ -64,7 +64,7 @@ src-tauri/src/
   markdown.rs    comrak + ammonia + TOC
   files.rs       open/read/scan/watch
   config.rs      settings persistence
-  error.rs       PrettyError, serialized to the frontend as a plain string
+  error.rs       LindoError, serialized to the frontend as a plain string
 ```
 
 Flat on purpose: no `features/`, no barrel `index.ts`. Tests sit next to the code they test —
@@ -73,7 +73,7 @@ Flat on purpose: no `features/`, no barrel `index.ts`. Tests sit next to the cod
 ## Data flow
 
 A command in `commands.rs` delegates to the module that owns the logic and returns
-`PrettyResult<T>`. `PrettyError` serializes to a plain string, so error text is written for a reader,
+`LindoResult<T>`. `LindoError` serializes to a plain string, so error text is written for a reader,
 not a log. On the TS side nothing calls `invoke` directly: `lib/ipc.ts` wraps every command, parses
 the response with a zod schema, and attaches the command name to any parse failure. Rust structs use
 `#[serde(rename_all = "camelCase")]`; Tauri converts argument names, so Rust `snake_case` parameters
@@ -134,7 +134,7 @@ remote debugging and drive it over CDP instead — this is how the rendering was
 
 ```bash
 pnpm dev &                                   # the app needs the dev server at :1420
-WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9222"   ./src-tauri/target/debug/pretty-md.exe test/fixtures/kitchen-sink.md
+WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9222"   ./src-tauri/target/debug/lindo-md.exe test/fixtures/kitchen-sink.md
 curl -s http://127.0.0.1:9222/json           # find the page target
 ```
 

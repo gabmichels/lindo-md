@@ -1,15 +1,15 @@
 [package]
-name = "pretty-md"
+name = "lindo-md"
 version = "0.1.0"
 description = "A beautiful, offline Markdown viewer with editorial typography and deeply customizable themes"
-authors = ["pretty-md contributors"]
+authors = ["lindo-md contributors"]
 license = "MIT"
-repository = "https://github.com/gabmichels/pretty-md"
+repository = "https://github.com/gabmichels/lindo-md"
 edition = "2021"
 rust-version = "1.82"
 
 [lib]
-name = "pretty_md_lib"
+name = "lindo_md_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

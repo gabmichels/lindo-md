@@ -5,7 +5,7 @@ import type { Theme } from "../theme/schema";
  * Builds a standalone HTML file from the document as it is currently rendered.
  *
  * "Standalone" is the requirement that shapes everything here: the file has to
- * look identical when opened on a machine that has never seen pretty-md, with no
+ * look identical when opened on a machine that has never seen lindo-md, with no
  * network. So the theme's tokens are inlined, the stylesheet is inlined, and the
  * DOM is taken *after* enhancement — highlighted code and rendered Mermaid SVGs
  * come along as markup rather than as something to re-run.
@@ -36,7 +36,7 @@ export function buildStandaloneHtml(options: ExportOptions): string {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="generator" content="pretty-md" />
+    <meta name="generator" content="lindo-md" />
     <title>${escapeHtml(title)}</title>
     <style>
       :root {
