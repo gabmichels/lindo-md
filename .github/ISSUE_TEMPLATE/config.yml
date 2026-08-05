@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/gabmichels/lindo-md/security/advisories/new
+    about: Report privately. A malicious document escaping the sanitizer, reaching the network, or reaching the filesystem all belong here rather than in a public issue.

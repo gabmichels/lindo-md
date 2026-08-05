@@ -6,7 +6,14 @@
  * These mirror the table under "Releasing" in AGENTS.md.
  */
 import { describe, expect, it } from "vitest";
-import { bumpVersion, deriveLevel, levelOf, planRelease } from "./version.mjs";
+import {
+  KNOWN_TYPES,
+  bumpVersion,
+  checkSubject,
+  deriveLevel,
+  levelOf,
+  planRelease,
+} from "./version.mjs";
 
 const commit = (subject, body = "") => ({ subject, body });
 
@@ -143,5 +150,56 @@ describe("planRelease", () => {
     expect(() =>
       planRelease({ current: "0.1.0", lastTag: "v0.1.0", commits: feat, override: "huge" }),
     ).toThrow(/unknown bump/);
+  });
+});
+
+describe("checkSubject", () => {
+  it("accepts every type the release table lists", () => {
+    for (const type of [
+      "feat",
+      "fix",
+      "perf",
+      "docs",
+      "chore",
+      "refactor",
+      "test",
+      "ci",
+      "style",
+    ]) {
+      expect(checkSubject(`${type}: a subject`), type).toBeNull();
+    }
+  });
+
+  it("accepts a scope and the breaking marker", () => {
+    expect(checkSubject("fix(tabs): stop the drag stranding")).toBeNull();
+    expect(checkSubject("feat!: drop the old config format")).toBeNull();
+    expect(checkSubject("feat(theme)!: rename every token")).toBeNull();
+  });
+
+  it("rejects a typo in the type, which would otherwise release nothing", () => {
+    // The failure this exists for: valid to git, meaningless to `deriveLevel`.
+    expect(checkSubject("fixx: crash on open")).toMatch(/unknown type "fixx"/);
+    expect(levelOf({ subject: "fixx: crash on open" })).toBeNull();
+  });
+
+  it("rejects a subject that is not conventional at all", () => {
+    expect(checkSubject("updated some stuff")).toMatch(/not a Conventional Commit/);
+  });
+
+  it("lets git's own subjects through, so nobody learns to pass --no-verify", () => {
+    expect(checkSubject("Merge branch 'main' into feat/x")).toBeNull();
+    expect(checkSubject('Revert "feat: a thing"')).toBeNull();
+    expect(checkSubject("fixup! feat: a thing")).toBeNull();
+    expect(checkSubject("# a comment line")).toBeNull();
+    expect(checkSubject("")).toBeNull();
+  });
+
+  it("accepts exactly the types levelOf can act on, and no others", () => {
+    // The point of sharing one set: a type this accepted but `levelOf` did not know
+    // would be a subject that passes the hook and still releases nothing.
+    for (const type of KNOWN_TYPES) {
+      expect(checkSubject(`${type}: x`), type).toBeNull();
+    }
+    expect(checkSubject("wip: x")).toMatch(/unknown type/);
   });
 });

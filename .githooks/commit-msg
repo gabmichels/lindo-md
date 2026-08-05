@@ -1,0 +1,4 @@
+#!/bin/sh
+# Committed rather than generated, so the hook is reviewable like any other code.
+# `prepare` in package.json points core.hooksPath here.
+exec node "$(dirname "$0")/../scripts/check-commit-msg.mjs" "$1"

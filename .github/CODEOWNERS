@@ -1,0 +1,3 @@
+# One maintainer. Here so a PR always has a reviewer assigned rather than sitting
+# unowned, and so a future second maintainer is an edit to this file.
+*       @gabmichels

@@ -327,6 +327,13 @@ shipping an installer for it spends a user's download and a version number on a 
 behaves identically to the one they have. If a release is genuinely warranted anyway — a
 dependency bump that closes a CVE, say — force it: `pnpm release patch`.
 
+A `commit-msg` hook refuses a subject the rules cannot read, which is where this gets caught
+now rather than at release time. It shares `checkSubject` with `version.mjs` instead of restating
+the type list — two copies of a policy is how a policy stops being one — and it lets git's own
+subjects through (`Merge`, `Revert`, `fixup!`) so nobody learns to reach for `--no-verify`. The
+hooks live in `.githooks/`, committed and reviewable; `prepare` points `core.hooksPath` at them on
+`pnpm install`, so there is no hook manager and no extra package with an install script.
+
 A non-conventional subject line counts as no-op rather than failing the release. `pnpm release`
 lists everything it ignored, so a miscategorized commit is visible before the tag exists; check
 that list rather than trusting the version.
