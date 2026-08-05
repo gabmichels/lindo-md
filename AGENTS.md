@@ -119,6 +119,32 @@ no `fetch`/`XHR`/`WebSocket`/`sendBeacon` anywhere in `src/`, no static import o
 `shiki`, and no `invoke` outside `lib/ipc.ts`. A documented invariant that nothing checks is a
 comment, and the audit found several the code had quietly stopped honouring.
 
+## Rust
+
+`cargo clippy` runs `pedantic`, and CI treats warnings as errors, so the lint config lives in
+`Cargo.toml` rather than in a CI flag — `cargo clippy` locally means exactly what CI means.
+
+**Four restriction lints are denied: `unwrap_used`, `expect_used`, `panic`, `indexing_slicing.`**
+Not style. `panic = "abort"` is set in the release profile, so a panic reachable from a document
+is not an error message — it takes the window down with every open tab, and the input is arbitrary
+Markdown from an arbitrary file. Turning these on cost exactly three `#[allow]`s in the whole
+crate, each with a `reason` and each provably safe: an index that came from a successful
+`binary_search`, a `write!` into a `String`, and `run()` failing to create a webview. If you need
+a fourth, that is a design conversation, not an attribute.
+
+Tests allow all four — a panicking test is a failing test, which is the mechanism working.
+
+Two smaller decisions:
+
+- **`rustfmt.toml` sets `newline_style = "Unix"`.** `cargo fmt --check` runs on the Windows job
+  too, and without it that job fails on line endings alone.
+- **There is no `rust-version`.** The `1.82` that used to be declared was untrue — `globset` alone
+  now ships a manifest 1.82's cargo cannot parse — and an MSRV is a promise to people compiling
+  this as a dependency, which nobody does. The toolchain is deliberately *not* pinned either: a
+  `rust-toolchain.toml` would make every CI job download a second toolchain, since
+  `dtolnay/rust-toolchain` does not read that file. The tradeoff accepted is that a new clippy
+  release can turn `main` red without anyone pushing; the fix is to fix the lint.
+
 ## Conventions
 
 - **Commits**: Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`). The type is

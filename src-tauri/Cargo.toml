@@ -6,7 +6,38 @@ authors = ["lindo-md contributors"]
 license = "MIT"
 repository = "https://github.com/gabmichels/lindo-md"
 edition = "2021"
-rust-version = "1.82"
+# No `rust-version`. The 1.82 that used to be declared here was untrue — `globset`
+# alone now ships a manifest that 1.82's cargo cannot parse — and an MSRV is a promise
+# to people compiling this as a dependency, which nobody does: lindo-md ships as a
+# binary. Track stable rather than defend a number no test checks.
+
+# A panic here is not an error message — `panic = "abort"` is set in the release profile
+# below, so any panic reachable from a document takes the window down with every open tab.
+# The four restriction lints make that class of code impossible to add without saying so.
+#
+# Turning them on cost exactly three `#[allow]`s across the whole crate, each provably
+# safe: a `binary_search` hit being indexed, a `write!` into a `String`, and the top-level
+# `run()`. That is the point — the exceptions are now visible and argued rather than
+# spread through the file as ordinary-looking calls.
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"
+
+# Tauri command handlers take owned `String`s because that is the signature the macro
+# generates; rewriting them to take `&str` is not possible.
+needless_pass_by_value = "allow"
+# Wants backticks around every identifier-shaped word in a doc comment. The comments in
+# this crate are prose written for a reader, and that is deliberate.
+doc_markdown = "allow"
+# `Config` having several booleans is what a settings struct is.
+struct_excessive_bools = "allow"
 
 [lib]
 name = "lindo_md_lib"

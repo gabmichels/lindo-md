@@ -81,6 +81,11 @@ impl Utf16Index {
 
     fn at(&self, byte: usize) -> usize {
         match self.0.binary_search_by_key(&byte, |(at, _)| *at) {
+            // `binary_search_by_key` returning Ok guarantees the index is in range.
+            #[allow(
+                clippy::indexing_slicing,
+                reason = "index came from a successful binary_search"
+            )]
             Ok(index) => self.0[index].1,
             // Mid-character can only happen if an offset was built wrongly;
             // rounding down keeps the caret in the document rather than panicking.

@@ -1,3 +1,21 @@
+// A panicking test is a failing test, which is the whole mechanism — the restriction
+// lints denied in Cargo.toml exist to keep panics off the paths a document can reach,
+// not to make assertions in tests write themselves out longhand.
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        // Fixture values compared exactly, helper `fn`s declared beside the assertions
+        // that use them, and `Default::default()` spelled out in struct literals.
+        clippy::float_cmp,
+        clippy::items_after_statements,
+        clippy::default_trait_access
+    )
+)]
+
 mod assoc;
 mod commands;
 mod config;
@@ -13,7 +31,17 @@ use tauri_plugin_window_state::StateFlags;
 
 use files::WatchState;
 
+/// Builds the Tauri application and runs it to completion.
+///
+/// # Panics
+///
+/// If the webview cannot be created. There is no window to report that in, and no
+/// meaningful way to continue without one.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+#[allow(
+    clippy::expect_used,
+    reason = "startup failure has nowhere to be reported"
+)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
         // Must be registered first, per the plugin's contract: a second launch

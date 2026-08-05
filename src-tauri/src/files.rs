@@ -81,8 +81,7 @@ pub struct TreeNode {
 pub fn is_markdown(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
-        .map(|e| MARKDOWN_EXTENSIONS.contains(&e.to_lowercase().as_str()))
-        .unwrap_or(false)
+        .is_some_and(|e| MARKDOWN_EXTENSIONS.contains(&e.to_lowercase().as_str()))
 }
 
 pub fn read(
@@ -101,18 +100,17 @@ pub fn read(
 
     let dir = path
         .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."));
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
 
     // The asset protocol is deny-all by default (see tauri.conf.json). Granting
     // the document's own directory — and only that — is what lets `![](img/a.png)`
     // resolve, without giving the webview a window onto the whole disk.
     let _ = app.asset_protocol_scope().allow_directory(&dir, true);
 
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.display().to_string());
+    let name = path.file_name().map_or_else(
+        || path.display().to_string(),
+        |n| n.to_string_lossy().into_owned(),
+    );
 
     let rendered = markdown::render_with(&source, render_options);
     let title = rendered.title.clone().unwrap_or_else(|| name.clone());
@@ -231,8 +229,7 @@ pub fn scan(root: &Path, options: ScanOptions) -> LindoResult<Vec<TreeNode>> {
             entry
                 .file_name()
                 .to_str()
-                .map(|name| !SKIP_DIRS.contains(&name))
-                .unwrap_or(true)
+                .is_none_or(|name| !SKIP_DIRS.contains(&name))
         });
 
     // Collect the markdown files first, then rebuild the directory structure from
@@ -241,7 +238,7 @@ pub fn scan(root: &Path, options: ScanOptions) -> LindoResult<Vec<TreeNode>> {
     let mut files: Vec<PathBuf> = builder
         .build()
         .filter_map(Result::ok)
-        .map(|entry| entry.into_path())
+        .map(ignore::DirEntry::into_path)
         .filter(|path| path.is_file() && is_markdown(path))
         .collect();
     files.sort();
@@ -373,15 +370,15 @@ pub fn watch(
     // rename replace the inode, and a watch on the old one goes deaf. Parents
     // already inside the recursive folder watch are skipped, and so are repeats
     // — ten tabs on one folder must not mean ten watches on it.
-    let mut watched: Vec<PathBuf> = Vec::new();
+    let mut registered: Vec<PathBuf> = Vec::new();
     for parent in documents.iter().filter_map(|path| path.parent()) {
         let covered = folder
             .as_deref()
             .is_some_and(|folder| parent.starts_with(folder));
-        if covered || watched.iter().any(|seen| seen == parent) {
+        if covered || registered.iter().any(|seen| seen == parent) {
             continue;
         }
-        watched.push(parent.to_path_buf());
+        registered.push(parent.to_path_buf());
         watcher
             .watch(parent, RecursiveMode::NonRecursive)
             .map_err(|e| LindoError::msg(format!("Could not watch {}: {e}", parent.display())))?;
