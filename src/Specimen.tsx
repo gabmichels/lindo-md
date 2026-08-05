@@ -95,7 +95,9 @@ export default function Specimen() {
     <div className="flex h-full">
       <Rail
         collapsed={collapsed}
-        onToggleCollapsed={() => setCollapsed((c) => !c)}
+        onToggleCollapsed={() => {
+          setCollapsed((c) => !c);
+        }}
         folder="/docs"
         onPickFolder={() => undefined}
         tree={TREE}
@@ -107,7 +109,9 @@ export default function Specimen() {
         progress={0.42}
         onJumpTo={() => undefined}
         onOpenAppearance={() => undefined}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => {
+          setSettingsOpen(true);
+        }}
         onExport={() => undefined}
         onOpenAbout={() => undefined}
       />
@@ -117,8 +121,8 @@ export default function Specimen() {
           <div>
             <h1 className="text-[15px] text-ui-text-strong">Design specimen</h1>
             <p className="text-[12px] text-ui-text-muted">
-              The rail on the left is the real component. Each card below is one
-              preset's paper, rendered with its own tokens.
+              The rail on the left is the real component. Each card below is one preset's paper,
+              rendered with its own tokens.
             </p>
           </div>
           <div className="flex gap-1">
@@ -126,7 +130,9 @@ export default function Specimen() {
               <button
                 key={mode}
                 type="button"
-                onClick={() => setAppearance(mode)}
+                onClick={() => {
+                  setAppearance(mode);
+                }}
                 className={`rounded-ui-md px-3 py-1.5 text-[12px] capitalize ${
                   appearance === mode
                     ? "bg-ui-ember-wash text-ui-text-strong"
@@ -218,8 +224,12 @@ function FormatMenuState() {
           <FormatMenu
             key={String(canFormat)}
             canFormat={canFormat}
-            onFormat={(next) => setCommand(next)}
-            onCopy={() => setCommand("copy")}
+            onFormat={(next) => {
+              setCommand(next);
+            }}
+            onCopy={() => {
+              setCommand("copy");
+            }}
           >
             <div className="rounded-ui-lg bg-doc-bg p-4 font-serif text-[15px] text-doc-text">
               {canFormat ? "A selection inside one block." : "No usable selection."}
@@ -227,9 +237,7 @@ function FormatMenuState() {
           </FormatMenu>
         ))}
       </div>
-      <p className="mt-2 text-[11px] text-ui-text-faint">
-        last command: {command ?? "—"}
-      </p>
+      <p className="mt-2 text-[11px] text-ui-text-faint">last command: {command ?? "—"}</p>
     </section>
   );
 }
@@ -245,12 +253,13 @@ function TabStripStates() {
   const [sessions, setSessions] = useState(() => SPECIMEN_SESSIONS);
 
   /** Applies a change to one row's session and leaves the others alone. */
-  const edit = (index: number, change: (session: Session) => Session) =>
+  const edit = (index: number, change: (session: Session) => Session) => {
     setSessions((current) =>
       current.map((entry, position) =>
         position === index ? { ...entry, session: change(entry.session) } : entry,
       ),
     );
+  };
 
   return (
     <section className="mb-8">
@@ -267,23 +276,25 @@ function TabStripStates() {
             >
               <TabStrip
                 session={entry.session}
-                onActivate={(id) => edit(index, (s) => activateTab(s, id))}
-                onClose={(id) => edit(index, (s) => closeTab(s, id))}
+                onActivate={(id) => {
+                  edit(index, (s) => activateTab(s, id));
+                }}
+                onClose={(id) => {
+                  edit(index, (s) => closeTab(s, id));
+                }}
                 onNewTab={() => undefined}
-                onToggleGroup={(groupId) =>
+                onToggleGroup={(groupId) => {
                   edit(index, (s) => {
                     const group = s.groups.find((g) => g.id === groupId);
-                    return group
-                      ? setGroupCollapsed(s, groupId, !group.collapsed)
-                      : s;
-                  })
-                }
-                onReorder={(id, seam, intent) =>
-                  edit(index, (s) => moveTab(s, id, seam, intent))
-                }
-                onReorderGroup={(groupId, seam) =>
-                  edit(index, (s) => moveGroup(s, groupId, seam))
-                }
+                    return group ? setGroupCollapsed(s, groupId, !group.collapsed) : s;
+                  });
+                }}
+                onReorder={(id, seam, intent) => {
+                  edit(index, (s) => moveTab(s, id, seam, intent));
+                }}
+                onReorderGroup={(groupId, seam) => {
+                  edit(index, (s) => moveGroup(s, groupId, seam));
+                }}
               />
             </div>
           </div>
@@ -351,16 +362,33 @@ const SPECIMEN_SESSIONS = [
     label: "Squeezed",
     width: 760,
     session: tabSession([
-      "README", "CHANGELOG", "theming", "shortcuts", "install",
-      "faq", "api", "db", "roadmap",
+      "README",
+      "CHANGELOG",
+      "theming",
+      "shortcuts",
+      "install",
+      "faq",
+      "api",
+      "db",
+      "roadmap",
     ]),
   },
   {
     label: "At the floor — the strip scrolls and the overflow menu appears",
     width: 520,
     session: tabSession([
-      "README", "CHANGELOG", "theming", "shortcuts", "install",
-      "faq", "api", "db", "roadmap", "changelog-2", "notes", "scratch",
+      "README",
+      "CHANGELOG",
+      "theming",
+      "shortcuts",
+      "install",
+      "faq",
+      "api",
+      "db",
+      "roadmap",
+      "changelog-2",
+      "notes",
+      "scratch",
     ]),
   },
 ];
@@ -399,8 +427,7 @@ function PaperCard({
             lineHeight: "var(--doc-leading)",
           }}
         >
-          Ordinary paragraph text with a{" "}
-          <span className="text-doc-link underline">link</span>, some{" "}
+          Ordinary paragraph text with a <span className="text-doc-link underline">link</span>, some{" "}
           <code
             className="rounded px-1 font-doc-mono"
             style={{ background: "var(--doc-code-bg)", fontSize: "0.85em" }}
@@ -419,15 +446,13 @@ function PaperCard({
           {note}
         </blockquote>
         <div className="mt-3 flex gap-1">
-          {(["note", "tip", "important", "warning", "caution"] as const).map(
-            (kind) => (
-              <span
-                key={kind}
-                className="h-1.5 flex-1 rounded-full"
-                style={{ background: `var(--doc-alert-${kind})` }}
-              />
-            ),
-          )}
+          {(["note", "tip", "important", "warning", "caution"] as const).map((kind) => (
+            <span
+              key={kind}
+              className="h-1.5 flex-1 rounded-full"
+              style={{ background: `var(--doc-alert-${kind})` }}
+            />
+          ))}
         </div>
       </div>
     </div>

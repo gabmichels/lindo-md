@@ -81,7 +81,9 @@ function WindowControls({ host }: { host: "windows" | "linux" }) {
     sync();
     const unlisten = window.onResized(sync);
     return () => {
-      void unlisten.then((off) => off());
+      void unlisten.then((off) => {
+        off();
+      });
     };
   }, []);
 
@@ -123,9 +125,7 @@ function WindowControls({ host }: { host: "windows" | "linux" }) {
           className={cn(
             "grid place-items-center text-ui-text-muted",
             "transition-colors duration-[var(--ui-dur)]",
-            host === "windows"
-              ? "h-full w-[46px]"
-              : "my-1 mr-1 size-7 rounded-full",
+            host === "windows" ? "h-full w-[46px]" : "my-1 mr-1 size-7 rounded-full",
             danger
               ? "hover:bg-ui-danger hover:text-white"
               : "hover:bg-ui-plane-2 hover:text-ui-text-strong",

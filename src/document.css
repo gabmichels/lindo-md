@@ -428,8 +428,7 @@
 
 .doc td {
   padding: 0.55em 0.9em 0.55em 0;
-  border-bottom: 1px solid
-    color-mix(in oklab, var(--doc-border) 55%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--doc-border) 55%, transparent);
 }
 
 .doc :is(th, td):last-child {

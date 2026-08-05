@@ -38,17 +38,19 @@ export function resolveImages(root: HTMLElement, options: ImageOptions): void {
     img.loading = "lazy";
     // A local image that is missing is worth showing plainly, rather than as the
     // browser's broken-image glyph, since the path is the useful information.
-    img.addEventListener("error", () => markMissing(img, original), {
-      once: true,
-    });
+    img.addEventListener(
+      "error",
+      () => {
+        markMissing(img, original);
+      },
+      {
+        once: true,
+      },
+    );
   }
 }
 
-function applyRemotePolicy(
-  img: HTMLImageElement,
-  original: string,
-  block: boolean,
-): void {
+function applyRemotePolicy(img: HTMLImageElement, original: string, block: boolean): void {
   if (!block) {
     img.src = original;
     img.loading = "lazy";

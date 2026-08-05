@@ -3,12 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { applyTheme, docTokens, mermaidThemeVariables } from "./apply";
 import { toHex } from "./color";
-import {
-  DEFAULT_PRESET_ID,
-  PRESETS,
-  findPreset,
-  resolveTheme,
-} from "./presets";
+import { DEFAULT_PRESET_ID, PRESETS, findPreset, resolveTheme } from "./presets";
 import { ThemeFileSchema, ThemeSchema, type Theme } from "./schema";
 import { HOUSE_THEMES } from "./shiki-house";
 
@@ -120,9 +115,7 @@ describe("docTokens", () => {
 
   it("derives heading sizes from the theme's own scale", () => {
     const tokens = docTokens(house.light);
-    const sizes = [1, 2, 3, 4, 5, 6].map((n) =>
-      parseFloat(tokens[`--doc-h${n}`]!),
-    );
+    const sizes = [1, 2, 3, 4, 5, 6].map((n) => parseFloat(tokens[`--doc-h${n}`]!));
 
     // Monotonically decreasing, h1 clearly larger than body, h6 just under it.
     for (let i = 1; i < sizes.length; i++) {
@@ -155,9 +148,7 @@ describe("docTokens", () => {
     const typography = house.light.typography;
     expect(docTokens(house.light)["--doc-align"]).toBe("start");
     expect(
-      docTokens({ ...house.light, typography: { ...typography, justify: true } })[
-        "--doc-align"
-      ],
+      docTokens({ ...house.light, typography: { ...typography, justify: true } })["--doc-align"],
     ).toBe("justify");
   });
 });
@@ -183,9 +174,7 @@ describe("applyTheme", () => {
     const element = document.createElement("div");
     applyTheme(house.dark, element);
     applyTheme(house.light, element);
-    expect(element.style.getPropertyValue("--doc-bg")).toBe(
-      house.light.colors.bg,
-    );
+    expect(element.style.getPropertyValue("--doc-bg")).toBe(house.light.colors.bg);
     expect(element.dataset.appearance).toBe("light");
   });
 
@@ -203,9 +192,7 @@ describe("applyTheme", () => {
     const element = document.createElement("div");
     applyTheme(house.light, element, 2);
 
-    expect(docTokens(house.light)["--doc-size"]).toBe(
-      `${house.light.typography.baseSize}px`,
-    );
+    expect(docTokens(house.light)["--doc-size"]).toBe(`${house.light.typography.baseSize}px`);
     expect(element.style.getPropertyValue("--doc-size")).not.toBe(
       docTokens(house.light)["--doc-size"],
     );
@@ -232,9 +219,7 @@ describe("mermaidThemeVariables", () => {
   });
 
   it("differs between the light and dark halves of the same preset", () => {
-    expect(mermaidThemeVariables(house.light)).not.toEqual(
-      mermaidThemeVariables(house.dark),
-    );
+    expect(mermaidThemeVariables(house.light)).not.toEqual(mermaidThemeVariables(house.dark));
   });
 });
 
@@ -289,9 +274,7 @@ describe("the two token namespaces stay apart", () => {
     for (const property of Object.keys(docTokens(house.light))) {
       // Heading sizes are computed per theme, not defaulted in CSS.
       if (/^--doc-h\d$/.test(property)) continue;
-      expect(css, `${property} has no default in styles.css`).toContain(
-        `${property}:`,
-      );
+      expect(css, `${property} has no default in styles.css`).toContain(`${property}:`);
     }
   });
 });

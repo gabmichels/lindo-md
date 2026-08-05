@@ -48,18 +48,8 @@ export function Toolbar({
 }: ToolbarProps) {
   return (
     <div className="flex h-[var(--ui-toolbar-h)] shrink-0 items-center gap-1 px-2">
-      <NavButton
-        label="Back"
-        icon={ChevronLeft}
-        disabled={!canGoBack}
-        onClick={onBack}
-      />
-      <NavButton
-        label="Forward"
-        icon={ChevronRight}
-        disabled={!canGoForward}
-        onClick={onForward}
-      />
+      <NavButton label="Back" icon={ChevronLeft} disabled={!canGoBack} onClick={onBack} />
+      <NavButton label="Forward" icon={ChevronRight} disabled={!canGoForward} onClick={onForward} />
 
       <Breadcrumb breadcrumb={breadcrumb} path={path} />
 
@@ -70,11 +60,7 @@ export function Toolbar({
         onClick={onToggleSource}
       />
       <NavButton label="Find in document" icon={Search} onClick={onFind} />
-      <NavButton
-        label="Appearance"
-        icon={SlidersHorizontal}
-        onClick={onAppearance}
-      />
+      <NavButton label="Appearance" icon={SlidersHorizontal} onClick={onAppearance} />
     </div>
   );
 }

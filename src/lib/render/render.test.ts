@@ -42,14 +42,10 @@ describe("markExternalLinks", () => {
     `);
     markExternalLinks(element);
 
-    expect(
-      element.querySelector<HTMLElement>('a[href^="https"]')?.dataset.external,
-    ).toBe("true");
-    expect(
-      element.querySelector<HTMLElement>('a[href^="#"]')?.dataset.anchor,
-    ).toBe("true");
+    expect(element.querySelector<HTMLElement>('a[href^="https"]')?.dataset.external).toBe("true");
+    expect(element.querySelector<HTMLElement>('a[href^="#"]')?.dataset.anchor).toBe("true");
 
-    const internal = element.querySelector('a[href$="guide.md"]') as HTMLElement;
+    const internal = element.querySelector<HTMLElement>('a[href$="guide.md"]')!;
     expect(internal.dataset.external).toBeUndefined();
     expect(internal.dataset.anchor).toBeUndefined();
   });
@@ -84,9 +80,7 @@ describe("resolveImages", () => {
     const element = root(`<img src="https://example.com/a.png">`);
     resolveImages(element, { dir: "/docs", blockRemote: false });
 
-    expect(element.querySelector("img")!.getAttribute("src")).toBe(
-      "https://example.com/a.png",
-    );
+    expect(element.querySelector("img")!.getAttribute("src")).toBe("https://example.com/a.png");
     expect(hasBlockedImages(element)).toBe(false);
   });
 
@@ -112,8 +106,6 @@ describe("resolveImages", () => {
     const element = root(`<img src="img/a.png">`);
     resolveImages(element, { dir: "/docs", blockRemote: true });
     resolveImages(element, { dir: "/docs", blockRemote: true });
-    expect(element.querySelector("img")!.getAttribute("src")).toBe(
-      "asset:///docs/img/a.png",
-    );
+    expect(element.querySelector("img")!.getAttribute("src")).toBe("asset:///docs/img/a.png");
   });
 });

@@ -43,10 +43,7 @@ export interface ClosedTab {
 export interface TabsState {
   session: Session;
   /** Opens a file, or activates it if already open. Returns the tab's id. */
-  open: (
-    path: string,
-    options?: { preview?: boolean; openerId?: string | null },
-  ) => string;
+  open: (path: string, options?: { preview?: boolean; openerId?: string | null }) => string;
   close: (id: string) => void;
   closeOthers: (id: string) => void;
   closeToRight: (id: string) => void;
@@ -131,10 +128,7 @@ export function useTabs(): TabsState {
     const index = session.tabs.findIndex((tab) => tab.id === id);
     const tab = session.tabs[index];
     if (!tab) return;
-    closed.current = [{ path: tab.path, index }, ...closed.current].slice(
-      0,
-      UNDO_DEPTH,
-    );
+    closed.current = [{ path: tab.path, index }, ...closed.current].slice(0, UNDO_DEPTH);
   }, []);
 
   return {
@@ -164,12 +158,37 @@ export function useTabs(): TabsState {
       [apply, remember],
     ),
 
-    closeOthers: useCallback((id) => apply((s) => closeOthers(s, id)), [apply]),
-    closeToRight: useCallback((id) => apply((s) => closeToRight(s, id)), [apply]),
-    closeGroup: useCallback((id) => apply((s) => closeGroup(s, id)), [apply]),
+    closeOthers: useCallback(
+      (id) => {
+        apply((s) => closeOthers(s, id));
+      },
+      [apply],
+    ),
+    closeToRight: useCallback(
+      (id) => {
+        apply((s) => closeToRight(s, id));
+      },
+      [apply],
+    ),
+    closeGroup: useCallback(
+      (id) => {
+        apply((s) => closeGroup(s, id));
+      },
+      [apply],
+    ),
 
-    activate: useCallback((id) => apply((s) => activateTab(s, id)), [apply]),
-    cycle: useCallback((delta) => apply((s) => activateRelative(s, delta)), [apply]),
+    activate: useCallback(
+      (id) => {
+        apply((s) => activateTab(s, id));
+      },
+      [apply],
+    ),
+    cycle: useCallback(
+      (delta) => {
+        apply((s) => activateRelative(s, delta));
+      },
+      [apply],
+    ),
 
     activateIndex: useCallback(
       (index) => {
@@ -187,18 +206,29 @@ export function useTabs(): TabsState {
       [apply],
     ),
 
-    promote: useCallback((id) => apply((s) => promotePreview(s, id)), [apply]),
+    promote: useCallback(
+      (id) => {
+        apply((s) => promotePreview(s, id));
+      },
+      [apply],
+    ),
     setPath: useCallback(
-      (id, path) => apply((s) => setTabPath(s, id, path)),
+      (id, path) => {
+        apply((s) => setTabPath(s, id, path));
+      },
       [apply],
     ),
 
     move: useCallback(
-      (id, toSeam, intent) => apply((s) => moveTab(s, id, toSeam, intent)),
+      (id, toSeam, intent) => {
+        apply((s) => moveTab(s, id, toSeam, intent));
+      },
       [apply],
     ),
     moveGroup: useCallback(
-      (groupId, toSeam) => apply((s) => moveGroup(s, groupId, toSeam)),
+      (groupId, toSeam) => {
+        apply((s) => moveGroup(s, groupId, toSeam));
+      },
       [apply],
     ),
 
@@ -211,25 +241,40 @@ export function useTabs(): TabsState {
       [apply],
     ),
 
-    ungroup: useCallback((groupId) => apply((s) => ungroup(s, groupId)), [apply]),
+    ungroup: useCallback(
+      (groupId) => {
+        apply((s) => ungroup(s, groupId));
+      },
+      [apply],
+    ),
     removeFromGroup: useCallback(
-      (id) => apply((s) => removeFromGroup(s, id)),
+      (id) => {
+        apply((s) => removeFromGroup(s, id));
+      },
       [apply],
     ),
     addToGroup: useCallback(
-      (id, groupId) => apply((s) => addToGroup(s, id, groupId)),
+      (id, groupId) => {
+        apply((s) => addToGroup(s, id, groupId));
+      },
       [apply],
     ),
     renameGroup: useCallback(
-      (groupId, name) => apply((s) => renameGroup(s, groupId, name)),
+      (groupId, name) => {
+        apply((s) => renameGroup(s, groupId, name));
+      },
       [apply],
     ),
     recolorGroup: useCallback(
-      (groupId, color) => apply((s) => recolorGroup(s, groupId, color)),
+      (groupId, color) => {
+        apply((s) => recolorGroup(s, groupId, color));
+      },
       [apply],
     ),
     setGroupCollapsed: useCallback(
-      (groupId, collapsed) => apply((s) => setGroupCollapsed(s, groupId, collapsed)),
+      (groupId, collapsed) => {
+        apply((s) => setGroupCollapsed(s, groupId, collapsed));
+      },
       [apply],
     ),
 
@@ -237,9 +282,7 @@ export function useTabs(): TabsState {
       const [last, ...rest] = closed.current;
       if (!last) return;
       closed.current = rest;
-      apply((session) =>
-        openTab(session, last.path, { id: newId(), at: last.index }),
-      );
+      apply((session) => openTab(session, last.path, { id: newId(), at: last.index }));
     }, [apply]),
 
     newId,

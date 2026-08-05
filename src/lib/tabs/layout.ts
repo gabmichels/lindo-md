@@ -68,17 +68,16 @@ export interface LayoutInput {
 
 /** What the strip is made of, before any width is decided: one pill per group
  *  plus every tab that is actually drawn. */
-function sequence(session: Session): Array<{
+function sequence(session: Session): {
   kind: "tab" | "pill";
   key: string;
   groupId: string | null;
-}> {
+}[] {
   const collapsed = new Set(
     session.groups.filter((group) => group.collapsed).map((group) => group.id),
   );
   const emitted = new Set<string>();
-  const out: Array<{ kind: "tab" | "pill"; key: string; groupId: string | null }> =
-    [];
+  const out: { kind: "tab" | "pill"; key: string; groupId: string | null }[] = [];
 
   for (const tab of session.tabs) {
     if (tab.groupId !== null && !emitted.has(tab.groupId)) {
@@ -97,11 +96,7 @@ export function clampPill(width: number): number {
   return Math.min(Math.max(Math.round(width), PILL_MIN), PILL_MAX);
 }
 
-export function layoutTabs({
-  session,
-  stripWidth,
-  pillWidths,
-}: LayoutInput): Layout {
+export function layoutTabs({ session, stripWidth, pillWidths }: LayoutInput): Layout {
   const elements = sequence(session);
   const groupCount = elements.filter((e) => e.kind === "pill").length;
   const elastic = elements.filter((e) => e.kind === "tab").length;
@@ -111,16 +106,12 @@ export function layoutTabs({
     .reduce((sum, element) => sum + clampPill(pillWidths[element.key] ?? PILL_MIN), 0);
 
   // Everything that is not an elastic tab.
-  const fixed =
-    pillTotal +
-    2 * GROUP_PAD * groupCount +
-    GAP * Math.max(0, elements.length - 1);
+  const fixed = pillTotal + 2 * GROUP_PAD * groupCount + GAP * Math.max(0, elements.length - 1);
 
   // Whether the overflow chevron is shown changes the available width, which
   // changes whether we overflow — so decide without it, then confirm with it.
   const overflow =
-    overflows(stripWidth, fixed, elastic, false) &&
-    overflows(stripWidth, fixed, elastic, true);
+    overflows(stripWidth, fixed, elastic, false) && overflows(stripWidth, fixed, elastic, true);
 
   const available = availableFor(stripWidth, overflow);
   const raw = elastic === 0 ? 0 : Math.floor((available - fixed) / elastic);
@@ -130,15 +121,18 @@ export function layoutTabs({
   // makes the total drift, and the stray pixel lands on a different tab every
   // time the ResizeObserver fires, which shimmers while resizing the window.
   const slack = available - fixed - elastic * tabWidth;
-  const remainder =
-    overflow || tabWidth === TAB_MAX ? 0 : Math.min(Math.max(slack, 0), elastic);
+  const remainder = overflow || tabWidth === TAB_MAX ? 0 : Math.min(Math.max(slack, 0), elastic);
 
   const slots: Slot[] = [];
   let x = 0;
   let elasticIndex = 0;
   let openGroup: string | null = null;
 
-  elements.forEach((element, index) => {
+  // `for...of` rather than `forEach`: TypeScript does not carry assignments made
+  // inside a callback back out to the enclosing scope, so with `forEach` it still
+  // believes `openGroup` is `null` at the closing `GROUP_PAD` below and reports that
+  // line as dead. It is not — it pads a group that runs to the end of the strip.
+  for (const [index, element] of elements.entries()) {
     if (index > 0) x += GAP;
     // A group band is padded on both sides, so its tabs read as sitting inside
     // the pill's territory rather than merely next to it.
@@ -153,7 +147,7 @@ export function layoutTabs({
 
     slots.push({ ...element, left: x, width });
     x += width;
-  });
+  }
 
   if (openGroup !== null) x += GROUP_PAD;
 
@@ -161,10 +155,7 @@ export function layoutTabs({
 }
 
 function availableFor(stripWidth: number, overflow: boolean): number {
-  return Math.max(
-    0,
-    stripWidth - PLUS_W - DRAG_RESERVE - (overflow ? OVERFLOW_W : 0),
-  );
+  return Math.max(0, stripWidth - PLUS_W - DRAG_RESERVE - (overflow ? OVERFLOW_W : 0));
 }
 
 function overflows(

@@ -18,11 +18,7 @@ function article(html: string): HTMLElement {
 }
 
 /** Selects from one text node offset to another and asks what file range that is. */
-function rangeOf(
-  blocks: BlockMap[],
-  start: [Node, number],
-  end: [Node, number],
-) {
+function rangeOf(blocks: BlockMap[], start: [Node, number], end: [Node, number]) {
   const range = document.createRange();
   range.setStart(start[0], start[1]);
   range.setEnd(end[0], end[1]);
@@ -214,8 +210,16 @@ describe("selectionRange", () => {
     );
     const [one, two] = [...root.querySelectorAll("p")];
     const blocks: BlockMap[] = [
-      { sourcepos: "1:1-1:5", aligned: true, runs: [{ text: "first", sourceStart: 0, sourceEnd: 5 }] },
-      { sourcepos: "3:1-3:6", aligned: true, runs: [{ text: "second", sourceStart: 7, sourceEnd: 13 }] },
+      {
+        sourcepos: "1:1-1:5",
+        aligned: true,
+        runs: [{ text: "first", sourceStart: 0, sourceEnd: 5 }],
+      },
+      {
+        sourcepos: "3:1-3:6",
+        aligned: true,
+        runs: [{ text: "second", sourceStart: 7, sourceEnd: 13 }],
+      },
     ];
     expect(rangeOf(blocks, [one!.firstChild!, 0], [two!.firstChild!, 3])).toBeNull();
   });

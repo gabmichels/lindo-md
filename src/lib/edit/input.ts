@@ -27,14 +27,13 @@ export interface InputEdit {
 }
 
 /** Input types that delete rather than insert, and how far. */
-const DELETIONS: Record<string, "backward" | "forward" | "word-backward" | "word-forward"> =
-  {
-    deleteContentBackward: "backward",
-    deleteContent: "backward",
-    deleteWordBackward: "word-backward",
-    deleteWordForward: "word-forward",
-    deleteContentForward: "forward",
-  };
+const DELETIONS: Record<string, "backward" | "forward" | "word-backward" | "word-forward"> = {
+  deleteContentBackward: "backward",
+  deleteContent: "backward",
+  deleteWordBackward: "word-backward",
+  deleteWordForward: "word-forward",
+  deleteContentForward: "forward",
+};
 
 export function applyInput(
   source: string,

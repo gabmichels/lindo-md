@@ -21,12 +21,7 @@ interface TabGroupDialogProps {
   onRecolor: (color: GroupColor) => void;
 }
 
-export function TabGroupDialog({
-  group,
-  onOpenChange,
-  onRename,
-  onRecolor,
-}: TabGroupDialogProps) {
+export function TabGroupDialog({ group, onOpenChange, onRename, onRecolor }: TabGroupDialogProps) {
   const [name, setName] = useState("");
 
   useEffect(() => {
@@ -47,16 +42,12 @@ export function TabGroupDialog({
             // a name, and it is the only reason the dialog opened.
             event.preventDefault();
             const input =
-              event.target instanceof HTMLElement
-                ? event.target.querySelector("input")
-                : null;
+              event.target instanceof HTMLElement ? event.target.querySelector("input") : null;
             input?.focus();
             input?.select();
           }}
         >
-          <Dialog.Title className="text-[15px] text-ui-text-strong">
-            Name this group
-          </Dialog.Title>
+          <Dialog.Title className="text-[15px] text-ui-text-strong">Name this group</Dialog.Title>
           <Dialog.Description className="mt-1 text-[12px] text-ui-text-muted">
             Leave it empty for a colour with no label.
           </Dialog.Description>
@@ -71,7 +62,9 @@ export function TabGroupDialog({
           >
             <input
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                setName(event.target.value);
+              }}
               aria-label="Group name"
               placeholder="Specs, drafts, chapter two…"
               maxLength={60}
@@ -91,7 +84,9 @@ export function TabGroupDialog({
                     aria-label={color}
                     aria-pressed={group?.color === color}
                     title={color}
-                    onClick={() => onRecolor(color)}
+                    onClick={() => {
+                      onRecolor(color);
+                    }}
                     className={cn(
                       "size-6 rounded-full transition-[box-shadow] duration-[var(--ui-dur)]",
                       group?.color === color &&

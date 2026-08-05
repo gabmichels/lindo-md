@@ -46,7 +46,9 @@ export function EmptyState({
                 <li key={path}>
                   <button
                     type="button"
-                    onClick={() => onOpenRecent(path)}
+                    onClick={() => {
+                      onOpenRecent(path);
+                    }}
                     title={path}
                     className={cn(
                       "flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left",
@@ -55,9 +57,7 @@ export function EmptyState({
                     )}
                   >
                     <span className="shrink-0">{basename(path)}</span>
-                    <span className="truncate text-[11.5px] text-doc-text-muted">
-                      {path}
-                    </span>
+                    <span className="truncate text-[11.5px] text-doc-text-muted">{path}</span>
                   </button>
                 </li>
               ))}

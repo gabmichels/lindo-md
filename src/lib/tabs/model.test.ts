@@ -100,9 +100,7 @@ describe("normalize", () => {
 
   it("nulls a groupId that names no group, and deletes empty groups", () => {
     const session = normalize({
-      tabs: [
-        { id: "a", path: "/a.md", groupId: "ghost", preview: false, openerId: null },
-      ],
+      tabs: [{ id: "a", path: "/a.md", groupId: "ghost", preview: false, openerId: null }],
       groups: [{ id: "G", name: "G", color: "clay", collapsed: false }],
       activeTabId: "a",
     });
@@ -172,9 +170,7 @@ describe("normalize", () => {
 
   it("coerces an unknown colour and trims an overlong name", () => {
     const session = normalize({
-      tabs: [
-        { id: "a", path: "/a.md", groupId: "G", preview: false, openerId: null },
-      ],
+      tabs: [{ id: "a", path: "/a.md", groupId: "G", preview: false, openerId: null }],
       groups: [
         {
           id: "G",

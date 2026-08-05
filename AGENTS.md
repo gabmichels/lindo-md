@@ -36,6 +36,10 @@ Windows 11.
 | --- | --- |
 | `pnpm tauri dev` | Run the app |
 | `pnpm typecheck` | `tsc --noEmit` |
+| `pnpm lint` | ESLint, type-aware — warnings fail |
+| `pnpm lint:fix` | ESLint with `--fix` |
+| `pnpm format` | Prettier, write |
+| `pnpm format:check` | Prettier, check only — this is the CI gate |
 | `pnpm test` | vitest, once |
 | `pnpm test:watch` | vitest, watching |
 | `cargo test` | Rust unit tests (run from `src-tauri/`) |
@@ -46,7 +50,9 @@ Windows 11.
 | `pnpm release` | Derive the next version from the commits, tag, push — see [Releasing](#releasing) |
 | `pnpm bump <major\|minor\|patch>` | Sync the version across `package.json` and `Cargo.toml` |
 
-All six gates run in CI on Linux, macOS and Windows. Run them locally before pushing.
+Every gate runs in CI. Typecheck, lint, format and the unit tests run once on Linux —
+they are platform-independent — while the Rust suite and the bundle build run on all
+three. Run them locally before pushing.
 
 ## Layout
 
@@ -83,6 +89,35 @@ not a log. On the TS side nothing calls `invoke` directly: `lib/ipc.ts` wraps ev
 the response with a zod schema, and attaches the command name to any parse failure. Rust structs use
 `#[serde(rename_all = "camelCase")]`; Tauri converts argument names, so Rust `snake_case` parameters
 are called with `camelCase` keys.
+
+## TypeScript
+
+Prettier owns formatting and ESLint owns correctness; the two never overlap, so there is nothing
+to argue about in review. `pnpm format` before `pnpm lint`.
+
+The linting is **type-aware** (`strictTypeChecked` + `stylisticTypeChecked`), which is why it takes
+minutes rather than seconds. It earns that: `no-floating-promises` is the rule that would have
+caught the dead-links bug in v1.0.0, where `void follow(href, handlers)` swallowed a rejection from
+every external link in every document for a whole release.
+
+What the config decides, and why, so nobody re-litigates it in a PR:
+
+- **`no-non-null-assertion` is off**, because `noUncheckedIndexedAccess` is on. Every index is
+  `T | undefined`, so code that has already bounds-checked has to write `!` to proceed. The two
+  settings are a pair; if the tsconfig one ever goes, this should come back.
+- **The React Compiler rules** (`react-hooks/refs`, `set-state-in-effect`, `immutability`) are
+  **off**, and this is a debt, not a decision. They flag 27 real places — refs read during render
+  in `DocumentDeck` and `TabStrip`, `setState` inside effects in `App` and `DocumentView`. Turning
+  them on means reshaping the deck and the measuring passes, which is a behaviour change; it
+  belongs in its own commit, one rule at a time.
+- **Inline `eslint-disable` needs a reason after `--`**, and every one currently in the tree has
+  one. They are almost all `jsx-a11y` rules objecting to standard ARIA patterns — a `ul`/`li`
+  tree, a non-focusable `tablist` — rather than real defects.
+
+The rules at the bottom of `eslint.config.js` are the invariants this document states in prose:
+no `fetch`/`XHR`/`WebSocket`/`sendBeacon` anywhere in `src/`, no static import of `mermaid` or
+`shiki`, and no `invoke` outside `lib/ipc.ts`. A documented invariant that nothing checks is a
+comment, and the audit found several the code had quietly stopped honouring.
 
 ## Conventions
 

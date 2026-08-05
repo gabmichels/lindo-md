@@ -43,6 +43,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      # Ordered cheapest-first inside the one job rather than split into three:
+      # `format:check` is seconds, `lint` is type-aware and takes minutes, and sharing
+      # the job means one install rather than three.
+      - run: pnpm format:check
+      - run: pnpm lint
       - run: pnpm test
 
   rust:

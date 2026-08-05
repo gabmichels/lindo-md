@@ -204,11 +204,7 @@ function advance(state: Dragging, pointerX: number): Dragging {
   const others = otherSlots(snapshot);
   const block = blockWidth(snapshot);
 
-  const x = clamp(
-    pointerX - snapshot.grabOffset,
-    0,
-    Math.max(0, snapshot.trackWidth - block),
-  );
+  const x = clamp(pointerX - snapshot.grabOffset, 0, Math.max(0, snapshot.trackWidth - block));
 
   const previous = positionOfSeam(snapshot, others, state.target.seam);
   const position = positionFor(restingPlaces(others), x, previous);
@@ -279,17 +275,11 @@ function seamAt(snapshot: DragSnapshot, others: Slot[], position: number): numbe
 
   // A pill stands for its whole group, including a collapsed one whose members
   // are not drawn, so the seam is that group's first member.
-  const first = snapshot.order.findIndex(
-    (id) => snapshot.groupOf[id] === slot.key,
-  );
+  const first = snapshot.order.findIndex((id) => snapshot.groupOf[id] === slot.key);
   return first < 0 ? snapshot.order.length : first;
 }
 
-function positionOfSeam(
-  snapshot: DragSnapshot,
-  others: Slot[],
-  seam: number,
-): number {
+function positionOfSeam(snapshot: DragSnapshot, others: Slot[], seam: number): number {
   for (let position = 0; position <= others.length; position += 1) {
     if (seamAt(snapshot, others, position) === seam) return position;
   }
@@ -302,11 +292,7 @@ function positionOfSeam(
  * A seam is inside a group exactly when the tabs on both sides of it belong to
  * that group — so this is a local question about two neighbours, not a search.
  */
-function intentAt(
-  snapshot: DragSnapshot,
-  others: Slot[],
-  position: number,
-): MoveIntent {
+function intentAt(snapshot: DragSnapshot, others: Slot[], position: number): MoveIntent {
   const before = lastTabBefore(others, position);
   const after = firstTabAfter(others, position);
 

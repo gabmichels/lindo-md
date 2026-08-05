@@ -108,9 +108,7 @@ export function visibleTabs(session: Session): Tab[] {
   const collapsed = new Set(
     session.groups.filter((group) => group.collapsed).map((group) => group.id),
   );
-  return session.tabs.filter(
-    (tab) => tab.groupId === null || !collapsed.has(tab.groupId),
-  );
+  return session.tabs.filter((tab) => tab.groupId === null || !collapsed.has(tab.groupId));
 }
 
 // --- opening and closing ----------------------------------------------------
@@ -134,11 +132,7 @@ export interface OpenOptions {
  * A path is never opened twice: this is a viewer, and two tabs on the same file
  * would show the same bytes and compete for the same live-reload.
  */
-export function openTab(
-  session: Session,
-  path: string,
-  options: OpenOptions,
-): Session {
+export function openTab(session: Session, path: string, options: OpenOptions): Session {
   const activate = options.activate ?? true;
   const preview = options.preview ?? false;
 
@@ -148,9 +142,7 @@ export function openTab(
     // or Ctrl+click on a file you are already previewing pins it.
     const tabs = preview
       ? session.tabs
-      : session.tabs.map((tab) =>
-          tab.id === existing.id ? { ...tab, preview: false } : tab,
-        );
+      : session.tabs.map((tab) => (tab.id === existing.id ? { ...tab, preview: false } : tab));
     return normalize({
       ...session,
       tabs,
@@ -170,9 +162,7 @@ export function openTab(
   // A preview open reuses the existing preview tab's slot and group rather than
   // adding one, which is the whole point of preview tabs: browsing a folder
   // must not leave a trail of tabs behind.
-  const replacing = preview
-    ? session.tabs.find((tab) => tab.preview)
-    : undefined;
+  const replacing = preview ? session.tabs.find((tab) => tab.preview) : undefined;
   if (replacing) {
     const tabs = session.tabs.map((tab) =>
       tab.id === replacing.id ? { ...fresh, groupId: replacing.groupId } : tab,
@@ -184,11 +174,8 @@ export function openTab(
     });
   }
 
-  const activeIndex = session.activeTabId
-    ? indexOfTab(session, session.activeTabId)
-    : -1;
-  const requested =
-    options.at ?? (activeIndex >= 0 ? activeIndex + 1 : session.tabs.length);
+  const activeIndex = session.activeTabId ? indexOfTab(session, session.activeTabId) : -1;
+  const requested = options.at ?? (activeIndex >= 0 ? activeIndex + 1 : session.tabs.length);
   let seam = clamp(requested, 0, session.tabs.length);
 
   let groupId: string | null = null;
@@ -259,13 +246,11 @@ export function closeGroup(session: Session, groupId: string): Session {
   if (!range) return session;
 
   const remaining = session.tabs.filter((tab) => tab.groupId !== groupId);
-  const closedActive = groupMembers(session, groupId).some(
-    (tab) => tab.id === session.activeTabId,
-  );
+  const closedActive = groupMembers(session, groupId).some((tab) => tab.id === session.activeTabId);
   // The whole run leaves at once, so activation lands on whatever slid into the
   // range's first slot, or on the tab just before it.
   const activeTabId = closedActive
-    ? (remaining[range.start] ?? remaining[range.start - 1])?.id ?? null
+    ? ((remaining[range.start] ?? remaining[range.start - 1])?.id ?? null)
     : session.activeTabId;
 
   return normalize({
@@ -276,19 +261,13 @@ export function closeGroup(session: Session, groupId: string): Session {
   });
 }
 
-function nextActiveAfterClose(
-  closed: Tab,
-  remaining: Tab[],
-  index: number,
-): string | null {
+function nextActiveAfterClose(closed: Tab, remaining: Tab[], index: number): string | null {
   if (remaining.length === 0) return null;
 
   // The tab this one was opened from, if it is still around and in the same
   // group — following a link and closing it should return you where you were.
-  const opener = closed.openerId
-    ? remaining.find((tab) => tab.id === closed.openerId)
-    : undefined;
-  if (opener && opener.groupId === closed.groupId) return opener.id;
+  const opener = closed.openerId ? remaining.find((tab) => tab.id === closed.openerId) : undefined;
+  if (opener?.groupId === closed.groupId) return opener.id;
 
   // Otherwise prefer a surviving group-mate over the plain right neighbour, so
   // closing through a group feels like staying inside it rather than escaping.
@@ -340,27 +319,20 @@ export function setTabPath(session: Session, id: string, path: string): Session 
   }
   return normalize({
     ...session,
-    tabs: session.tabs.map((other) =>
-      other.id === id ? { ...other, path } : other,
-    ),
+    tabs: session.tabs.map((other) => (other.id === id ? { ...other, path } : other)),
   });
 }
 
 export function promotePreview(session: Session, id: string): Session {
   return normalize({
     ...session,
-    tabs: session.tabs.map((tab) =>
-      tab.id === id ? { ...tab, preview: false } : tab,
-    ),
+    tabs: session.tabs.map((tab) => (tab.id === id ? { ...tab, preview: false } : tab)),
   });
 }
 
 // --- moving -----------------------------------------------------------------
 
-export type MoveIntent =
-  | { kind: "keep" }
-  | { kind: "none" }
-  | { kind: "join"; groupId: string };
+export type MoveIntent = { kind: "keep" } | { kind: "none" } | { kind: "join"; groupId: string };
 
 /**
  * Moves a tab to a seam, deciding its group membership from `intent`.
@@ -392,8 +364,7 @@ export function moveTab(
       : intent;
 
   let groupId: string | null = null;
-  const target =
-    resolved.kind === "join" ? rangeIn(rest, resolved.groupId) : null;
+  const target = resolved.kind === "join" ? rangeIn(rest, resolved.groupId) : null;
 
   if (resolved.kind === "join" && target) {
     seam = clamp(seam, target.start, target.end + 1);
@@ -407,19 +378,12 @@ export function moveTab(
 
 /** Moves a whole group. The seam is snapped to one that is not interior to
  *  another group, which is what stops a pill from landing inside one. */
-export function moveGroup(
-  session: Session,
-  groupId: string,
-  toSeam: Seam,
-): Session {
+export function moveGroup(session: Session, groupId: string, toSeam: Seam): Session {
   const range = groupRange(session, groupId);
   if (!range) return session;
 
   const block = session.tabs.slice(range.start, range.end + 1);
-  const rest = [
-    ...session.tabs.slice(0, range.start),
-    ...session.tabs.slice(range.end + 1),
-  ];
+  const rest = [...session.tabs.slice(0, range.start), ...session.tabs.slice(range.end + 1)];
 
   const shifted = toSeam > range.start ? toSeam - block.length : toSeam;
   const seam = snapOutOfGroups(rest, clamp(shifted, 0, rest.length));
@@ -439,11 +403,7 @@ export interface GroupInit {
 }
 
 /** Collects `ids` into a new group at the position of the leftmost one. */
-export function groupTabs(
-  session: Session,
-  ids: string[],
-  init: GroupInit,
-): Session {
+export function groupTabs(session: Session, ids: string[], init: GroupInit): Session {
   const wanted = new Set(ids);
   const members = session.tabs.filter((tab) => wanted.has(tab.id));
   if (members.length === 0) return session;
@@ -451,9 +411,7 @@ export function groupTabs(
   const anchor = indexOfTab(session, members[0]!.id);
   const rest = session.tabs.filter((tab) => !wanted.has(tab.id));
   // Every member removed from before the anchor pulls the seam left with it.
-  const removedBefore = session.tabs
-    .slice(0, anchor)
-    .filter((tab) => wanted.has(tab.id)).length;
+  const removedBefore = session.tabs.slice(0, anchor).filter((tab) => wanted.has(tab.id)).length;
   const seam = snapOutOfGroups(rest, clamp(anchor - removedBefore, 0, rest.length));
 
   const group: TabGroup = {
@@ -495,12 +453,7 @@ export function removeFromGroup(
   const range = groupRange(session, tab.groupId);
   if (!range) return session;
 
-  return moveTab(
-    session,
-    id,
-    side === "left" ? range.start : range.end + 1,
-    { kind: "none" },
-  );
+  return moveTab(session, id, side === "left" ? range.start : range.end + 1, { kind: "none" });
 }
 
 /** Dissolves a group without moving anything: its members are already
@@ -508,28 +461,18 @@ export function removeFromGroup(
 export function ungroup(session: Session, groupId: string): Session {
   return normalize({
     ...session,
-    tabs: session.tabs.map((tab) =>
-      tab.groupId === groupId ? { ...tab, groupId: null } : tab,
-    ),
+    tabs: session.tabs.map((tab) => (tab.groupId === groupId ? { ...tab, groupId: null } : tab)),
     groups: session.groups.filter((group) => group.id !== groupId),
   });
 }
 
-export function renameGroup(
-  session: Session,
-  groupId: string,
-  name: string,
-): Session {
+export function renameGroup(session: Session, groupId: string, name: string): Session {
   return patchGroup(session, groupId, {
     name: name.trim().slice(0, MAX_GROUP_NAME),
   });
 }
 
-export function recolorGroup(
-  session: Session,
-  groupId: string,
-  color: GroupColor,
-): Session {
+export function recolorGroup(session: Session, groupId: string, color: GroupColor): Session {
   return patchGroup(session, groupId, { color });
 }
 
@@ -541,11 +484,7 @@ export function recolorGroup(
  * is the entire session — the collapse is refused rather than leaving the
  * window with nothing selected.
  */
-export function setGroupCollapsed(
-  session: Session,
-  groupId: string,
-  collapsed: boolean,
-): Session {
+export function setGroupCollapsed(session: Session, groupId: string, collapsed: boolean): Session {
   const range = groupRange(session, groupId);
   if (!range) return session;
 
@@ -553,8 +492,7 @@ export function setGroupCollapsed(
   const active = activeTab(session);
 
   if (collapsed && active?.groupId === groupId) {
-    const escape =
-      session.tabs[range.end + 1] ?? session.tabs[range.start - 1] ?? null;
+    const escape = session.tabs[range.end + 1] ?? session.tabs[range.start - 1] ?? null;
     if (!escape) return session;
     activeTabId = escape.id;
   }
@@ -565,25 +503,17 @@ export function setGroupCollapsed(
   });
 }
 
-function patchGroup(
-  session: Session,
-  groupId: string,
-  patch: Partial<TabGroup>,
-): Session {
+function patchGroup(session: Session, groupId: string, patch: Partial<TabGroup>): Session {
   return {
     ...session,
-    groups: session.groups.map((group) =>
-      group.id === groupId ? { ...group, ...patch } : group,
-    ),
+    groups: session.groups.map((group) => (group.id === groupId ? { ...group, ...patch } : group)),
   };
 }
 
 /** The least-used colour, so a fourth group does not repeat the first while
  *  unused colours are still available. */
 function nextColor(session: Session): GroupColor {
-  const used = new Map<GroupColor, number>(
-    GROUP_COLORS.map((color) => [color, 0]),
-  );
+  const used = new Map<GroupColor, number>(GROUP_COLORS.map((color) => [color, 0]));
   for (const group of session.groups) {
     used.set(group.color, (used.get(group.color) ?? 0) + 1);
   }
@@ -621,9 +551,7 @@ export function normalize(session: Session): Session {
     groups.push({
       ...group,
       name: group.name.trim().slice(0, MAX_GROUP_NAME),
-      color: (GROUP_COLORS as readonly string[]).includes(group.color)
-        ? group.color
-        : "slate",
+      color: (GROUP_COLORS as readonly string[]).includes(group.color) ? group.color : "slate",
     });
   }
 
@@ -636,9 +564,7 @@ export function normalize(session: Session): Session {
       preview,
       groupId: tab.groupId && groupIds.has(tab.groupId) ? tab.groupId : null,
       openerId:
-        tab.openerId && tab.openerId !== tab.id && seenIds.has(tab.openerId)
-          ? tab.openerId
-          : null,
+        tab.openerId && tab.openerId !== tab.id && seenIds.has(tab.openerId) ? tab.openerId : null,
     };
   });
 
@@ -701,10 +627,7 @@ function makeContiguous(tabs: Tab[]): Tab[] {
 
 // --- seam arithmetic --------------------------------------------------------
 
-function rangeIn(
-  tabs: Tab[],
-  groupId: string,
-): { start: number; end: number } | null {
+function rangeIn(tabs: Tab[], groupId: string): { start: number; end: number } | null {
   let start = -1;
   let end = -1;
   tabs.forEach((tab, index) => {

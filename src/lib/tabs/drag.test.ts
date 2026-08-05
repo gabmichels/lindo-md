@@ -10,7 +10,7 @@ import {
   type DragSnapshot,
   type DragState,
 } from "./drag";
-import { GAP, layoutTabs, type Slot } from "./layout";
+import { GAP, layoutTabs } from "./layout";
 import { moveTab, normalize, type Session, type Tab } from "./model";
 
 /** Four 100px tabs, optionally with a group, laid out for real by `layoutTabs`
@@ -27,10 +27,7 @@ function scene(group?: [number, number]): Session {
       preview: false,
       openerId: null,
     })),
-    groups:
-      from < 0
-        ? []
-        : [{ id: "G", name: "Specs", color: "clay" as const, collapsed: false }],
+    groups: from < 0 ? [] : [{ id: "G", name: "Specs", color: "clay" as const, collapsed: false }],
     activeTabId: "a",
   });
 }
@@ -46,9 +43,7 @@ function snapshotFor(session: Session, subjectId: string): DragSnapshot {
   return {
     slots,
     order: session.tabs.map((tab) => tab.id),
-    groupOf: Object.fromEntries(
-      session.tabs.map((tab) => [tab.id, tab.groupId]),
-    ),
+    groupOf: Object.fromEntries(session.tabs.map((tab) => [tab.id, tab.groupId])),
     subject: { kind: "tab", id: subjectId },
     slotIndex,
     blockLength: 1,
@@ -59,7 +54,7 @@ function snapshotFor(session: Session, subjectId: string): DragSnapshot {
 }
 
 function centerOf(snapshot: DragSnapshot, key: string): number {
-  const slot = snapshot.slots.find((candidate) => candidate.key === key) as Slot;
+  const slot = snapshot.slots.find((candidate) => candidate.key === key)!;
   return slot.left + slot.width / 2;
 }
 
@@ -108,10 +103,7 @@ describe("reordering", () => {
   it("moves the tab past whatever its centre was dragged beyond", () => {
     const session = scene();
     const snapshot = snapshotFor(session, "a");
-    const state = move(
-      press(snapshot, centerOf(snapshot, "a")),
-      centerOf(snapshot, "c") + 30,
-    );
+    const state = move(press(snapshot, centerOf(snapshot, "a")), centerOf(snapshot, "c") + 30);
     expect(dropped(session, "a", state)).toBe("b c a d");
   });
 
@@ -136,10 +128,7 @@ describe("group membership at the drop position", () => {
     // `d` dragged into the middle of the run `b c`.
     const session = scene([1, 2]);
     const snapshot = snapshotFor(session, "d");
-    const state = move(
-      press(snapshot, centerOf(snapshot, "d")),
-      centerOf(snapshot, "c"),
-    );
+    const state = move(press(snapshot, centerOf(snapshot, "d")), centerOf(snapshot, "c"));
     expect(commitOf(state)).toMatchObject({ intent: { kind: "join", groupId: "G" } });
     expect(dropped(session, "d", state)).toBe("a b d c");
   });
@@ -149,10 +138,7 @@ describe("group membership at the drop position", () => {
     // ungrouped neighbour on its left, so it is a boundary, not an interior.
     const session = scene([1, 2]);
     const snapshot = snapshotFor(session, "d");
-    const state = move(
-      press(snapshot, centerOf(snapshot, "d")),
-      centerOf(snapshot, "a") + 30,
-    );
+    const state = move(press(snapshot, centerOf(snapshot, "d")), centerOf(snapshot, "a") + 30);
     expect(commitOf(state)).toMatchObject({ intent: { kind: "none" } });
   });
 });
@@ -185,7 +171,6 @@ describe("what the reader sees", () => {
     expect(displacementOf(state, 1)).toBeLessThan(0);
     expect(displacementOf(state, 3)).toBeLessThan(0);
   });
-
 });
 
 describe("giving up", () => {

@@ -12,13 +12,13 @@ import { describe, expect, it } from "vitest";
 const SEMVER = /^\d+\.\d+\.\d+$/;
 
 function packageVersion(): string {
-  return JSON.parse(readFileSync("package.json", "utf8")).version;
+  return (JSON.parse(readFileSync("package.json", "utf8")) as { version: string }).version;
 }
 
 function cargoVersion(): string {
   const toml = readFileSync("src-tauri/Cargo.toml", "utf8");
   // Anchored to the [package] table so a dependency's version cannot match by accident.
-  const match = toml.match(/\[package\][\s\S]*?\nversion\s*=\s*"([^"]+)"/);
+  const match = /\[package\][\s\S]*?\nversion\s*=\s*"([^"]+)"/.exec(toml);
   if (!match?.[1]) throw new Error("no [package] version found in src-tauri/Cargo.toml");
   return match[1];
 }

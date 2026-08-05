@@ -28,7 +28,15 @@ allowBuilds:
 # version, so they lapse the moment shiki moves — which makes the list a record of
 # knowingly-accepted young packages rather than a permanent hole.
 minimumReleaseAge: 10080
-minimumReleaseAgeExclude: [ '@shikijs/core@4.4.1', '@shikijs/engine-javascript@4.4.1', '@shikijs/engine-oniguruma@4.4.1', '@shikijs/langs@4.4.1', '@shikijs/primitive@4.4.1', '@shikijs/themes@4.4.1', '@shikijs/types@4.4.1', shiki@4.4.1 ]
+minimumReleaseAgeExclude:
+  - "@shikijs/core@4.4.1"
+  - "@shikijs/engine-javascript@4.4.1"
+  - "@shikijs/engine-oniguruma@4.4.1"
+  - "@shikijs/langs@4.4.1"
+  - "@shikijs/primitive@4.4.1"
+  - "@shikijs/themes@4.4.1"
+  - "@shikijs/types@4.4.1"
+  - "shiki@4.4.1"
 
 # When *no* version inside a declared range is old enough, install the newest anyway
 # rather than failing. This only ever fires when the whole range is young — the normal

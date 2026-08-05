@@ -22,10 +22,7 @@ export interface OutlineState {
  *  passed this line, so the reader's eye and the highlight agree. */
 const ACTIVE_LINE = 0.25;
 
-export function useOutline(
-  toc: Heading[],
-  scroller: HTMLElement | null,
-): OutlineState {
+export function useOutline(toc: Heading[], scroller: HTMLElement | null): OutlineState {
   const [state, setState] = useState<OutlineState>({
     activeId: null,
     progress: 0,
@@ -45,9 +42,7 @@ export function useOutline(
 
       let activeId: string | null = null;
       for (const heading of toc) {
-        const element = scroller.querySelector<HTMLElement>(
-          `[id="${CSS.escape(heading.id)}"]`,
-        );
+        const element = scroller.querySelector<HTMLElement>(`[id="${CSS.escape(heading.id)}"]`);
         if (!element) continue;
         if (element.offsetTop <= line) activeId = heading.id;
         else break;

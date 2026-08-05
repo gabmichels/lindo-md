@@ -19,9 +19,7 @@ describe("toggleTask", () => {
   // and nesting is where it would.
   it("handles nested items", () => {
     const source = "- [ ] outer\n  - [ ] inner\n    - [ ] deeper\n";
-    expect(toggleTask(source, 3)).toBe(
-      "- [ ] outer\n  - [ ] inner\n    - [x] deeper\n",
-    );
+    expect(toggleTask(source, 3)).toBe("- [ ] outer\n  - [ ] inner\n    - [x] deeper\n");
   });
 
   it("handles items inside a blockquote", () => {

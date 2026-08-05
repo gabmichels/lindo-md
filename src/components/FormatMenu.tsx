@@ -45,20 +45,37 @@ export function FormatMenu({
       <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content className={MENU_CLASS}>
-          <ContextItem onSelect={() => onFormat("bold")} disabled={!canFormat}>
+          <ContextItem
+            onSelect={() => {
+              onFormat("bold");
+            }}
+            disabled={!canFormat}
+          >
             Bold
             <Shortcut>Ctrl+B</Shortcut>
           </ContextItem>
-          <ContextItem onSelect={() => onFormat("italic")} disabled={!canFormat}>
+          <ContextItem
+            onSelect={() => {
+              onFormat("italic");
+            }}
+            disabled={!canFormat}
+          >
             Italic
             <Shortcut>Ctrl+I</Shortcut>
           </ContextItem>
-          <ContextItem onSelect={() => onFormat("code")} disabled={!canFormat}>
+          <ContextItem
+            onSelect={() => {
+              onFormat("code");
+            }}
+            disabled={!canFormat}
+          >
             Code
             <Shortcut>Ctrl+`</Shortcut>
           </ContextItem>
           <ContextItem
-            onSelect={() => onFormat("strikethrough")}
+            onSelect={() => {
+              onFormat("strikethrough");
+            }}
             disabled={!canFormat}
           >
             Strikethrough
@@ -73,13 +90,25 @@ export function FormatMenu({
             </ContextMenu.SubTrigger>
             <ContextMenu.Portal>
               <ContextMenu.SubContent className={MENU_CLASS}>
-                <ContextItem onSelect={() => onFormat("heading1")}>
+                <ContextItem
+                  onSelect={() => {
+                    onFormat("heading1");
+                  }}
+                >
                   Heading 1
                 </ContextItem>
-                <ContextItem onSelect={() => onFormat("heading2")}>
+                <ContextItem
+                  onSelect={() => {
+                    onFormat("heading2");
+                  }}
+                >
                   Heading 2
                 </ContextItem>
-                <ContextItem onSelect={() => onFormat("heading3")}>
+                <ContextItem
+                  onSelect={() => {
+                    onFormat("heading3");
+                  }}
+                >
                   Heading 3
                 </ContextItem>
               </ContextMenu.SubContent>
@@ -93,25 +122,44 @@ export function FormatMenu({
             </ContextMenu.SubTrigger>
             <ContextMenu.Portal>
               <ContextMenu.SubContent className={MENU_CLASS}>
-                <ContextItem onSelect={() => onFormat("bullet")}>Bulleted</ContextItem>
-                <ContextItem onSelect={() => onFormat("numbered")}>
+                <ContextItem
+                  onSelect={() => {
+                    onFormat("bullet");
+                  }}
+                >
+                  Bulleted
+                </ContextItem>
+                <ContextItem
+                  onSelect={() => {
+                    onFormat("numbered");
+                  }}
+                >
                   Numbered
                 </ContextItem>
-                <ContextItem onSelect={() => onFormat("task")}>Task</ContextItem>
+                <ContextItem
+                  onSelect={() => {
+                    onFormat("task");
+                  }}
+                >
+                  Task
+                </ContextItem>
               </ContextMenu.SubContent>
             </ContextMenu.Portal>
           </ContextMenu.Sub>
 
-          <ContextItem onSelect={() => onFormat("quote")} disabled={!canFormat}>
+          <ContextItem
+            onSelect={() => {
+              onFormat("quote");
+            }}
+            disabled={!canFormat}
+          >
             Quote
           </ContextItem>
 
           <ContextSeparator />
 
           <ContextItem onSelect={onCopy}>Copy</ContextItem>
-          {onEditSource && (
-            <ContextItem onSelect={onEditSource}>Edit as Markdown…</ContextItem>
-          )}
+          {onEditSource && <ContextItem onSelect={onEditSource}>Edit as Markdown…</ContextItem>}
         </ContextMenu.Content>
       </ContextMenu.Portal>
     </ContextMenu.Root>

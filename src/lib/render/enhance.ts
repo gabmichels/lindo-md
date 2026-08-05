@@ -29,10 +29,7 @@ export interface EnhanceOptions {
  *  it is scrolled to rather than popping in under the reader's eye. */
 const PREFETCH_MARGIN = "600px";
 
-export function enhance(
-  root: HTMLElement,
-  options: EnhanceOptions,
-): () => void {
+export function enhance(root: HTMLElement, options: EnhanceOptions): () => void {
   markExternalLinks(root);
   resolveImages(root, {
     dir: options.dir,
@@ -69,9 +66,9 @@ export function enhance(
 }
 
 function pendingElements(root: HTMLElement, theme: Theme): HTMLElement[] {
-  const blocks = [
-    ...root.querySelectorAll<HTMLElement>("pre.code-block"),
-  ].filter((block) => !isHighlighted(block, theme.code.shikiTheme));
+  const blocks = [...root.querySelectorAll<HTMLElement>("pre.code-block")].filter(
+    (block) => !isHighlighted(block, theme.code.shikiTheme),
+  );
 
   const diagrams = [
     ...root.querySelectorAll<HTMLElement>("pre.mermaid-src"),
@@ -81,10 +78,7 @@ function pendingElements(root: HTMLElement, theme: Theme): HTMLElement[] {
   return [...blocks, ...diagrams];
 }
 
-async function enhanceElement(
-  element: HTMLElement,
-  options: EnhanceOptions,
-): Promise<void> {
+async function enhanceElement(element: HTMLElement, options: EnhanceOptions): Promise<void> {
   if (element.matches("pre.code-block")) {
     await highlightBlock(element, options.theme.code.shikiTheme);
     return;
@@ -112,10 +106,7 @@ function asDiagramSource(element: HTMLElement): HTMLElement {
  * Re-runs only the theme-dependent passes. Called when the reader switches
  * theme, which must not re-fetch or re-parse the document.
  */
-export function reenhanceForTheme(
-  root: HTMLElement,
-  options: EnhanceOptions,
-): () => void {
+export function reenhanceForTheme(root: HTMLElement, options: EnhanceOptions): () => void {
   for (const figure of root.querySelectorAll<HTMLElement>("figure.mermaid")) {
     delete figure.dataset.rendered;
   }
@@ -131,7 +122,7 @@ function addCopyButtons(root: HTMLElement): void {
   for (const block of root.querySelectorAll<HTMLElement>("pre.code-block")) {
     if (block.querySelector(".code-copy")) continue;
 
-    const source = block.dataset.source ?? block.textContent ?? "";
+    const source = block.dataset.source ?? block.textContent;
     block.dataset.source = source;
 
     const button = document.createElement("button");
@@ -142,8 +133,12 @@ function addCopyButtons(root: HTMLElement): void {
 
     button.addEventListener("click", () => {
       void navigator.clipboard.writeText(block.dataset.source ?? "").then(
-        () => flash(button, "Copied"),
-        () => flash(button, "Failed"),
+        () => {
+          flash(button, "Copied");
+        },
+        () => {
+          flash(button, "Failed");
+        },
       );
     });
 

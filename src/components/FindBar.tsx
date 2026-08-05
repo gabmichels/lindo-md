@@ -23,6 +23,10 @@ export function FindBar({ find, onClose }: FindBarProps) {
   }, []);
 
   return (
+    // The Escape/Enter handling belongs to the whole widget, not to the input: the
+    // keys have to work wherever focus sits inside the bar. `search` is a landmark
+    // role, which is what the rule objects to.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- widget-level key handling
     <div
       role="search"
       className={cn(
@@ -47,7 +51,9 @@ export function FindBar({ find, onClose }: FindBarProps) {
         value={find.query}
         placeholder="Find in document"
         aria-label="Find in document"
-        onChange={(event) => find.setQuery(event.target.value)}
+        onChange={(event) => {
+          find.setQuery(event.target.value);
+        }}
         className={cn(
           "w-52 bg-transparent px-1.5 py-1 text-[12.5px] text-ui-text-strong",
           "placeholder:text-ui-text-faint focus:outline-none",
