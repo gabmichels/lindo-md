@@ -1,0 +1,76 @@
+name: CodeQL
+
+# Semantic analysis of both languages the app is written in. Free on public repos,
+# and the Rust support went GA in October 2025 — which matters here, because the
+# half of this app that touches the filesystem and parses untrusted Markdown is the
+# Rust half, and until recently no scanner could read it.
+#
+# Separate from ci.yml because it answers a different question. CI asks "does this
+# change work"; this asks "does this change introduce a known-shaped defect", and it
+# is worth running on a schedule even when nobody has pushed, since the query packs
+# are updated independently of this repository.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Mondays, 06:23 UTC. Off the hour because the runner queue is shorter either side.
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Writing the findings to the Security tab.
+      security-events: write
+      # Required for the action to read workflow run metadata on private forks.
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # `javascript-typescript` covers both; naming it once avoids analysing the
+        # same files twice. Rust needs a build, which `autobuild` handles.
+        language: [javascript-typescript, rust]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # `autobuild` for Rust runs `cargo build`, and this crate does not build on a
+      # bare Ubuntu runner — it links against webkit2gtk. Without this the Rust
+      # analysis fails, and a scanner that always fails is a scanner nobody reads.
+      - name: Install Linux system dependencies
+        if: matrix.language == 'rust'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@18420e3271f74589575af831a523c833acda327f # codeql-bundle-v2.26.2
+        with:
+          languages: ${{ matrix.language }}
+          # `security-extended` over the default pack: this app takes arbitrary files
+          # from strangers, and the extra queries are the ones about tainted input
+          # reaching a sink. The cost is a longer run on a repo this size, which is
+          # minutes.
+          queries: security-extended
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@18420e3271f74589575af831a523c833acda327f # codeql-bundle-v2.26.2
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@18420e3271f74589575af831a523c833acda327f # codeql-bundle-v2.26.2
+        with:
+          category: "/language:${{ matrix.language }}"
