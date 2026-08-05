@@ -408,6 +408,15 @@ existing group's run does still join it, and that is ordinary reordering with a 
   resolve only inside documents the user actually opened.
 - **Remote images are blocked by default** — an untrusted document should not be able to phone home
   through a tracking pixel. The setting is `blockRemoteImages`.
+- **A rendered Mermaid diagram is scrubbed of every off-device reference, unconditionally.** The
+  fence body never passes through ammonia — `markdown.rs` hands it over HTML-escaped, and it only
+  becomes markup later, inside Mermaid — so `A["<img src='https://…'>"]` used to render a real
+  `<img>` and fetch it. `securityLevel: "strict"` does not prevent this: it leaves `htmlLabels` on,
+  and Mermaid's own DOMPurify allows `img`/`src`. `stripRemoteRefs` in `render/mermaid.ts` runs
+  while the `<figure>` is still **detached**, which is what makes it reliable — nothing in a
+  detached tree fetches, so there is no race with a request already in flight. It is an allowlist
+  (`#fragment` and `data:` only) rather than a list of things to block, because `isExternal` does
+  not treat `//host/path` as external and a blocklist missed it.
 - **In the opener plugin, the command grant and the URL scope are two separate permissions.**
   `opener:allow-open-url` enables `open_url` *with no scope*, and the `http`/`https`/`mailto`/`tel`
   globs live only in `opener:allow-default-urls`. Granting the first without the second makes

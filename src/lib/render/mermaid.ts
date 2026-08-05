@@ -28,6 +28,14 @@ async function getMermaid(theme: Theme): Promise<MermaidApi> {
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: "strict",
+      // `securityLevel: "strict"` does not cover this. It leaves `htmlLabels` on,
+      // and Mermaid's DOMPurify pass allows `img`/`src` — reasonable for a diagram
+      // library, wrong for a viewer whose whole claim is that it never phones home.
+      // `stripRemoteRefs` below is the guarantee; this is the cheaper first pass.
+      dompurifyConfig: {
+        FORBID_TAGS: ["style", "img", "image", "use"],
+        FORBID_ATTR: ["src", "srcset", "href", "xlink:href"],
+      },
       theme: "base",
       themeVariables: mermaidThemeVariables(theme),
       // The heading face, not the body face: diagram labels are short strings in
@@ -59,6 +67,66 @@ async function fontReady(family: string, size: number): Promise<void> {
 }
 
 /**
+ * Removes everything in a rendered diagram that would fetch from the network.
+ *
+ * A ```mermaid fence is document content, so its text is as untrusted as the rest
+ * of the Markdown — but it does not travel the same road. `markdown.rs` hands the
+ * fence body over HTML-escaped, so ammonia never sees the markup inside it, and
+ * Mermaid then renders that text into SVG in the webview. With `htmlLabels` on —
+ * which is Mermaid's default even at `securityLevel: "strict"` — a label like
+ * `A["<img src='https://…'>"]` becomes a real `<img>` in the output, and Mermaid's
+ * own DOMPurify pass allows `img`/`src` because for a diagram library they are
+ * ordinary. `resolveImages` never sees it either: `enhance()` runs that once, up
+ * front, before any diagram exists.
+ *
+ * The result was a second egress channel with nothing on it, which a CDP session
+ * confirmed by watching the request leave. This is unconditional rather than
+ * keyed on `blockRemoteImages`: a diagram is a drawing of the reader's own text,
+ * and there is no version of it that should reach a server.
+ */
+export function stripRemoteRefs(root: HTMLElement): void {
+  // `src` on <img>, and both spellings of href on SVG <image>/<use> — each of
+  // these fetches on its own the moment the node is attached.
+  //
+  // An allowlist, not `isExternal`. A rendered diagram has exactly two legitimate
+  // reference forms: `#id` for its own markers and gradients, and `data:` for
+  // anything Mermaid inlines. Everything else goes, which means the rule does not
+  // depend on enumerating the ways a URL can point off-device — `isExternal` does
+  // not count `//host/path` as external, and that alone let a protocol-relative
+  // source through the first version of this.
+  for (const node of root.querySelectorAll("img, image, use")) {
+    for (const attribute of ["src", "srcset", "href", "xlink:href"]) {
+      const value = node.getAttribute(attribute)?.trim();
+      if (!value) continue;
+      const local = value.startsWith("#") || value.toLowerCase().startsWith("data:");
+      if (!local) node.removeAttribute(attribute);
+    }
+  }
+
+  // `url(...)` in a style attribute or an injected <style> is the same fetch by
+  // another route. Mermaid always emits a <style> block, so this is not theoretical.
+  //
+  // Compared rather than tested first: `REMOTE_URL` is a global regex, and `.test()`
+  // on one leaves `lastIndex` where it stopped, so a following `.replace()` starts
+  // partway through the string and misses the match it just found.
+  for (const node of root.querySelectorAll("[style]")) {
+    const style = node.getAttribute("style") ?? "";
+    const cleaned = style.replace(REMOTE_URL, "none");
+    if (cleaned !== style) node.setAttribute("style", cleaned);
+  }
+  for (const style of root.querySelectorAll("style")) {
+    const css = style.textContent;
+    const cleaned = css.replace(REMOTE_URL, "none");
+    if (cleaned !== css) style.textContent = cleaned;
+  }
+}
+
+/** Any `url(...)` that is not an internal fragment or a data URI. Same allowlist
+ *  reasoning as the attributes above: enumerate what is allowed, not what is not.
+ *  Loose about quoting and whitespace, because this is a filter and not a parser. */
+const REMOTE_URL = /url\(\s*['"]?\s*(?!#|data:)[^)]*\)/gi;
+
+/**
  * Renders one diagram in place. A diagram that fails to parse shows its source
  * and the parser's message instead of an empty gap: a broken diagram in someone
  * else's document is information, not a failure of the viewer.
@@ -78,6 +146,11 @@ export async function renderDiagram(block: HTMLElement, theme: Theme): Promise<v
     const figure = document.createElement("figure");
     figure.className = "mermaid";
     figure.innerHTML = svg;
+    // While `figure` is still detached — nothing in a detached tree loads a
+    // subresource, so this runs before any request can be made. Once
+    // `replaceWith` attaches it, removing the attribute would be a race against a
+    // fetch that has already been queued.
+    stripRemoteRefs(figure);
     figure.dataset.source = source;
     figure.dataset.rendered = theme.id;
     // Diagrams are frequently wider than the measure; the overlay in
