@@ -225,6 +225,15 @@ v5 release and left the vulnerable version in the tree anyway.
 
 ## CI
 
+The parts of this project's security that live in repository *settings* rather than in files are
+written up in [docs/repo-settings.md](docs/repo-settings.md) — rulesets, code security, Actions
+permissions. One rule from there is worth repeating because it constrains this file: **never
+require a status check from a workflow that can be skipped.** A skipped workflow reports nothing
+rather than success, so the check waits forever. `ci.yml` therefore filters prose changes in a
+`changes` job instead of `paths-ignore`, and ends in an always-running `ci` gate — that gate is the
+only check `main` requires.
+
+
 Five workflows. `ci.yml` proves a change works; `supply-chain.yml` asks whether anything we
 depend on is known-bad today; `codeql.yml` looks for known-shaped defects in both languages;
 `secrets.yml` scans the history for credentials; `release.yml` builds and attests what ships.
