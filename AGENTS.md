@@ -142,8 +142,11 @@ Two smaller decisions:
   now ships a manifest 1.82's cargo cannot parse — and an MSRV is a promise to people compiling
   this as a dependency, which nobody does. The toolchain is deliberately *not* pinned either: a
   `rust-toolchain.toml` would make every CI job download a second toolchain, since
-  `dtolnay/rust-toolchain` does not read that file. The tradeoff accepted is that a new clippy
-  release can turn `main` red without anyone pushing; the fix is to fix the lint.
+  `dtolnay/rust-toolchain` does not read that file. Two consequences, and the second one bites
+  harder than expected: a new clippy release can turn `main` red without anyone pushing, and —
+  because CI tracks stable — **an out-of-date local toolchain reports a green build that CI then
+  fails.** That happened on this branch: clippy 1.97 extended `map_unwrap_or` to `Result`, which
+  1.92 locally did not flag. Run `rustup update stable` before trusting a local `cargo clippy`.
 
 ## Conventions
 
@@ -189,7 +192,15 @@ run. There is no server to patch afterwards, so the tree is part of what ships.
 - **`cargo deny check`** covers the Rust half — RustSec advisories, a licence allow-list (we ship a
   binary; a copyleft crate appearing in it should be a decision), a ban on wildcard versions, and
   `sources`, which fails if anything resolves to somewhere other than crates.io.
-- **`osv-scanner`** reads both lockfiles against one database, daily and on dependency PRs.
+- **`osv-scanner`** reads both lockfiles against one database, daily and on dependency PRs. It
+  earned its place on the first run, catching GHSA-rgw5-rvv9-x895 in `brace-expansion` — which
+  had arrived transitively with ESLint in the very commit that added the scanner.
+
+When a security fix is newer than the age floor, override it and record the exception rather than
+lowering the floor: the `overrides` block and the matching `minimumReleaseAgeExclude` entries in
+`pnpm-workspace.yaml` are pinned per version, so they expire on their own. Bound an override on
+**both** sides — `>=1.1.18` alone also satisfies `5.x`, which is how a v1 request resolved into a
+v5 release and left the vulnerable version in the tree anyway.
 
 **Renovate** (`.github/renovate.json5`) opens the update PRs. Its `minimumReleaseAge` must stay
 equal to pnpm's — set it lower and Renovate proposes versions pnpm then refuses to lock, which
