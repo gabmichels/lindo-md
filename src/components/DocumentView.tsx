@@ -209,6 +209,113 @@ export function DocumentView({
     restoring,
   });
 
+  const sourceRef = useRef<HTMLTextAreaElement>(null);
+  /** The Markdown being edited directly, or null when the reader is looking at
+   *  the rendered document. Held here rather than read from `doc.source` so a
+   *  save coming back mid-sentence cannot fight the reader's typing. */
+  const [draft, setDraft] = useState<string | null>(null);
+  /** Where to put the caret when the source view opens. */
+  const entryOffset = useRef(0);
+
+  const openSource = (offset: number | null) => {
+    entryOffset.current = offset ?? 0;
+    setDraft(doc.source);
+  };
+
+  /** Set when leaving the source view triggered a save, so the caret waits for
+   *  the re-render instead of being placed against the document being replaced. */
+  const savingOnExit = useRef(false);
+
+  const closeSource = () => {
+    const textarea = sourceRef.current;
+    const edited = draft;
+    setDraft(null);
+    if (!textarea || edited === null) return;
+
+    // Land on the same words on the way back. The offset is into the source,
+    // which is exactly what the map speaks.
+    const at = textarea.selectionStart;
+    restoring.current = { start: at, end: at };
+
+    // Autosave has usually already written what is in the box, in which case
+    // there is no re-render coming and the caret has to be placed as soon as the
+    // rendered view is back on screen.
+    savingOnExit.current = edited !== doc.source;
+    if (savingOnExit.current) void onSave(edited);
+  };
+
+  // Ctrl+E, only for the tab on screen. Handled here rather than in the central
+  // shortcut table because the mode belongs to one view: two tabs can be in
+  // different modes at once, and App has no business knowing which.
+  useEffect(() => {
+    if (!visible) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "e") return;
+      event.preventDefault();
+      if (draft === null) {
+        const selection = selectionRange(doc.blocks, window.getSelection());
+        openSource(selection?.start ?? 0);
+      } else {
+        closeSource();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  // The textarea grows to fit its content so the document's own scroller
+  // handles scrolling, exactly as it does for the rendered view. A textarea
+  // left at its default height would put a second scrollbar inside the first.
+  useLayoutEffect(() => {
+    const textarea = sourceRef.current;
+    if (draft === null || !textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, [draft]);
+
+  // Put the caret where the reader was reading, and scroll it into view — a
+  // source view that opens at the top of a long document has thrown away the
+  // one thing the reader was looking at.
+  const inSource = draft !== null;
+  useLayoutEffect(() => {
+    const textarea = sourceRef.current;
+    if (!inSource) {
+      // Back on the rendered document with nothing to wait for.
+      const article = articleRef.current;
+      const range = restoring.current;
+      if (article && range && !savingOnExit.current) {
+        restoring.current = null;
+        restoreSelection(article, doc.blocks, range);
+      }
+      savingOnExit.current = false;
+      return;
+    }
+    if (!textarea) return;
+    textarea.focus();
+    textarea.setSelectionRange(entryOffset.current, entryOffset.current);
+
+    // The textarea is its full height by now, so a line's position is its share
+    // of that height. Good enough to land the reader on the right paragraph,
+    // which is all this has to do.
+    const lines = textarea.value.split("\n").length;
+    const before = textarea.value.slice(0, entryOffset.current).split("\n").length - 1;
+    const top = (textarea.offsetHeight / Math.max(1, lines)) * before;
+    scrollerRef.current?.scrollTo({ top: Math.max(0, top - 120) });
+  }, [inSource]);
+
+  // Typing in the source view reaches the file the same way typing in the
+  // rendered one does. Without this an edit would live only in memory until the
+  // reader happened to click away.
+  const sourceTimer = useRef<number | null>(null);
+  const editSource = (next: string) => {
+    setDraft(next);
+    if (sourceTimer.current !== null) window.clearTimeout(sourceTimer.current);
+    sourceTimer.current = window.setTimeout(() => void onSave(next), 600);
+  };
+  useEffect(() => () => {
+    if (sourceTimer.current !== null) window.clearTimeout(sourceTimer.current);
+  }, []);
+
   const copySelection = () => {
     const text = window.getSelection()?.toString() ?? "";
     if (text) void navigator.clipboard.writeText(text);
@@ -267,10 +374,25 @@ export function DocumentView({
           </button>
         </div>
       )}
+      {draft !== null && (
+        <textarea
+          ref={sourceRef}
+          className="doc-source"
+          value={draft}
+          spellCheck={false}
+          aria-label={`${doc.title}, Markdown source`}
+          onChange={(event) => editSource(event.target.value)}
+          onBlur={() => {
+            if (draft !== doc.source) void onSave(draft);
+          }}
+        />
+      )}
+
       <FormatMenu
         canFormat={canFormat}
         onFormat={format}
         onCopy={copySelection}
+        onEditSource={() => openSource(pending.current?.start ?? 0)}
         // The menu asks once, when it opens: a selection can be gone by the
         // time a row is chosen, and greying the rows out afterwards would be
         // worse than deciding up front.
@@ -279,6 +401,11 @@ export function DocumentView({
           ref={articleRef}
           className="doc"
           onContextMenu={onContextMenu}
+          // Kept mounted while the source view is up: the enhancement passes
+          // record what they have already done on these nodes, so hiding costs
+          // nothing and unmounting would mean re-highlighting the whole
+          // document on the way back.
+          style={draft === null ? undefined : { display: "none" }}
           // Editing is always available — there is no mode to find. The browser
           // is never allowed to act on the input; see `useDocumentTyping`.
           contentEditable

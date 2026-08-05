@@ -67,6 +67,37 @@
   background: transparent;
 }
 
+/* The source view.
+   Deliberately *not* a code editor: it inherits the document's own type, colour
+   and measure, so switching to it reads as the page relaxing rather than as a
+   different application opening. Monospace here would be the "text editor
+   bolted onto a reader" feel the whole design is avoiding.
+   Paper, not tool — so it reads `--doc-*` and never `--ui-*`. */
+.doc-source {
+  display: block;
+  width: 100%;
+  max-width: var(--doc-measure);
+  margin-inline: auto;
+  padding: 3.5rem 2rem 8rem;
+  border: 0;
+  outline: none;
+  resize: none;
+  color: var(--doc-text);
+  background: var(--doc-bg);
+  font-family: var(--doc-font-body);
+  font-size: var(--doc-size);
+  line-height: var(--doc-leading);
+  letter-spacing: var(--doc-tracking);
+  /* The one place the source has to differ: Markdown is whitespace-significant,
+     so leading spaces and blank lines have to survive being shown. */
+  white-space: pre-wrap;
+  tab-size: 2;
+}
+
+.doc-source::selection {
+  background: var(--doc-selection);
+}
+
 .doc {
   max-width: var(--doc-measure);
   margin-inline: auto;
