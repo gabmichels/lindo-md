@@ -66,16 +66,31 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<number | null>(null);
 
+  /**
+   * Whether `config` reflects what is actually on disk.
+   *
+   * A ref rather than state because the debounced write reads it from inside a
+   * timeout, where the `error` of the render that scheduled it would be stale.
+   */
+  const inSyncWithDisk = useRef(true);
+
   const reload = useCallback(() => {
     getConfig()
       .then((next) => {
         setLocal(next);
         setError(null);
+        inSyncWithDisk.current = true;
       })
       .catch((e: unknown) => {
         // A corrupt config file must not leave a blank window: fall back to the
         // defaults and say so, rather than failing to start.
         setError(e instanceof Error ? e.message : String(e));
+        // But `config` is now FALLBACK, which is *not* what is on disk. Writing it
+        // back would replace the file with defaults — and `useTabs` calls `update`
+        // on ordinary tab activity, so opening one document was enough to do it
+        // inside the debounce window. The reader loses every custom theme, their
+        // recents and their session, having seen nothing go wrong.
+        inSyncWithDisk.current = false;
       })
       .finally(() => {
         setLoaded(true);
@@ -94,6 +109,11 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       if (timer.current !== null) window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => {
         timer.current = null;
+        // Refuse to write over a file we could not read. The in-memory state is the
+        // fallback, not the reader's settings, and persisting it destroys the file
+        // this session failed to parse — which is also the copy someone would need
+        // to repair it by hand.
+        if (!inSyncWithDisk.current) return;
         // A failed write is not worth interrupting reading for; the in-memory
         // state is already correct and the next write will retry.
         void setConfig(next).catch(() => undefined);

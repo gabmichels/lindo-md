@@ -171,6 +171,12 @@ Two smaller decisions:
   Keep the check a character rule rather than a colour grammar — presets are authored in `oklch()`
   and `var()` has to keep working.
 - **`aria-label` on every icon-only control.** The rail is almost all icon-only controls.
+- **`config.json` is a file the reader can edit, and a schema can tighten in a release.** Neither
+  may cost someone their data. `customThemes` and `session` both degrade per element — an entry
+  that no longer parses is dropped, the rest of the file survives — and `useConfig` refuses to
+  write back a config it failed to read, because the in-memory value is then the fallback rather
+  than the reader's settings. Persisting it would destroy the very file someone needs in order to
+  repair it. Any future opaque-JSON field in `config.json` needs the same two properties.
 - **New setting?** It has to land in five places: the Rust struct in `config.rs`, the zod schema and
   TS type in `src/lib/ipc.ts` / `src/lib/types.ts`, the `FALLBACK` in `hooks/useConfig.tsx`, and the
   settings UI. Themes and the tab session are the deliberate exceptions — Rust stores both as opaque
