@@ -125,11 +125,16 @@ pub fn write_html_file(path: String, contents: String) -> LindoResult<()> {
     export::write_html(&PathBuf::from(path), &contents)
 }
 
-/// The document this process was launched with, if the OS handed us one.
-/// Returns `None` for a normal launch.
+/// The documents the OS has handed us and the window has not collected yet — the
+/// launch argument, a double-clicked file, an "Open with". Empty for a normal
+/// launch. Collecting drains the queue; see `assoc::OpenQueue` for why there is
+/// a queue rather than an event alone.
 #[tauri::command]
-pub fn get_initial_document() -> Option<String> {
-    assoc::initial_document().map(|path| path.display().to_string())
+pub fn get_pending_documents(app: AppHandle) -> Vec<String> {
+    assoc::take_pending(&app)
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect()
 }
 
 /// Which application currently opens `.md`. Read fresh on every call rather than

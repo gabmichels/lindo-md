@@ -273,6 +273,25 @@ existing group's run does still join it, and that is ordinary reordering with a 
   `data-tauri-drag-region`. Verified by A/B: with the attribute removed the macOS titlebar is
   completely dead. The attribute applies only to the element it sits on and not to its children, so
   it needs no `no-drag` counterpart — but `no-drag` is still required for the Chromium side.
+- **macOS hands over a double-clicked document by Apple Event, never in `argv`.** Finder sends
+  `kAEOpenDocuments`, which Tauri surfaces as `RunEvent::Opened { urls }` — the only reason `lib.rs`
+  uses `build()` + `run(|app, event| …)` instead of plain `run()`. Nor does the single-instance
+  plugin cover it: macOS refuses to launch a second copy of a bundle and reactivates the running one
+  instead, so that callback never fires there. With only the `argv` route wired up — how v1.0.0
+  shipped — a double-clicked `.md` on macOS raised the window and opened nothing, which reads as the
+  file association being broken rather than the app ignoring it. Windows and Linux do use `argv`, so
+  all three routes have to stay live; they meet in `assoc::deliver`.
+- **A hand-off can arrive before the frontend is listening, or long after.** A cold launch from
+  Finder delivers the Apple Event before React mounts; a double-click into a running window delivers
+  it seconds later. `assoc::OpenQueue` covers both by doing both — queue *and* `open-document` event
+  — and the frontend drains the queue once on mount. Delivering the same path twice is deliberately
+  harmless, since `tabs/model.ts` never opens one file in two tabs. The queue reads `argv` in
+  `OpenQueue::from_launch` rather than from `setup`, because `setup` and the invoke handler run on
+  different threads and a `setup` seed races the frontend's first call.
+- **`dragDropEnabled` is on by default, so an HTML5 `ondrop` handler never fires.** The native side
+  swallows the drag before the webview sees it. Tauri's own `onDragDropEvent` is the only route, and
+  the only one that yields real filesystem paths instead of sandboxed `File` objects — see
+  `useFileDrop`. Do not "fix" a dead drop target by adding `onDragOver`/`onDrop` to a div.
 - **The asset protocol is deny-all by default.** A directory is granted at runtime
   (`asset_protocol_scope().allow_directory()`) when the user opens a file or folder, so images
   resolve only inside documents the user actually opened.
