@@ -6,7 +6,14 @@ Working notes for anyone — human or agent — changing this repo.
 
 A desktop Markdown **viewer**. It renders local `.md` files with editorial typography and full
 GitHub-flavored support (tables, alerts, footnotes, math, highlighted code, Mermaid diagrams), and
-lets the reader retheme the page in depth. It does not edit files. It never touches the network.
+lets the reader retheme the page in depth. It never touches the network.
+
+It **does** edit files — `src/lib/edit/`, `useDocumentTyping`, and an always-on `contentEditable`
+on the document canvas. This sentence used to say the opposite, and that mattered: the editing path
+trusts `data-sourcepos` to decide which run of the file a keystroke rewrites, and while this
+document claimed there was no editing, nobody re-examined that attribute as a trust boundary. A
+document could forge one and redirect an edit onto text it did not own. If you change what this
+app does, change this paragraph in the same commit.
 
 ## Two invariants
 

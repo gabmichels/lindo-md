@@ -102,6 +102,9 @@ pub fn render_with(source: &str, settings: RenderOptions) -> RenderedDoc {
     let toc = collect_toc(root);
     let title = toc.iter().find(|h| h.level == 1).map(|h| h.text.clone());
 
+    // Before `rewrite_code_blocks`, which legitimately writes `data-sourcepos` into
+    // `HtmlBlock` literals of its own making.
+    strip_forged_sourcepos(root);
     rewrite_code_blocks(&arena, root);
 
     let mut html = String::new();
@@ -173,6 +176,105 @@ fn text_content<'a>(node: &'a AstNode<'a>) -> String {
         }
     }
     out.trim().to_owned()
+}
+
+/// Removes any `data-sourcepos` a *document* wrote, as opposed to one comrak emitted.
+///
+/// `data-sourcepos` is the trust anchor of the editing path. The frontend reads it off
+/// whatever element the caret is in to decide which run of the file an edit rewrites
+/// (`lib/edit/selection.ts`) and which line a task checkbox toggles
+/// (`lib/edit/tasks.ts`); neither cross-checks the element's text against the range,
+/// and an out-of-range offset clamps rather than refusing, so it fails open.
+///
+/// comrak renders with `unsafe_` on, so a raw HTML block passes through verbatim, and
+/// an attribute the document's author typed is byte-identical to one comrak generated.
+/// ammonia cannot separate them either — it allows `data-sourcepos` generically. A
+/// `<p data-sourcepos="1:1-1:15">DECOY</p>` beside a real paragraph therefore gave two
+/// elements one identity, and bolding the decoy rewrote the real paragraph instead.
+///
+/// Stripping on the AST rather than over the finished HTML is what makes this safe:
+/// only `HtmlBlock` and `HtmlInline` hold author-controlled markup, so the scan never
+/// sees — and so cannot damage — the attributes comrak is about to write itself.
+fn strip_forged_sourcepos<'a>(root: &'a AstNode<'a>) {
+    for node in root.descendants() {
+        let mut data = node.data.borrow_mut();
+        match &mut data.value {
+            NodeValue::HtmlBlock(block) => block.literal = without_sourcepos_attrs(&block.literal),
+            NodeValue::HtmlInline(literal) => *literal = without_sourcepos_attrs(literal),
+            _ => {}
+        }
+    }
+}
+
+/// Deletes every `data-sourcepos[=value]` sitting where an attribute can sit.
+///
+/// Scans bytes instead of lowercasing first, because `str::to_lowercase` is Unicode
+/// aware and can change a string's byte length — which would misalign every index
+/// after it. The needle is ASCII and a UTF-8 continuation byte can never equal an
+/// ASCII one, so byte matching is both correct and safe to slice at.
+fn without_sourcepos_attrs(literal: &str) -> String {
+    const NEEDLE: &[u8] = b"data-sourcepos";
+    let bytes = literal.as_bytes();
+    let mut out = String::with_capacity(literal.len());
+    // Everything before `copied` has already been written out.
+    let mut copied = 0;
+    let mut i = 0;
+
+    while i < bytes.len() {
+        // Only an occurrence preceded by whitespace can be an attribute. The same text
+        // in a code sample or a text node is left alone.
+        let is_attribute = bytes
+            .get(i.wrapping_sub(1))
+            .is_some_and(u8::is_ascii_whitespace)
+            && i > 0
+            && bytes
+                .get(i..i.saturating_add(NEEDLE.len()))
+                .is_some_and(|window| window.eq_ignore_ascii_case(NEEDLE));
+        if !is_attribute {
+            i = i.saturating_add(1);
+            continue;
+        }
+
+        if let Some(chunk) = literal.get(copied..i) {
+            out.push_str(chunk);
+        }
+
+        let mut j = i.saturating_add(NEEDLE.len());
+        while bytes.get(j).is_some_and(u8::is_ascii_whitespace) {
+            j = j.saturating_add(1);
+        }
+        if bytes.get(j) == Some(&b'=') {
+            j = j.saturating_add(1);
+            while bytes.get(j).is_some_and(u8::is_ascii_whitespace) {
+                j = j.saturating_add(1);
+            }
+            match bytes.get(j) {
+                Some(&quote) if quote == b'"' || quote == b'\'' => {
+                    j = j.saturating_add(1);
+                    while bytes.get(j).is_some_and(|b| *b != quote) {
+                        j = j.saturating_add(1);
+                    }
+                    j = j.saturating_add(1).min(bytes.len());
+                }
+                // Unquoted values run to the next whitespace or the end of the tag.
+                _ => {
+                    while bytes
+                        .get(j)
+                        .is_some_and(|b| !b.is_ascii_whitespace() && *b != b'>')
+                    {
+                        j = j.saturating_add(1);
+                    }
+                }
+            }
+        }
+        copied = j;
+        i = j;
+    }
+
+    if let Some(rest) = literal.get(copied..) {
+        out.push_str(rest);
+    }
+    out
 }
 
 /// Replaces every fenced block with markup the frontend can pick up:
@@ -616,5 +718,79 @@ mod tests {
         assert!(doc.toc.is_empty());
         assert_eq!(doc.title, None);
         assert_eq!(doc.frontmatter, None);
+    }
+
+    // --- forged sourcepos --------------------------------------------------
+
+    /// The audit's repro, verbatim. A raw HTML block claiming another block's line
+    /// range gave two elements one identity, so selecting the decoy and pressing
+    /// Ctrl+B rewrote the real paragraph instead.
+    #[test]
+    fn a_document_cannot_forge_a_sourcepos() {
+        let out =
+            html("Real paragraph.\n\n<p data-sourcepos=\"1:1-1:15\">DECOY LONGER TEXT HERE</p>");
+
+        assert!(
+            out.contains("DECOY LONGER TEXT HERE"),
+            "the decoy's text still renders, only its claim is removed: {out}"
+        );
+        assert_eq!(
+            out.matches("data-sourcepos=\"1:1-1:15\"").count(),
+            1,
+            "exactly one element may claim a range — comrak's own: {out}"
+        );
+    }
+
+    #[test]
+    fn forged_sourcepos_is_stripped_in_every_spelling() {
+        for forged in [
+            "<p data-sourcepos=\"9:1-9:9\">x</p>",
+            "<p data-sourcepos='9:1-9:9'>x</p>",
+            "<p data-sourcepos=9:1-9:9>x</p>",
+            "<p data-sourcepos = \"9:1-9:9\">x</p>",
+            "<p DATA-SOURCEPOS=\"9:1-9:9\">x</p>",
+            "<p\tdata-sourcepos=\"9:1-9:9\">x</p>",
+        ] {
+            let out = html(forged);
+            assert!(
+                !out.contains("9:1-9:9"),
+                "a forged range survived `{forged}`: {out}"
+            );
+        }
+    }
+
+    #[test]
+    fn inline_raw_html_cannot_forge_one_either() {
+        let out = html("A <span data-sourcepos=\"1:1-1:1\">decoy</span> inline.");
+        assert!(out.contains("decoy"), "{out}");
+        assert!(!out.contains("data-sourcepos=\"1:1-1:1\""), "{out}");
+    }
+
+    /// The renderer's own attributes are the feature. Stripping them would break
+    /// editing outright, which is the failure this guards against.
+    #[test]
+    fn comrak_sourcepos_still_reaches_the_html() {
+        let out = html("# Title\n\nA paragraph.\n\n```rust\nfn main() {}\n```");
+        assert!(out.contains("<h1 data-sourcepos=\"1:1-1:7\""), "{out}");
+        assert!(out.contains("data-sourcepos=\"3:1-3:12\""), "{out}");
+        // Written by `rewrite_code_blocks`, which deliberately runs after the strip.
+        assert!(
+            out.contains("<pre class=\"code-block\" data-sourcepos=\"5:1-7:3\""),
+            "{out}"
+        );
+    }
+
+    /// Over-eager stripping would corrupt documents that merely discuss the
+    /// attribute — which this repo's own notes do.
+    #[test]
+    fn prose_and_code_mentioning_the_attribute_are_untouched() {
+        let prose = html("The `data-sourcepos` attribute is read by the frontend.");
+        assert!(prose.contains("data-sourcepos"), "{prose}");
+
+        let fenced = html("```html\n<p data-sourcepos=\"1:1-1:5\">sample</p>\n```");
+        assert!(
+            fenced.contains("data-sourcepos"),
+            "a fenced sample is text, not markup: {fenced}"
+        );
     }
 }
