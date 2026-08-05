@@ -107,13 +107,47 @@ are called with `camelCase` keys.
 
 ## Workflow
 
-One worktree per change, via worktrunk:
+Every change lands the same way — a branch, a pull request, a squash merge. How you *make* the branch
+is up to you:
 
 ```
-git-wt switch --create feat/my-change
-# ... work, `git-wt dev` for the dev server ...
-git-wt merge
+git switch --create fix/my-change main       # or: git-wt switch --create fix/my-change
+# ... work, `pnpm tauri dev` for the app ...
+git push -u origin fix/my-change
+gh pr create
 ```
+
+**Worktrunk is supported, not required.** `.config/wt.toml` is committed, so `git-wt switch --create`
+and `git-wt dev` work for anyone who has [worktrunk](https://worktrunk.dev) installed — worth it when
+several agents work in parallel. It is not installed by default and nothing here depends on it. Two
+things to know before reaching for it: each worktree carries its own `node_modules` and
+`src-tauri/target`, which is ~4.6 GB and a cold Rust build per branch, so it earns its keep on a
+feature and not on a typo; and `devUrl` pins Vite to 1420, so only one worktree can run the desktop
+app at a time — `git-wt dev` exists to start Vite alone on a per-branch port for frontend-only work.
+
+**Do not use `git-wt merge`.** It squashes and fast-forwards into `main` locally, which skips the
+pull request — and CI runs on pull requests *or* on a push to `main`, so the checks would land after
+the code did. A failure then breaks trunk instead of blocking a PR. Whatever created the branch, land
+it with `gh pr create`.
+
+Run the six gates locally before pushing — see [Commands](#commands). CI runs the same six on Linux,
+macOS and Windows plus a bundle build on each, but it never *launches* the app: a green tick means a
+change compiles and packages on all three, not that it behaves on all three. Anything touching window
+chrome, a platform API or the installer still wants a human on the platform in question. Prose-only
+changes (`*.md`, `docs/**`, `LICENSE`) are skipped by `paths-ignore`, so a docs PR showing no checks
+at all is working as intended.
+
+**Pull requests are squash-merged.** That is what keeps `main` linear and one commit per change, and
+it has two consequences worth knowing:
+
+- The squash subject is the commit `main` gets, so it carries the Conventional Commit type and the PR
+  number — `fix: give macOS back its window controls (#8)`. That subject is what
+  [Releasing](#releasing) reads to derive the next version; the branch's own commits never reach
+  `main` and are never consulted.
+- Afterwards `git branch -d` refuses with *"not fully merged"*, because git cannot see a squashed
+  commit as an ancestor of the branch it came from. This is expected, not a warning that work is
+  about to be lost. Confirm the change really landed with `git diff <branch> main` — it should show
+  only what *other* PRs added in the meantime — then delete with `-D`.
 
 ## Releasing
 
