@@ -187,6 +187,16 @@ Two smaller decisions:
   behind it — themes, type, colour, spacing. Everything else goes in `SettingsDialog`. The drawer is
   non-modal and scrimless *because* it is a live preview; putting a behaviour toggle in it borrows
   that shape for a control that has nothing to preview.
+- **The sanitizer is tested as a property, not only by example.** `markdown.rs` composes documents
+  from a corpus of real XSS vectors and asserts that nothing executable survives — no forbidden
+  element, no `on…=` handler, no `javascript:`/`data:text/html`, under both punctuation settings.
+  Two things about how it is written are load-bearing. It inspects **only what is inside a tag**,
+  because escaped text cannot execute and an unterminated `<img src=x onerror=…` renders as a
+  paragraph that merely reads like an attack — the first version failed on exactly that. And it
+  *scans* for `on…=` rather than listing event names, since that list grows: `onbeforetoggle`
+  reached browsers years after this app was written. Alongside it,
+  `the_allowlist_is_what_we_think_it_is` pins the allowlist, so widening `sanitizer()` stays a
+  deliberate edit with a reason in the diff.
 - **Tests are part of the change, not a follow-up.** Every new pure function gets a unit test; every
   new Markdown construct gets a case in `test/fixtures/kitchen-sink.md` and a Rust snapshot test;
   every sanitizer-relevant change gets a test proving the hostile input is neutralized.

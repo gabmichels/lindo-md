@@ -793,4 +793,279 @@ mod tests {
             "a fenced sample is text, not markup: {fenced}"
         );
     }
+
+    // --- the sanitizer, as properties ---------------------------------------
+    //
+    // comrak renders with `unsafe_` on, so ammonia is the only thing between a
+    // stranger's file and the webview. The example-based tests above prove specific
+    // constructs survive; these prove that *nothing* which should not survive does,
+    // over inputs nobody wrote by hand.
+    //
+    // An adversarial audit of this repo stopped at one hole in the allowlist and said
+    // so plainly: that "ammonia is otherwise sound" was an assumption, not a result.
+    // This is the attempt to make it a result.
+
+    /// Things that must never appear in rendered output, whatever the input was.
+    ///
+    /// Checked against the lowercased HTML, because an attribute's case is not a
+    /// defence — `OnErRoR=` runs exactly as well as `onerror=`.
+    fn forbidden(html: &str) -> Option<String> {
+        // Only what is inside a tag can execute. Escaped text cannot: comrak turns an
+        // unterminated `<img src=x onerror=alert(1)` into `&lt;img src=x onerror=…`,
+        // which is a paragraph that happens to read like an attack and is not one.
+        // Scanning the raw string instead of the markup fails on that input, and the
+        // first version of this check did exactly that.
+        for tag in tags_in(html) {
+            let lower = tag.to_lowercase();
+
+            let name: String = lower
+                .trim_start_matches('<')
+                .trim_start_matches('/')
+                .chars()
+                .take_while(char::is_ascii_alphanumeric)
+                .collect();
+            if FORBIDDEN_TAGS.contains(&name.as_str()) {
+                return Some(format!("output contains a <{name}> element"));
+            }
+
+            for scheme in ["javascript:", "vbscript:", "data:text/html"] {
+                if lower.contains(scheme) {
+                    return Some(format!("a tag carries `{scheme}`: {tag}"));
+                }
+            }
+            for attribute in ["srcdoc", "formaction", "xlink:href"] {
+                if lower.contains(attribute) {
+                    return Some(format!("a tag carries `{attribute}`: {tag}"));
+                }
+            }
+
+            if let Some(handler) = event_handler_in(&lower) {
+                return Some(format!(
+                    "a tag carries the event handler `{handler}=`: {tag}"
+                ));
+            }
+        }
+
+        None
+    }
+
+    const FORBIDDEN_TAGS: &[&str] = &[
+        "script", "iframe", "object", "embed", "form", "style", "base", "link", "meta", "template",
+        "noscript", "svg", "math", "button",
+    ];
+
+    /// Every `<…>` region of the output — tags only. Escaped text never contains a
+    /// literal `<`, so anything found here really is markup.
+    fn tags_in(html: &str) -> Vec<&str> {
+        let mut tags = Vec::new();
+        let bytes = html.as_bytes();
+        let mut i = 0;
+        while let Some(offset) = bytes
+            .get(i..)
+            .and_then(|r| r.iter().position(|b| *b == b'<'))
+        {
+            let from = i + offset;
+            if let Some(close) = bytes
+                .get(from..)
+                .and_then(|r| r.iter().position(|b| *b == b'>'))
+            {
+                if let Some(tag) = html.get(from..=from + close) {
+                    tags.push(tag);
+                }
+                i = from + close + 1;
+            } else {
+                // An unterminated `<` at the end: take the remainder so it is still
+                // inspected rather than silently skipped.
+                if let Some(rest) = html.get(from..) {
+                    tags.push(rest);
+                }
+                break;
+            }
+        }
+        tags
+    }
+
+    /// The name of an `on…=` attribute inside a tag, if there is one.
+    ///
+    /// Scanned rather than matched against a list of event names: that list is long, it
+    /// grows, and enumerating it is the wrong side of the allowlist argument —
+    /// `onbeforetoggle` reached browsers years after this app was written.
+    fn event_handler_in(tag: &str) -> Option<String> {
+        let bytes = tag.as_bytes();
+        for i in 0..bytes.len() {
+            if bytes.get(i..i.saturating_add(2)) != Some(b"on") {
+                continue;
+            }
+            // An attribute name begins after whitespace or a quote, never mid-word.
+            let starts = i > 0
+                && bytes
+                    .get(i - 1)
+                    .is_some_and(|b| b.is_ascii_whitespace() || *b == b'"' || *b == b'\'');
+            if !starts {
+                continue;
+            }
+            let rest = bytes.get(i.saturating_add(2)..).unwrap_or_default();
+            let len = rest.iter().take_while(|b| b.is_ascii_alphabetic()).count();
+            if len == 0 {
+                continue;
+            }
+            if rest.get(len) == Some(&b'=') {
+                return tag
+                    .get(i..i.saturating_add(2).saturating_add(len))
+                    .map(str::to_owned);
+            }
+        }
+        None
+    }
+
+    /// Fragments a hostile document is built from. Real vectors rather than random
+    /// bytes: fuzzing a Markdown parser with noise mostly produces paragraphs, and the
+    /// interesting inputs are the ones shaped like the thing being defended against.
+    const HOSTILE: &[&str] = &[
+        r"<script>alert(1)</script>",
+        r"<ScRiPt>alert(1)</ScRiPt>",
+        r"<img src=x onerror=alert(1)>",
+        r"<img src=x OnErRoR=alert(1)>",
+        r#"<img src="x" onload='alert(1)'>"#,
+        r#"<a href="javascript:alert(1)">click</a>"#,
+        r#"<a href="JaVaScRiPt:alert(1)">click</a>"#,
+        r#"<a href="&#106;avascript:alert(1)">entity encoded</a>"#,
+        r#"<a href="java&#x09;script:alert(1)">tab split</a>"#,
+        r"[markdown link](javascript:alert(1))",
+        r"[entity link](&#106;avascript:alert%281%29)",
+        r"![image](javascript:alert(1))",
+        r#"<iframe src="https://example.com"></iframe>"#,
+        r#"<iframe srcdoc="&lt;script&gt;alert(1)&lt;/script&gt;"></iframe>"#,
+        r#"<object data="x.swf"></object>"#,
+        r#"<embed src="x.swf">"#,
+        r#"<form action="https://example.com"><button formaction="javascript:alert(1)">go</button></form>"#,
+        r"<style>body{background:url(https://example.com/x)}</style>",
+        r#"<base href="https://example.com/">"#,
+        r#"<link rel="stylesheet" href="https://example.com/x.css">"#,
+        r#"<meta http-equiv="refresh" content="0;url=https://example.com">"#,
+        r"<svg><script>alert(1)</script></svg>",
+        r"<svg onload=alert(1)></svg>",
+        r"<math><mtext><script>alert(1)</script></mtext></math>",
+        r"<template><script>alert(1)</script></template>",
+        r#"<noscript><p title="</noscript><script>alert(1)</script>">"#,
+        r#"<a href="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==">data uri</a>"#,
+        r#"<div onclick="alert(1)">click</div>"#,
+        r#"<details open ontoggle="alert(1)"><summary>s</summary>x</details>"#,
+        r#"<input type="checkbox" onfocus="alert(1)" autofocus>"#,
+        r"<p onbeforetoggle=alert(1)>a handler invented after this app was written</p>",
+        // Malformed and unterminated markup — the shapes a parser most often disagrees on.
+        r"<script",
+        r"<img src=x onerror=alert(1)",
+        r"<<script>alert(1)//<</script>",
+        r#"<a href="x" ="y" onerror=alert(1)>odd attribute</a>"#,
+        // Ordinary content, so a generated document is a mixture rather than pure attack.
+        "# A heading",
+        "Some **bold** prose with a [real link](https://example.com).",
+        "- [ ] a task\n- [x] a done task",
+        "| a | b |\n| --- | --- |\n| 1 | 2 |",
+        "> [!NOTE]\n> An alert.",
+        "```rust\nfn main() {}\n```",
+        "$x^2$ and $$y$$",
+        "A footnote[^1].\n\n[^1]: The note.",
+        "<details><summary>Fine</summary>This is allowed.</details>",
+        "<kbd>Ctrl</kbd>",
+    ];
+
+    #[test]
+    fn every_hostile_fragment_is_neutralized_on_its_own() {
+        for fragment in HOSTILE {
+            let out = html(fragment);
+            assert!(
+                forbidden(&out).is_none(),
+                "fragment {fragment:?} produced {:?}\n{out}",
+                forbidden(&out)
+            );
+        }
+    }
+
+    proptest::proptest! {
+        // A composed document, because parsers disagree about *combinations*: raw HTML
+        // interrupted by a fence, a link inside an unterminated tag, a table cell
+        // holding markup. Single fragments are covered above; this is about the seams.
+        #![proptest_config(proptest::prelude::ProptestConfig::with_cases(400))]
+
+        #[test]
+        fn no_composition_of_hostile_fragments_survives_the_sanitizer(
+            indices in proptest::collection::vec(0usize..HOSTILE.len(), 1..8),
+            separator in proptest::sample::select(vec!["\n\n", "\n", " ", "\n> ", "\n- "]),
+        ) {
+            let source: String = indices
+                .iter()
+                .map(|i| HOSTILE[*i])
+                .collect::<Vec<_>>()
+                .join(separator);
+
+            let out = html(&source);
+            proptest::prop_assert!(
+                forbidden(&out).is_none(),
+                "{:?}\n--- source ---\n{source}\n--- output ---\n{out}",
+                forbidden(&out)
+            );
+        }
+
+        /// The same, with the reader's other setting on. `smart` changes the parse, and
+        /// a sanitizer that only holds under one set of options is not a sanitizer.
+        #[test]
+        fn smart_punctuation_does_not_open_anything(
+            indices in proptest::collection::vec(0usize..HOSTILE.len(), 1..6),
+        ) {
+            let source: String = indices
+                .iter()
+                .map(|i| HOSTILE[*i])
+                .collect::<Vec<_>>()
+                .join("\n\n");
+
+            let out = render_with(&source, RenderOptions { smart_punctuation: true }).html;
+            proptest::prop_assert!(forbidden(&out).is_none(), "{:?}", forbidden(&out));
+        }
+    }
+
+    /// The allowlist, pinned.
+    ///
+    /// Not a property — a tripwire. Widening `sanitizer()` is sometimes right, and this
+    /// exists so that it is always deliberate: adding a tag or an attribute means
+    /// editing this list too, and explaining why in the diff. The audit's finding was
+    /// an entry nobody had re-read in a long time.
+    #[test]
+    fn the_allowlist_is_what_we_think_it_is() {
+        // A tag that is allowed and must stay allowed: each is load-bearing for a
+        // GitHub-flavored construct this app renders.
+        for markup in [
+            "<details><summary>s</summary>body</details>",
+            "<kbd>Ctrl</kbd>",
+            "<sub>sub</sub>",
+            "<sup>sup</sup>",
+        ] {
+            let out = html(markup);
+            let tag = markup.split(['<', '>']).nth(1).unwrap_or_default();
+            assert!(
+                out.contains(&format!("<{tag}")),
+                "{tag} should survive: {out}"
+            );
+        }
+
+        // `disabled` is deliberately stripped from task-list checkboxes, so the one
+        // edit a reader can make without a caret keeps working.
+        let task = html("- [ ] a task");
+        assert!(task.contains("<input"), "{task}");
+        assert!(task.contains(r#"type="checkbox""#), "{task}");
+        assert!(
+            !task.contains("disabled"),
+            "checkbox must stay clickable: {task}"
+        );
+
+        // Only navigable schemes survive on a link.
+        assert!(html("[x](https://example.com)").contains("https://example.com"));
+        assert!(html("[x](mailto:a@example.com)").contains("mailto:"));
+        assert!(
+            html("[x](./other.md)").contains("./other.md"),
+            "relative links are the point"
+        );
+        assert!(!html("[x](ftp://example.com/f)").contains("ftp://"));
+    }
 }
