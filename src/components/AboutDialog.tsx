@@ -76,7 +76,11 @@ export function AboutDialog({
           <div className="mt-5 flex items-center justify-between">
             <button
               type="button"
-              onClick={() => void openUrl(REPOSITORY).catch(() => undefined)}
+              onClick={() => {
+                openUrl(REPOSITORY).catch((error: unknown) => {
+                  console.error("lindo-md: could not open the repository URL", error);
+                });
+              }}
               className="text-[12px] text-ui-ember hover:underline"
             >
               Source on GitHub

@@ -17,6 +17,7 @@
     "dialog:allow-save",
     "dialog:allow-message",
     "opener:allow-open-url",
+    "opener:allow-default-urls",
     "os:allow-platform",
     "opener:allow-reveal-item-in-dir"
   ]
