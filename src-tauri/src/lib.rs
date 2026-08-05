@@ -6,6 +6,7 @@ mod error;
 mod export;
 mod files;
 mod markdown;
+mod srcmap;
 
 use tauri::{Emitter, Manager};
 
