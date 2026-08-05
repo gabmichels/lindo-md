@@ -16,6 +16,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
+import { bumpVersion } from "./version.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pkgPath = join(root, "package.json");
@@ -30,27 +31,9 @@ if (!arg) {
 const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
 const current = pkg.version;
 
-function next(from, kind) {
-  const explicit = /^\d+\.\d+\.\d+$/;
-  if (explicit.test(kind)) return kind;
-
-  const [major, minor, patch] = from.split(".").map(Number);
-  if ([major, minor, patch].some(Number.isNaN)) {
-    throw new Error(`current version "${from}" is not X.Y.Z`);
-  }
-  switch (kind) {
-    case "major":
-      return `${major + 1}.0.0`;
-    case "minor":
-      return `${major}.${minor + 1}.0`;
-    case "patch":
-      return `${major}.${minor}.${patch + 1}`;
-    default:
-      throw new Error(`unknown bump "${kind}" — use patch, minor, major, or an explicit X.Y.Z`);
-  }
-}
-
-const version = next(current, arg);
+// Shared with release.mjs so there is one implementation of what "minor" means, not two that
+// can disagree.
+const version = bumpVersion(current, arg);
 if (version === current) {
   console.log(`already at ${version}; nothing to do`);
   process.exit(0);
@@ -88,4 +71,5 @@ try {
 
 console.log(`${current} -> ${version}`);
 console.log("package.json, src-tauri/Cargo.toml updated (tauri.conf.json follows package.json)");
-console.log("\nNext: commit, then `git tag v" + version + " && git push --tags` to release.");
+console.log("\nNot committed or tagged — `pnpm release` does that, and normally calls this script");
+console.log("itself rather than the other way round. See \"Releasing\" in AGENTS.md.");

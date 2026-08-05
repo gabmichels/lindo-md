@@ -1,6 +1,7 @@
 name: Release
 
-# Tag a commit (e.g. `git tag v0.1.0 && git push --tags`) to publish installers.
+# Triggered by a `v*` tag, which `pnpm release` creates — it derives the version from the commits
+# since the last tag, so tags are not written by hand. See "Releasing" in AGENTS.md.
 #
 # Windows and Linux only, deliberately. All three platforms build fine in CI — macOS is not
 # excluded for technical reasons — but an unsigned macOS bundle fails Gatekeeper with

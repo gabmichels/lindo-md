@@ -34,6 +34,8 @@ export default defineConfig(async () => ({
     // Theme application writes CSS custom properties onto a real element, so
     // the default vitest environment has to be a DOM (see lib/theme/apply.ts).
     environment: "jsdom",
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    // `scripts/` is covered too: the release rules there decide what ships, so they are
+    // tested like app code rather than trusted because they are "just a build script".
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "scripts/**/*.test.mjs"],
   },
 }));

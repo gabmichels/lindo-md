@@ -42,6 +42,7 @@ Windows 11.
 | `cargo clippy --all-targets -- -D warnings` | Lint — CI treats warnings as errors |
 | `cargo fmt --check` | Format check |
 | `pnpm tauri build` | Bundle for the host platform |
+| `pnpm release` | Derive the next version from the commits, tag, push — see [Releasing](#releasing) |
 | `pnpm bump <major\|minor\|patch>` | Sync the version across `package.json` and `Cargo.toml` |
 
 All six gates run in CI on Linux, macOS and Windows. Run them locally before pushing.
@@ -84,7 +85,9 @@ are called with `camelCase` keys.
 
 ## Conventions
 
-- **Commits**: Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`).
+- **Commits**: Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`). The type is
+  load-bearing, not decoration — it decides the next version number. A behaviour fix labelled
+  `chore:` ships to nobody. See [Releasing](#releasing).
 - **Comments** explain *why*, not *what*. A comment restating the code is worse than no comment.
 - **Tokens only.** No color literal in a component. No hardcoded radius — use `--ui-r-sm|md|lg`.
 - **`aria-label` on every icon-only control.** The rail is almost all icon-only controls.
@@ -111,6 +114,71 @@ git-wt switch --create feat/my-change
 # ... work, `git-wt dev` for the dev server ...
 git-wt merge
 ```
+
+## Releasing
+
+**Nobody picks a version number here.** `pnpm release` derives it from the Conventional Commits
+since the last tag, so the decision is already made by the time you want to ship — it was made
+one commit message at a time, by whoever knew what the change did.
+
+```
+pnpm release              # derive the bump, tag, push
+pnpm release --dry-run    # show what it would ship, touch nothing
+```
+
+That is the whole workflow. `main` carries no version commits between releases; the bump, the
+`chore(release): vX.Y.Z` commit and the annotated tag are all created at release time, and the
+tag push is what `release.yml` waits for.
+
+### What bumps what
+
+| Commit since the last tag | Effect |
+| --- | --- |
+| `feat:` | minor — `0.3.1` → `0.4.0` |
+| `fix:`, `perf:` | patch — `0.3.1` → `0.3.2` |
+| `feat!:`, `BREAKING CHANGE:` in the body | major — but see the pre-1.0 rule below |
+| `docs:`, `chore:`, `refactor:`, `test:`, `ci:`, `style:` | **nothing** |
+
+The highest level any single commit asks for wins: one `feat:` among twenty `fix:`es is a minor.
+
+Types that change no observable behaviour release nothing on purpose. A refactor is real work, but
+shipping an installer for it spends a user's download and a version number on a binary that
+behaves identically to the one they have. If a release is genuinely warranted anyway — a
+dependency bump that closes a CVE, say — force it: `pnpm release patch`.
+
+A non-conventional subject line counts as no-op rather than failing the release. `pnpm release`
+lists everything it ignored, so a miscategorized commit is visible before the tag exists; check
+that list rather than trusting the version.
+
+### Two rules that only apply for a while
+
+- **Pre-1.0, breaking changes are minors.** Below `1.0.0` the app makes no stability promise, so a
+  `feat!:` moves `0.3.1` → `0.4.0`, not `1.0.0`. Declaring stability is a judgement about the
+  product, not something a commit message should be able to trigger by accident — going 1.0 is
+  therefore explicit and manual: `pnpm release 1.0.0`.
+- **The first release ships the current number.** With no tags in the repo, `0.1.0` has never been
+  published, so the first `pnpm release` tags `v0.1.0` as it stands instead of bumping past a
+  version no user has seen.
+
+### When to release
+
+Whenever `main` has accumulated user-visible change worth downloading — there is no cadence to
+keep and no ceremony to schedule. `pnpm release` refuses on a dirty tree, off `main`, or out of
+sync with `origin`, and it runs `pnpm test` before tagging (`version.test.ts` is the check that
+the bump reached both `package.json` and `Cargo.toml`). A tag is public and immutable; those
+guards exist because everything they catch is trivial to fix before one exists and ugly after.
+
+Releases are published as **drafts**. Building the installers is automatic; deciding they are fit
+to hand to people is not — review the draft on GitHub and publish it yourself.
+
+### The two version fields
+
+`package.json` is the source of truth. `src-tauri/tauri.conf.json` points at it (`"version":
+"../package.json"`), so bundle filenames and the in-app version follow automatically.
+`src-tauri/Cargo.toml` needs its own copy because a crate manifest cannot reference JSON —
+`pnpm bump` writes both and `version.test.ts` fails the build if they ever drift. Edit neither by
+hand; `pnpm release` calls `pnpm bump` for you, and `pnpm bump <major|minor|patch>` on its own is
+only for the rare case where you want the bump without the tag.
 
 ## Tabs
 

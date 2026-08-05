@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "bump": "node scripts/bump.mjs",
+    "release": "node scripts/release.mjs",
     "tauri": "tauri"
   },
   "pnpm": {
