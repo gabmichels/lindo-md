@@ -90,6 +90,13 @@ function cleanedMarkup(article: HTMLElement): string {
     delete element.dataset.rendered;
   }
 
+  // Where each element came from in the .md file. Meaningful only to the editor,
+  // and on nearly every element — leaving it in would bloat the export and leak
+  // the shape of a file the reader is not shipping.
+  for (const element of clone.querySelectorAll<HTMLElement>("[data-sourcepos]")) {
+    element.removeAttribute("data-sourcepos");
+  }
+
   return clone.innerHTML;
 }
 

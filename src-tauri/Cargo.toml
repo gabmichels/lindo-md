@@ -31,6 +31,13 @@ tauri-plugin-log = "2"
 # makes the ammonia pass mandatory rather than optional.
 comrak = { version = "0.44", features = ["shortcodes"] }
 ammonia = "4"
+# The HTML5 entity table, so `srcmap` decodes exactly what comrak does. Already
+# in the tree as a comrak dependency; naming it here makes that reliance explicit
+# rather than accidental.
+entities = "1"
+# Content fingerprints: which file a save expected, and whether a filesystem
+# event is just our own write coming back. Not a security primitive.
+sha2 = "0.10"
 
 # Folder scanning (respects .gitignore) and live reload.
 ignore = "0.4"

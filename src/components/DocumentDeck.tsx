@@ -32,6 +32,10 @@ interface DocumentDeckProps {
   onAnchorConsumed: (tabId: string) => void;
   onScrollChange: (tabId: string, scrollTop: number) => void;
   onScrollerReady: (element: HTMLElement | null) => void;
+  onSave: (tabId: string, source: string) => Promise<boolean>;
+  /** Tabs currently showing their Markdown rather than the rendered page. */
+  sourceTabs: ReadonlySet<string>;
+  onToggleSource: (tabId: string) => void;
 }
 
 export function DocumentDeck({
@@ -43,6 +47,9 @@ export function DocumentDeck({
   onAnchorConsumed,
   onScrollChange,
   onScrollerReady,
+  onSave,
+  sourceTabs,
+  onToggleSource,
 }: DocumentDeckProps) {
   const mru = useRef<string[]>([]);
   const active = session.activeTabId;
@@ -73,6 +80,9 @@ export function DocumentDeck({
             }
             onScrollChange={(scrollTop) => onScrollChange(tab.id, scrollTop)}
             onScrollerReady={onScrollerReady}
+            onSave={(source) => onSave(tab.id, source)}
+            sourceMode={sourceTabs.has(tab.id)}
+            onToggleSource={() => onToggleSource(tab.id)}
           />
         );
       })}

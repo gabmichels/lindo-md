@@ -1,7 +1,9 @@
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
+  BookOpen,
   ChevronLeft,
   ChevronRight,
+  Code2,
   Search,
   SlidersHorizontal,
 } from "lucide-react";
@@ -27,6 +29,9 @@ interface ToolbarProps {
   onForward: () => void;
   onFind: () => void;
   onAppearance: () => void;
+  /** True when the reader is looking at the Markdown rather than the page. */
+  sourceMode: boolean;
+  onToggleSource: () => void;
 }
 
 export function Toolbar({
@@ -38,6 +43,8 @@ export function Toolbar({
   onForward,
   onFind,
   onAppearance,
+  sourceMode,
+  onToggleSource,
 }: ToolbarProps) {
   return (
     <div className="flex h-[var(--ui-toolbar-h)] shrink-0 items-center gap-1 px-2">
@@ -56,6 +63,12 @@ export function Toolbar({
 
       <Breadcrumb breadcrumb={breadcrumb} path={path} />
 
+      <NavButton
+        label={sourceMode ? "Show the rendered document" : "Edit as Markdown"}
+        icon={sourceMode ? BookOpen : Code2}
+        active={sourceMode}
+        onClick={onToggleSource}
+      />
       <NavButton label="Find in document" icon={Search} onClick={onFind} />
       <NavButton
         label="Appearance"
@@ -105,11 +118,14 @@ function NavButton({
   label,
   icon: Icon,
   disabled,
+  active,
   onClick,
 }: {
   label: string;
   icon: typeof ChevronLeft;
   disabled?: boolean;
+  /** Held down, for a control that reflects a state rather than firing once. */
+  active?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -117,6 +133,7 @@ function NavButton({
       type="button"
       aria-label={label}
       title={label}
+      aria-pressed={active}
       disabled={disabled}
       onClick={onClick}
       className={cn(
@@ -124,6 +141,8 @@ function NavButton({
         "text-ui-text-muted transition-colors duration-[var(--ui-dur)]",
         "hover:bg-ui-plane-1 hover:text-ui-text-strong",
         "disabled:pointer-events-none disabled:opacity-30",
+        // Ember marks the active surface, the same as it does in the rail.
+        active && "bg-ui-ember-wash text-ui-text-strong",
       )}
     >
       <Icon size={15} strokeWidth={1.5} aria-hidden />

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { FormatMenu } from "@/components/FormatMenu";
 import { Rail } from "@/components/Rail";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { TabStrip } from "@/components/TabStrip";
@@ -139,6 +140,8 @@ export default function Specimen() {
 
         <TabStripStates />
 
+        <FormatMenuState />
+
         <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(340px,1fr))]">
           {PRESETS.map((preset) => (
             <PaperCard
@@ -159,6 +162,44 @@ export default function Specimen() {
         onOpenAppearance={() => undefined}
       />
     </div>
+  );
+}
+
+/**
+ * The formatting menu, over paper rather than over the rail.
+ *
+ * That is the state worth looking at: it is chrome that opens on top of the
+ * document, so the question it has to answer is whether it still reads as the
+ * tool and not as part of the page. Right-click the panel to open it. The
+ * disabled column is what a reader sees with no selection, or one spanning two
+ * blocks.
+ */
+function FormatMenuState() {
+  const [command, setCommand] = useState<string | null>(null);
+
+  return (
+    <section className="mb-4">
+      <h2 className="mb-2 text-[10.5px] uppercase tracking-[0.08em] text-ui-text-faint">
+        Formatting menu
+      </h2>
+      <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]">
+        {[true, false].map((canFormat) => (
+          <FormatMenu
+            key={String(canFormat)}
+            canFormat={canFormat}
+            onFormat={(next) => setCommand(next)}
+            onCopy={() => setCommand("copy")}
+          >
+            <div className="rounded-ui-lg bg-doc-bg p-4 font-serif text-[15px] text-doc-text">
+              {canFormat ? "A selection inside one block." : "No usable selection."}
+            </div>
+          </FormatMenu>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] text-ui-text-faint">
+        last command: {command ?? "—"}
+      </p>
+    </section>
   );
 }
 

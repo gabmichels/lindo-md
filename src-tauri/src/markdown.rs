@@ -51,7 +51,10 @@ pub struct RenderOptions {
     pub smart_punctuation: bool,
 }
 
-fn options(settings: RenderOptions) -> Options<'static> {
+/// Visible to `srcmap`, which must parse with exactly the options the document
+/// was rendered with — a map built under different rules describes a document
+/// the reader is not looking at.
+pub(crate) fn options(settings: RenderOptions) -> Options<'static> {
     let mut options = Options::default();
     options.parse.smart = settings.smart_punctuation;
 
@@ -83,6 +86,9 @@ fn options(settings: RenderOptions) -> Options<'static> {
     // Puts `task-list-item` on the <li>, so the checkbox can be styled without a
     // fragile `:has(input)` selector.
     render.tasklist_classes = true;
+    // Every block element carries the line range it came from, which is what lets
+    // an edit made in the rendered view be applied to the file. See `srcmap.rs`.
+    render.sourcepos = true;
 
     options
 }
@@ -187,8 +193,19 @@ fn rewrite_code_blocks<'a>(arena: &'a Arena<AstNode<'a>>, root: &'a AstNode<'a>)
         let lang = info.split_whitespace().next().unwrap_or("").to_lowercase();
         let escaped = escape_html(&literal);
 
+        // Written into the literal rather than set on the replacement node:
+        // comrak emits an `HtmlBlock` verbatim and never decorates it, so a
+        // sourcepos stored on the node would never reach the HTML. A fence is an
+        // atom — the rendered view cannot edit it — which makes this the only way
+        // the source view can be told where to jump.
+        let pos = node.data.borrow().sourcepos;
+        let sourcepos = format!(
+            " data-sourcepos=\"{}:{}-{}:{}\"",
+            pos.start.line, pos.start.column, pos.end.line, pos.end.column
+        );
+
         let html = if lang == "mermaid" {
-            format!("<pre class=\"mermaid-src\">{escaped}</pre>")
+            format!("<pre class=\"mermaid-src\"{sourcepos}>{escaped}</pre>")
         } else {
             let title = title_from_info(&info);
             let lang_attr = if lang.is_empty() {
@@ -206,7 +223,7 @@ fn rewrite_code_blocks<'a>(arena: &'a Arena<AstNode<'a>>, root: &'a AstNode<'a>)
                 format!(" class=\"language-{}\"", escape_html(&lang))
             };
             format!(
-                "<pre class=\"code-block\"{lang_attr}{title_attr}><code{code_class}>{escaped}</code></pre>"
+                "<pre class=\"code-block\"{sourcepos}{lang_attr}{title_attr}><code{code_class}>{escaped}</code></pre>"
             )
         };
 
@@ -269,10 +286,17 @@ fn sanitizer() -> ammonia::Builder<'static> {
     builder
         // `input` carries task-list checkboxes; `section` wraps the footnote list.
         .add_tags(["input", "section"])
-        .add_generic_attributes(["id", "class"])
+        // `data-sourcepos` is comrak's line range for the element. The webview
+        // needs it to map a caret back into the file; `export.rs` strips it so it
+        // never reaches a standalone HTML file.
+        .add_generic_attributes(["id", "class", "data-sourcepos"])
         .add_tag_attributes("a", ["href", "title", "aria-hidden"])
         .add_tag_attributes("img", ["src", "alt", "title", "align", "width", "height"])
-        .add_tag_attributes("input", ["type", "checked", "disabled"])
+        // `disabled` is deliberately absent, so ammonia strips the attribute
+        // comrak puts on every task-list checkbox. Ticking a box is the one edit
+        // a reader can make without a caret, and a disabled input cannot be
+        // clicked at all.
+        .add_tag_attributes("input", ["type", "checked"])
         .add_tag_attributes("th", ["align"])
         .add_tag_attributes("td", ["align"])
         .add_tag_attributes("ol", ["start"])
@@ -375,9 +399,25 @@ mod tests {
     #[test]
     fn renders_tables_with_alignment() {
         let out = html("| a | b |\n| :- | -: |\n| 1 | 2 |\n");
-        assert!(out.contains("<table>"));
+        // Matched without the closing bracket: every element now also carries a
+        // `data-sourcepos` attribute.
+        assert!(out.contains("<table"));
         assert!(out.contains("align=\"left\""));
         assert!(out.contains("align=\"right\""));
+    }
+
+    /// Every block a reader can put a caret in — and every atom they can jump to
+    /// in the source view — has to say which lines of the file it came from.
+    #[test]
+    fn blocks_carry_their_source_position() {
+        let out = html("# Title\n\nA paragraph.\n\n```rust\nlet x = 1;\n```\n");
+        assert!(out.contains("<h1 data-sourcepos=\"1:1-1:7\""), "{out}");
+        assert!(out.contains("<p data-sourcepos=\"3:1-3:12\""), "{out}");
+        assert!(
+            out.contains("<pre class=\"code-block\" data-sourcepos=\"5:1-7:3\""),
+            "code fences must carry it too — they are an atom the source view \
+             has to be able to jump to\n{out}"
+        );
     }
 
     #[test]
@@ -385,6 +425,10 @@ mod tests {
         let out = html("- [x] done\n- [ ] todo\n");
         assert!(out.contains("<input"), "{out}");
         assert!(out.contains("checked"), "{out}");
+        assert!(
+            !out.contains("disabled"),
+            "a checkbox the reader cannot click cannot be ticked\n{out}"
+        );
     }
 
     #[test]
@@ -413,9 +457,11 @@ mod tests {
 
     #[test]
     fn renders_strikethrough_super_and_subscript() {
-        assert!(html("~~gone~~").contains("<del>"));
-        assert!(html("x^2^").contains("<sup>"));
-        assert!(html("H~2~O").contains("<sub>"));
+        // No closing bracket: `<del>` gains a `data-sourcepos` attribute, while
+        // `<sup>`/`<sub>` are inline and do not. Matching the tag start covers both.
+        assert!(html("~~gone~~").contains("<del"));
+        assert!(html("x^2^").contains("<sup"));
+        assert!(html("H~2~O").contains("<sub"));
     }
 
     #[test]

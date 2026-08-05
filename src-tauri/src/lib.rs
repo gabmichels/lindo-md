@@ -6,6 +6,7 @@ mod error;
 mod export;
 mod files;
 mod markdown;
+mod srcmap;
 
 use tauri::{Emitter, Manager};
 
@@ -44,6 +45,7 @@ pub fn run() {
             commands::get_config,
             commands::set_config,
             commands::open_document,
+            commands::save_document,
             commands::scan_folder,
             commands::watch_paths,
             commands::read_theme_file,

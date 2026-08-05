@@ -199,6 +199,16 @@ From there `Runtime.evaluate` scrolls or clicks and `Page.captureScreenshot` cap
 Passing a path on the command line works because of the file-association handling in `assoc.rs`, so
 no dialog has to be driven to open a document.
 
+**Two ways to test stale code, both of which look like a broken feature rather than a stale build:**
+
+- **Vite's watcher does not see edits when the repo is a nested worktree** (`.claude/worktrees/…`).
+  The server keeps serving the transform it built at startup, and reloading the page — even with
+  `ignoreCache` — does not help, because the staleness is server-side. Restart `pnpm dev` after
+  editing, or confirm what is actually being served with
+  `curl -s http://localhost:1420/src/components/DocumentView.tsx | grep yourNewSymbol`.
+- **`cargo test` does not rebuild the binary.** Run `cargo build` before relaunching, or the window
+  is still running the previous Rust.
+
 ## Windows packaging
 
 - **`bundle.publisher` must be set explicitly.** Without it Tauri derives the publisher from the
