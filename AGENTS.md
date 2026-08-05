@@ -223,6 +223,28 @@ lowering the floor: the `overrides` block and the matching `minimumReleaseAgeExc
 **both** sides — `>=1.1.18` alone also satisfies `5.x`, which is how a v1 request resolved into a
 v5 release and left the vulnerable version in the tree anyway.
 
+## CI
+
+Five workflows. `ci.yml` proves a change works; `supply-chain.yml` asks whether anything we
+depend on is known-bad today; `codeql.yml` looks for known-shaped defects in both languages;
+`secrets.yml` scans the history for credentials; `release.yml` builds and attests what ships.
+
+Three rules hold across all of them:
+
+- **Every `uses:` is pinned to a commit SHA**, with the version in a trailing comment. A tag is
+  mutable — `@v4` is a name its owner can repoint at any commit, including after a compromise —
+  and an action runs with the workflow's token. Renovate keeps the SHAs current, so this costs a
+  PR to review rather than manual work.
+- **Every workflow declares `permissions:`.** Without one, a workflow inherits the repository
+  default, which for a repo created before 2023 is read/write on every scope. Only `release.yml`
+  needs more than `contents: read`, and it lists exactly what provenance signing requires.
+- **`persist-credentials: false` on every checkout**, because nothing in this repo pushes with
+  git credentials — the release job talks to the API through `GH_TOKEN`.
+
+`tauri-action` and `attest-build-provenance` are held at the major they are on rather than moved
+to the newest. They are the two actions that shape a release, and a release cannot be rehearsed:
+the tag is the trigger. Renovate proposes those majors as their own PRs, to be taken deliberately.
+
 **Renovate** (`.github/renovate.json5`) opens the update PRs. Its `minimumReleaseAge` must stay
 equal to pnpm's — set it lower and Renovate proposes versions pnpm then refuses to lock, which
 looks like a broken PR rather than a policy working. Security fixes deliberately bypass the delay.
