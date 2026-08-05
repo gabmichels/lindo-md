@@ -51,6 +51,17 @@ function Shell() {
   const [namingGroup, setNamingGroup] = useState<string | null>(null);
 
   const [folder, setFolder] = useState<string | null>(null);
+  /** Which tabs are showing their Markdown. Per tab, not per window: two tabs
+   *  can be in different modes, and switching between them should not change
+   *  what either was showing. */
+  const [sourceTabs, setSourceTabs] = useState<ReadonlySet<string>>(new Set());
+  const toggleSource = useCallback((tabId: string) => {
+    setSourceTabs((current) => {
+      const next = new Set(current);
+      if (!next.delete(tabId)) next.add(tabId);
+      return next;
+    });
+  }, []);
 
   const theme = useTheme(
     config.themeId,
@@ -248,6 +259,7 @@ function Shell() {
     scroller,
     onFind: () => setFindOpen(true),
     onCloseFind: () => setFindOpen(false),
+    onToggleSource: () => active && toggleSource(active.id),
     onUndo: () => active && docs.undoEdit(active.id),
     onRedo: () => active && docs.redoEdit(active.id),
     onOpenFile: () => void openFile(),
@@ -360,6 +372,8 @@ function Shell() {
               : null
           }
           path={document?.path ?? null}
+          sourceMode={active ? sourceTabs.has(active.id) : false}
+          onToggleSource={() => active && toggleSource(active.id)}
           canGoBack={active ? docs.canGoBack(active.id) : false}
           canGoForward={active ? docs.canGoForward(active.id) : false}
           onBack={() => step(-1)}
@@ -399,6 +413,8 @@ function Shell() {
               onScrollChange={docs.rememberScroll}
               onScrollerReady={setScroller}
               onSave={docs.save}
+              sourceTabs={sourceTabs}
+              onToggleSource={toggleSource}
             />
           )}
         </div>
@@ -472,6 +488,7 @@ function useKeyboardShortcuts(handlers: {
   scroller: HTMLElement | null;
   onFind: () => void;
   onCloseFind: () => void;
+  onToggleSource: () => void;
   onUndo: () => void;
   onRedo: () => void;
   onOpenFile: () => void;
@@ -549,6 +566,10 @@ function useKeyboardShortcuts(handlers: {
         case "y":
           event.preventDefault();
           handlers.onRedo();
+          break;
+        case "e":
+          event.preventDefault();
+          handlers.onToggleSource();
           break;
         case "f":
           event.preventDefault();

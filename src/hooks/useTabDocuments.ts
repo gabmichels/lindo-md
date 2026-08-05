@@ -98,6 +98,10 @@ export function useTabDocuments(
   /** Guards against a slow open finishing after a newer one, per tab. */
   const generation = useRef<Record<string, number>>({});
 
+  /** The content fingerprint of the last save that landed, per path. Updated
+   *  synchronously, unlike the copy inside `Document`, which waits for a render. */
+  const written = useRef<Record<string, string>>({});
+
   const patch = useCallback((id: string, next: Partial<TabRuntime>) => {
     setRuntimes((runtimes) => ({
       ...runtimes,
@@ -186,11 +190,17 @@ export function useTabDocuments(
       const before = document.source;
 
       try {
+        // The fingerprint of the last save that actually landed, which is not
+        // necessarily the one in `document`: a save resolves before React has
+        // re-rendered with its result, so a second edit arriving in between
+        // would otherwise carry the fingerprint of a file that no longer exists
+        // and be refused as somebody else's work.
         const saved = await saveDocument(
           document.path,
           source,
-          document.contentHash,
+          written.current[document.path] ?? document.contentHash,
         );
+        written.current[saved.path] = saved.contentHash;
 
         const stacks = (existing: TabRuntime): Pick<TabRuntime, "undo" | "redo"> => {
           switch (track) {

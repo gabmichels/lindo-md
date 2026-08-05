@@ -34,6 +34,10 @@ interface DocumentViewProps {
   onScrollerReady: (element: HTMLElement | null) => void;
   /** Writes edited Markdown. Resolves false if the write was refused. */
   onSave: (source: string) => Promise<boolean>;
+  /** Show the Markdown rather than the rendered page. Owned above so the
+   *  toolbar can reflect it. */
+  sourceMode: boolean;
+  onToggleSource: () => void;
   /** False for a background tab: still mounted, so its highlighted code and
    *  rendered diagrams survive, but not drawn. */
   visible?: boolean;
@@ -51,6 +55,8 @@ export function DocumentView({
   onOpenDocument,
   onScrollerReady,
   onSave,
+  sourceMode,
+  onToggleSource,
   visible = true,
   restoreScrollTop = 0,
   onScrollChange,
@@ -244,24 +250,19 @@ export function DocumentView({
     if (savingOnExit.current) void onSave(edited);
   };
 
-  // Ctrl+E, only for the tab on screen. Handled here rather than in the central
-  // shortcut table because the mode belongs to one view: two tabs can be in
-  // different modes at once, and App has no business knowing which.
+  // The mode is owned above this component so the toolbar can show it, and is
+  // followed here. Opening reads the caret first, because that is what decides
+  // where the source view lands.
   useEffect(() => {
-    if (!visible) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "e") return;
-      event.preventDefault();
-      if (draft === null) {
-        const selection = selectionRange(doc.blocks, window.getSelection());
-        openSource(selection?.start ?? 0);
-      } else {
-        closeSource();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
+    if (sourceMode && draft === null) {
+      openSource(selectionRange(doc.blocks, window.getSelection())?.start ?? 0);
+    } else if (!sourceMode && draft !== null) {
+      closeSource();
+    }
+    // Only when the mode itself changes: `draft` moves on every keystroke, and
+    // reacting to that would close the view out from under the reader.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceMode]);
 
   // The textarea grows to fit its content so the document's own scroller
   // handles scrolling, exactly as it does for the rendered view. A textarea
@@ -392,7 +393,7 @@ export function DocumentView({
         canFormat={canFormat}
         onFormat={format}
         onCopy={copySelection}
-        onEditSource={() => openSource(pending.current?.start ?? 0)}
+        onEditSource={onToggleSource}
         // The menu asks once, when it opens: a selection can be gone by the
         // time a row is chosen, and greying the rows out afterwards would be
         // worse than deciding up front.

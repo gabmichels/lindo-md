@@ -64,25 +64,46 @@ export function useDocumentTyping({
   const save = useRef(onSave);
   save.current = onSave;
 
+  /** True between asking for a save and the rendered document coming back. */
+  const inFlight = useRef(false);
+
   const flush = useCallback(() => {
     if (timer.current !== null) {
       window.clearTimeout(timer.current);
       timer.current = null;
     }
     const next = pending.current;
-    if (next === null) return;
+    if (next === null || inFlight.current) return;
 
-    pending.current = null;
+    // `pending` and `caret` deliberately survive the save. Clearing them here
+    // would mark the view clean while the screen still shows unsaved text and
+    // the map still describes the previous document — and the next keystroke
+    // would then resolve its position against a map that does not match what
+    // the reader is looking at. They are cleared when the render catches up.
+    inFlight.current = true;
     const at = caret.current;
-    caret.current = null;
     if (at !== null) restoring.current = { start: at, end: at };
 
     void save.current(next).then((saved) => {
+      inFlight.current = false;
       // A refused write leaves the document as it was; the caret has nowhere
       // meaningful to go, so it is left where the reader put it.
       if (!saved) restoring.current = null;
+      // More was typed while that was in the air.
+      if (pending.current !== null && pending.current !== latest.current.source) {
+        flush();
+      }
     });
   }, [restoring]);
+
+  // The render has caught up: what is on screen is now what was saved, so the
+  // DOM and the map agree again and the tracked caret can be let go.
+  useEffect(() => {
+    if (pending.current !== null && pending.current === doc.source) {
+      pending.current = null;
+      caret.current = null;
+    }
+  }, [doc.source]);
 
   // Atoms are inert to the caret. `contenteditable="false"` is what makes the
   // browser treat each as one indivisible thing — arrow keys step over it,
@@ -181,14 +202,17 @@ function dataOf(event: InputEvent): string | null {
 }
 
 /**
- * Shows an insertion immediately, without waiting for the round trip.
+ * Shows a change immediately, without waiting for the round trip.
  *
- * Only plain text into a collapsed caret: that cannot change the shape of the
- * document, so the map stays usable until the pause. Returns false for anything
- * else, which tells the caller to re-render now instead.
+ * Only edits confined to one text node with a collapsed caret: those cannot
+ * change the shape of the document, so the map stays usable until the pause.
+ * Returns false for anything else, which tells the caller to re-render now.
+ *
+ * Deleting matters here as much as typing. Without it every backspace forced a
+ * save, and a burst of them put several in the air at once — each carrying a
+ * fingerprint of the document as it was before the others landed.
  */
 function applyToDom(event: InputEvent, selection: Selection | null): boolean {
-  if (event.inputType !== "insertText" || !event.data) return false;
   if (!selection || !selection.isCollapsed || selection.rangeCount === 0) return false;
 
   const range = selection.getRangeAt(0);
@@ -196,13 +220,45 @@ function applyToDom(event: InputEvent, selection: Selection | null): boolean {
   if (node.nodeType !== Node.TEXT_NODE) return false;
 
   const text = node as Text;
+  const value = text.nodeValue ?? "";
   const at = range.startOffset;
-  text.nodeValue = (text.nodeValue ?? "").slice(0, at) + event.data + (text.nodeValue ?? "").slice(at);
+
+  let from = at;
+  let to = at;
+  let inserted = "";
+
+  switch (event.inputType) {
+    case "insertText":
+      if (!event.data) return false;
+      inserted = event.data;
+      break;
+    case "deleteContentBackward":
+      // Not at the start of the node: crossing out of it could mean leaving the
+      // block entirely, which is structural.
+      if (at === 0) return false;
+      from = at - surrogateWidth(value, at);
+      break;
+    case "deleteContentForward":
+      if (at >= value.length) return false;
+      to = at + surrogateWidth(value, at + 1);
+      break;
+    default:
+      return false;
+  }
+
+  text.nodeValue = value.slice(0, from) + inserted + value.slice(to);
 
   const moved = document.createRange();
-  moved.setStart(text, at + event.data.length);
+  moved.setStart(text, from + inserted.length);
   moved.collapse(true);
   selection.removeAllRanges();
   selection.addRange(moved);
   return true;
+}
+
+/** 2 when the character ending at `at` is half of a surrogate pair, else 1 —
+ *  so an emoji is taken whole rather than broken in half. */
+function surrogateWidth(value: string, at: number): number {
+  const code = value.codePointAt(at - 2);
+  return code !== undefined && code > 0xffff ? 2 : 1;
 }
