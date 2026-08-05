@@ -18,6 +18,52 @@ const EXPLICIT_VERSION = /^\d+\.\d+\.\d+$/;
 const MINOR_TYPES = new Set(["feat"]);
 const PATCH_TYPES = new Set(["fix", "perf"]);
 
+/**
+ * Every type this project uses, releasing or not — the table under "Releasing" in
+ * AGENTS.md, as data.
+ *
+ * `levelOf` deliberately treats an unrecognised type as a no-op, because a release must
+ * not fail over a subject line. That is right at release time and wrong at commit time:
+ * `fixx: crash on open` silently becomes a commit that releases nothing, and the only
+ * thing that would catch it is someone reading the ignored-commits list before tagging.
+ * `checkSubject` is the same knowledge applied earlier, where it can still be corrected.
+ */
+export const KNOWN_TYPES = new Set([
+  ...MINOR_TYPES,
+  ...PATCH_TYPES,
+  // Real work that changes no observable behaviour, and so releases nothing.
+  "docs",
+  "chore",
+  "refactor",
+  "test",
+  "ci",
+  "style",
+]);
+
+/**
+ * Why this subject line is not usable, or null if it is fine.
+ *
+ * Comments and git's own generated subjects pass: a merge, a revert or a fixup is not
+ * something an author typed, and rejecting them would only teach people `--no-verify`.
+ */
+export function checkSubject(subject) {
+  const line = subject.trim();
+  if (!line || line.startsWith("#")) return null;
+  // `\b` only on the word-shaped ones: after the `!` of `fixup!` there is a space, and a
+  // word boundary needs a word character on one side, so a trailing `\b` never matches.
+  if (/^(Merge\b|Revert\b|fixup!|squash!|amend!)/.test(line)) return null;
+
+  const match = HEADER.exec(line);
+  if (!match) {
+    return `not a Conventional Commit: expected "type: subject", got "${line}"`;
+  }
+  const { type } = match.groups;
+  if (!KNOWN_TYPES.has(type)) {
+    return `unknown type "${type}" — use one of ${[...KNOWN_TYPES].sort().join(", ")}`;
+  }
+  return null;
+}
+
 export const RANK = { patch: 1, minor: 2, major: 3 };
 
 /** The bump a single commit asks for, or null if it asks for none. */
