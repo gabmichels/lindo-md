@@ -41,6 +41,7 @@ Windows 11.
 | `cargo test` | Rust unit tests (run from `src-tauri/`) |
 | `cargo clippy --all-targets -- -D warnings` | Lint — CI treats warnings as errors |
 | `cargo fmt --check` | Format check |
+| `cargo deny check` | Advisories, licences, wildcards and crate sources — see [Dependencies](#dependencies) |
 | `pnpm tauri build` | Bundle for the host platform |
 | `pnpm release` | Derive the next version from the commits, tag, push — see [Releasing](#releasing) |
 | `pnpm bump <major\|minor\|patch>` | Sync the version across `package.json` and `Cargo.toml` |
@@ -104,6 +105,37 @@ are called with `camelCase` keys.
 - **Tests are part of the change, not a follow-up.** Every new pure function gets a unit test; every
   new Markdown construct gets a case in `test/fixtures/kitchen-sink.md` and a Rust snapshot test;
   every sanitizer-relevant change gets a test proving the hostile input is neutralized.
+
+## Dependencies
+
+A desktop app statically links its whole dependency tree into a binary that people download and
+run. There is no server to patch afterwards, so the tree is part of what ships.
+
+**Adding one is a decision.** Four things make it a reviewable decision rather than a reflex:
+
+- **New versions wait seven days.** `minimumReleaseAge` in `pnpm-workspace.yaml` refuses to resolve
+  anything published more recently. Every large npm compromise of recent years was found and
+  unpublished well inside that window. It is **also a CI gate**: pnpm 11 re-verifies every entry of
+  an existing lockfile against the policy, so `--frozen-lockfile` fails on a lockfile carrying
+  anything too young, rather than passing because resolution was skipped.
+  `minimumReleaseAgeStrict` is off, so a range with *no* old-enough version installs anyway and
+  pnpm records the exact versions it accepted in `minimumReleaseAgeExclude`. Do not hand-edit that
+  list — it is generated, and it is pinned per version so it lapses on the next bump.
+- **Install scripts are denied by default.** `allowBuilds` in `pnpm-workspace.yaml` lists the only
+  packages allowed to run `preinstall`/`install`/`postinstall`. It is one entry (`esbuild`) and
+  should stay short: a compromised transitive package that cannot execute at install time has to
+  wait for someone to actually import it.
+- **`cargo deny check`** covers the Rust half — RustSec advisories, a licence allow-list (we ship a
+  binary; a copyleft crate appearing in it should be a decision), a ban on wildcard versions, and
+  `sources`, which fails if anything resolves to somewhere other than crates.io.
+- **`osv-scanner`** reads both lockfiles against one database, daily and on dependency PRs.
+
+**Renovate** (`.github/renovate.json5`) opens the update PRs. Its `minimumReleaseAge` must stay
+equal to pnpm's — set it lower and Renovate proposes versions pnpm then refuses to lock, which
+looks like a broken PR rather than a policy working. Security fixes deliberately bypass the delay.
+`comrak`, `ammonia`, `mermaid`, `katex` and `shiki` are never auto-merged: comrak runs with
+`unsafe_` on and is only safe because ammonia runs after it, and the other three each parse
+untrusted document content.
 
 ## Workflow
 

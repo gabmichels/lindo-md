@@ -1,0 +1,92 @@
+name: Supply chain
+
+# Kept out of ci.yml on purpose. These checks answer "is anything we depend on known
+# to be bad *today*", which changes without us pushing anything — so they run on a
+# schedule, and on PRs only when a lockfile or manifest actually moves. Failing an
+# unrelated PR for an advisory published overnight trains people to ignore red.
+on:
+  # The two path lists are duplicated because GitHub Actions does not support YAML
+  # anchors — an `&anchor`/`*alias` pair parses locally and is rejected by Actions.
+  push:
+    branches: [main]
+    paths:
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - "src-tauri/Cargo.lock"
+      - "src-tauri/Cargo.toml"
+      - "src-tauri/deny.toml"
+      - ".github/workflows/supply-chain.yml"
+  pull_request:
+    paths:
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - "src-tauri/Cargo.lock"
+      - "src-tauri/Cargo.toml"
+      - "src-tauri/deny.toml"
+      - ".github/workflows/supply-chain.yml"
+  schedule:
+    # 05:17 UTC daily. Off the hour because everyone schedules on the hour and the
+    # runner queue is shorter a few minutes either side.
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # OSV covers both ecosystems from one database, which is why it is here rather than
+  # `pnpm audit` + `cargo audit`: two tools, two output formats, two sets of excuses.
+  #
+  # These are reusable *workflows*, not actions — osv-scanner's `action.yml` is a stub
+  # with no `runs:` block, so `uses:` at step level silently does nothing.
+  osv:
+    name: OSV scan
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      # Uploading SARIF to the Security tab. Free on public repos.
+      security-events: write
+      actions: read
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+    with:
+      scan-args: |-
+        --lockfile=pnpm-lock.yaml
+        --lockfile=src-tauri/Cargo.lock
+
+  # The PR variant reports only what this PR *introduces*, rather than every
+  # pre-existing advisory in the tree. A PR author can act on the first and not the
+  # second, and a check that lists things you cannot fix is a check you learn to skip.
+  osv-pr:
+    name: OSV scan (new only)
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+    with:
+      scan-args: |-
+        --lockfile=pnpm-lock.yaml
+        --lockfile=src-tauri/Cargo.lock
+
+  cargo-deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      # advisories: RustSec.   licenses: what we may ship inside a binary.
+      # bans:       wildcards. sources:  crates.io and nothing else.
+      # Config and reasoning live in src-tauri/deny.toml.
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          manifest-path: src-tauri/Cargo.toml
+          command: check advisories licenses bans sources

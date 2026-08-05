@@ -11,3 +11,31 @@
 # map, so a mechanical copy of the old value silently allows nothing.
 allowBuilds:
   esbuild: true
+
+# Refuse to resolve a version published less than seven days ago (the value is in
+# minutes). Every large npm compromise of the last few years — chalk/debug, the
+# Shai-Hulud waves — was caught and unpublished well inside a week, so the delay
+# converts "we install it the minute it lands" into "someone else finds it first".
+#
+# This is a CI gate as well as a resolution rule, which is easy to get wrong: pnpm 11
+# re-verifies every entry in an existing lockfile against the policy, so
+# `pnpm install --frozen-lockfile` fails on a lockfile containing anything too young.
+# A stale lockfile therefore breaks the build rather than quietly passing.
+#
+# The entries below are written by pnpm itself, not by hand. When `minimumReleaseAge`
+# was first switched on, `shiki@4.4.1` was five days old and `^4.4.1` admitted nothing
+# older, so pnpm recorded the exact versions it had to accept. They are pinned to the
+# version, so they lapse the moment shiki moves — which makes the list a record of
+# knowingly-accepted young packages rather than a permanent hole.
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude: [ '@shikijs/core@4.4.1', '@shikijs/engine-javascript@4.4.1', '@shikijs/engine-oniguruma@4.4.1', '@shikijs/langs@4.4.1', '@shikijs/primitive@4.4.1', '@shikijs/themes@4.4.1', '@shikijs/types@4.4.1', shiki@4.4.1 ]
+
+# When *no* version inside a declared range is old enough, install the newest anyway
+# rather than failing. This only ever fires when the whole range is young — the normal
+# case, a freshly published malicious patch with older siblings available, still gets
+# the delay, because pnpm picks the newest version that does qualify.
+#
+# Left at the default `true` the repo becomes unbuildable whenever a direct dependency
+# publishes inside the window and `^x.y.z` admits nothing earlier: `shiki@4.4.1` is
+# exactly that, and it made `pnpm install --frozen-lockfile` fail outright.
+minimumReleaseAgeStrict: false

@@ -1,0 +1,80 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Renovate rather than Dependabot because one bot covers npm, cargo, the pinned
+  // Rust toolchain and the GitHub Actions SHAs — and because it understands a
+  // minimum release age, which Dependabot does not.
+  extends: [
+    "config:recommended",
+    // Every PR carries the OpenSSF Scorecard and age/adoption data for the version
+    // it proposes, so "should I take this" is answerable without leaving the PR.
+    "mergeConfidence:all-badges",
+  ],
+
+  // Must match `minimumReleaseAge` in pnpm-workspace.yaml. If Renovate opens a PR for
+  // a version pnpm will then refuse to resolve, the lockfile update fails and the PR
+  // sits there red for a week looking like a real problem.
+  minimumReleaseAge: "7 days",
+
+  // A dashboard issue rather than a wall of PRs. Everything waiting is visible in one
+  // place and can be triggered from there.
+  dependencyDashboard: true,
+  prConcurrentLimit: 5,
+  timezone: "Europe/Madrid",
+  schedule: ["before 6am on monday"],
+
+  // Actions are pinned to SHAs (see .github/workflows/*), which is only maintainable
+  // if something keeps them current — that something is this.
+  "github-actions": {
+    pinDigests: true,
+  },
+
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["before 6am on the first day of the month"],
+  },
+
+  packageRules: [
+    {
+      // Dev tooling that cannot reach a user: a patch bump to vitest or a type
+      // definition does not need a human. Anything that ships inside the binary does.
+      matchDepTypes: ["devDependencies"],
+      matchUpdateTypes: ["minor", "patch"],
+      automerge: true,
+      automergeType: "pr",
+      platformAutomerge: true,
+    },
+    {
+      // Tauri's crates and JS packages are versioned together and break together.
+      // Reviewing them as one PR is the only way the diff makes sense.
+      groupName: "tauri",
+      matchPackageNames: ["/^@tauri-apps//", "/^tauri/", "/^tauri-plugin-/"],
+    },
+    {
+      // Nineteen font packages that always release in lockstep. One PR, not nineteen.
+      groupName: "fontsource",
+      matchPackageNames: ["/^@fontsource/"],
+    },
+    {
+      groupName: "radix-ui",
+      matchPackageNames: ["/^@radix-ui//"],
+    },
+    {
+      // The renderer and the sanitizer are the security-critical pair — comrak with
+      // `unsafe_` on is only safe because ammonia runs after it. Never automerged,
+      // and labelled so it is obvious in the list.
+      matchPackageNames: ["comrak", "ammonia", "mermaid", "katex", "shiki"],
+      automerge: false,
+      addLabels: ["needs-careful-review"],
+    },
+  ],
+
+  // A vulnerability fix should not sit behind the seven-day age delay — the whole
+  // reason for the delay is that an unknown-quality version might be malicious, and a
+  // known-good fix for a known-bad version is the opposite situation.
+  vulnerabilityAlerts: {
+    labels: ["security"],
+    schedule: ["at any time"],
+    minimumReleaseAge: null,
+  },
+}
