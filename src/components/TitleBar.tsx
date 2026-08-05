@@ -41,14 +41,10 @@ export function TitleBar({
   railCollapsed: boolean;
 }) {
   const host = useHostPlatform();
-  const railWidth = railCollapsed
-    ? "var(--ui-rail-collapsed-w)"
-    : "var(--ui-rail-w)";
+  const railWidth = railCollapsed ? "var(--ui-rail-collapsed-w)" : "var(--ui-rail-w)";
 
   return (
-    <header
-      {...dragRegion("flex h-[var(--ui-titlebar-h)] shrink-0 items-stretch")}
-    >
+    <header {...dragRegion("flex h-[var(--ui-titlebar-h)] shrink-0 items-stretch")}>
       {host === "macos" && (
         <div
           {...dragRegion("shrink-0")}

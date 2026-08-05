@@ -1,6 +1,17 @@
-// A panicking test is a failing test, which is the whole mechanism — the restriction
-// lints denied in Cargo.toml exist to keep panics off the paths a document can reach,
-// not to make assertions in tests write themselves out longhand.
+// `panic = "abort"` is set in the release profile, so a panic reachable from a document
+// is not an error message: it takes the window down with every open tab, and the input is
+// arbitrary Markdown from an arbitrary file.
+//
+// Denied here rather than in Cargo.toml's `[lints]` because that table applies to every
+// target in the package, including the integration tests under `tests/` — separate crates
+// that cannot see the `cfg_attr` below and are entitled to assert by panicking.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
+// A panicking test is a failing test — that is the mechanism working, not a violation.
 #![cfg_attr(
     test,
     allow(

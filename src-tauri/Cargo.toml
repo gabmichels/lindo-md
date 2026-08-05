@@ -11,24 +11,16 @@ edition = "2021"
 # to people compiling this as a dependency, which nobody does: lindo-md ships as a
 # binary. Track stable rather than defend a number no test checks.
 
-# A panic here is not an error message — `panic = "abort"` is set in the release profile
-# below, so any panic reachable from a document takes the window down with every open tab.
-# The four restriction lints make that class of code impossible to add without saying so.
-#
-# Turning them on cost exactly three `#[allow]`s across the whole crate, each provably
-# safe: a `binary_search` hit being indexed, a `write!` into a `String`, and the top-level
-# `run()`. That is the point — the exceptions are now visible and argued rather than
-# spread through the file as ordinary-looking calls.
+# `pedantic` is package-wide. The four lints that ban panicking — unwrap/expect/panic/
+# indexing — live in `src/lib.rs` instead, because a `[lints]` table applies to every
+# target including the integration tests under `tests/`, which are separate crates that
+# cannot see a `#![cfg_attr(test, allow(...))]` in the library and have every right to
+# assert by panicking.
 [lints.rust]
 unsafe_code = "forbid"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
-
-unwrap_used = "deny"
-expect_used = "deny"
-panic = "deny"
-indexing_slicing = "deny"
 
 # Tauri command handlers take owned `String`s because that is the signature the macro
 # generates; rewriting them to take `&str` is not possible.
