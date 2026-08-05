@@ -328,6 +328,10 @@ function Shell() {
         activePath={active?.path ?? null}
         openPaths={openPaths}
         onOpen={openInTab}
+        treeCollapsed={config.railTreeCollapsed}
+        onToggleTreeCollapsed={() => {
+          update({ railTreeCollapsed: !config.railTreeCollapsed });
+        }}
         toc={document?.toc ?? []}
         activeHeadingId={outline.activeId}
         progress={outline.progress}

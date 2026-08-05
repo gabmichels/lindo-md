@@ -24,6 +24,7 @@ function config(customThemes: unknown) {
     customThemes,
     railWidth: 260,
     railCollapsed: false,
+    railTreeCollapsed: false,
     recentFiles: ["C:/notes/a.md", "C:/notes/b.md"],
     lastFolder: "C:/notes",
     blockRemoteImages: true,

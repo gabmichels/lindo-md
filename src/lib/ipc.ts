@@ -177,6 +177,7 @@ export const AppConfigSchema = z.object({
   customThemes: StoredCustomThemesSchema,
   railWidth: z.number(),
   railCollapsed: z.boolean(),
+  railTreeCollapsed: z.boolean(),
   recentFiles: z.array(z.string()),
   lastFolder: z
     .string()

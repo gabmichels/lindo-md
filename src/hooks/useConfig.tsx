@@ -49,6 +49,7 @@ export const FALLBACK: AppConfig = {
   customThemes: [],
   railWidth: 264,
   railCollapsed: false,
+  railTreeCollapsed: false,
   recentFiles: [],
   lastFolder: null,
   blockRemoteImages: true,
