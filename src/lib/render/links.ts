@@ -37,7 +37,13 @@ export function linkClickHandler(handlers: LinkHandlers) {
     if (!anchor || !href) return;
 
     event.preventDefault();
-    void follow(href, handlers);
+    // Never `void` this. `openUrl` rejects when the opener scope does not cover the
+    // URL, and an unobserved rejection is exactly how v1.0.0 shipped with every
+    // external link dead: the click was swallowed, nothing was logged, and the only
+    // symptom was that nothing happened.
+    follow(href, handlers).catch((error: unknown) => {
+      console.error(`lindo-md: could not follow link ${href}`, error);
+    });
   };
 }
 

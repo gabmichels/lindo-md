@@ -226,6 +226,13 @@ existing group's run does still join it, and that is ordinary reordering with a 
   resolve only inside documents the user actually opened.
 - **Remote images are blocked by default** — an untrusted document should not be able to phone home
   through a tracking pixel. The setting is `blockRemoteImages`.
+- **In the opener plugin, the command grant and the URL scope are two separate permissions.**
+  `opener:allow-open-url` enables `open_url` *with no scope*, and the `http`/`https`/`mailto`/`tel`
+  globs live only in `opener:allow-default-urls`. Granting the first without the second makes
+  `open_url` reject everything — which is how v1.0.0 shipped with every external link in every
+  document dead. Nothing catches it at build time, so `lib.rs` asserts the pair in a unit test.
+  The same split applies to `open_path`, which is why `links.ts` cannot simply be pointed at it:
+  an unscoped path grant would turn `[x](../../../Windows/System32/calc.exe)` into one click.
 - **Shiki and Mermaid are large.** Both are dynamically imported so Vite code-splits them, and both
   run lazily behind an `IntersectionObserver`. Do not move either to a static import.
 - **`pnpm tauri icon` rejects XML comments containing `--`.** The source mark is `docs/icon.svg`.

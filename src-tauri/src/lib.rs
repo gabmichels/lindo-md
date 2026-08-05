@@ -69,3 +69,37 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running lindo-md");
 }
+
+#[cfg(test)]
+mod tests {
+    /// The opener plugin splits the command grant from the URL scope: `allow-open-url`
+    /// enables `open_url` *with no scope at all*, and the `http`/`https`/`mailto`/`tel`
+    /// globs live only in `allow-default-urls`. Granting the first without the second
+    /// compiles, passes every other test, and makes `open_url` reject every URL — which
+    /// is how v1.0.0 shipped with every external link in every document silently dead.
+    ///
+    /// This is a config invariant with no runtime representation, so it is asserted
+    /// against the manifest text rather than through the app.
+    #[test]
+    fn opener_command_grant_comes_with_a_url_scope() {
+        let capability: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json"))
+                .expect("capabilities/default.json is valid JSON");
+
+        let permissions: Vec<&str> = capability["permissions"]
+            .as_array()
+            .expect("the capability has a permissions array")
+            .iter()
+            .filter_map(|p| p.as_str())
+            .collect();
+
+        if permissions.contains(&"opener:allow-open-url") {
+            assert!(
+                permissions.contains(&"opener:allow-default-urls")
+                    || capability.get("scope").is_some(),
+                "opener:allow-open-url is granted without a URL scope, so every open_url \
+                 call will be rejected. Add opener:allow-default-urls (or an explicit scope)."
+            );
+        }
+    }
+}
