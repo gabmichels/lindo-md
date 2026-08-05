@@ -8,6 +8,27 @@ export function cn(...inputs: ClassValue[]): string {
 }
 
 /**
+ * Marks an element as a handle the window can be dragged by.
+ *
+ * Two mechanisms, because they are two platforms' answers to the same question
+ * and neither covers both. WebView2 is Chromium and implements the CSS
+ * `app-region` property, which is what the `drag-region` utility sets; WKWebView
+ * does not implement it at all, so on macOS Tauri looks for its own attribute
+ * instead. Setting only the class is exactly the bug that shipped: a titlebar
+ * you could drag on Windows and not on macOS.
+ *
+ * Returned as props rather than left to each call site so the two can never be
+ * applied by halves.
+ *
+ * Note the attribute applies only to the element it sits on and never to its
+ * children, so unlike the CSS property it needs no `no-drag` counterpart to keep
+ * buttons clickable — `no-drag` is still required for the Chromium side.
+ */
+export function dragRegion(className?: ClassValue) {
+  return { className: cn("drag-region", className), "data-tauri-drag-region": true };
+}
+
+/**
  * Resolves a relative href against a document's directory, the way a Markdown
  * link means it. Absolute paths, URLs and bare anchors are returned untouched.
  *

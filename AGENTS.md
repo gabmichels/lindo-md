@@ -218,9 +218,27 @@ existing group's run does still join it, and that is ordinary reordering with a 
 
 ## Gotchas
 
-- **The window is frameless** (`decorations: false`). `body` sets `user-select: none` because
-  dragging the titlebar would otherwise start a text selection; the document canvas re-enables
-  selection for itself. Window controls are drawn per-platform in one component, `TitleBar`.
+- **The window is frameless on Windows and Linux** (`decorations: false`), but **decorated on
+  macOS**. `body` sets `user-select: none` because dragging the titlebar would otherwise start a text
+  selection; the document canvas re-enables selection for itself. Controls are drawn per-platform in
+  one component, `TitleBar`.
+- **macOS keeps the real traffic lights, and that needs `decorations: true`.** `tao` builds the style
+  mask without `NSWindowStyleMask::Titled` when decorations are off, and the buttons are subviews of
+  the titlebar that mask creates — so an undecorated macOS window has *no* close, minimise or zoom at
+  all. The macOS window therefore lives in its own `src-tauri/tauri.macos.conf.json`
+  (`decorations: true` + `titleBarStyle: "Overlay"` + `hiddenTitle` + `trafficLightPosition`).
+  Tauri merges that file with **JSON Merge Patch (RFC 7396)**, which treats arrays as atomic, so it
+  *replaces* `app.windows` wholesale rather than deep-merging into it: every property it fails to
+  restate silently reverts to a Tauri default. `src-tauri/tests/window_config.rs` fails the build if
+  the two files drift. `trafficLightPosition` with `decorations: false` does not merely look wrong —
+  `tao` unwraps `standardWindowButton()`, which is `None` on a borderless window, and the app panics
+  at launch.
+- **A drag handle needs both the CSS class and the Tauri attribute** — use the `dragRegion()` helper
+  in `src/lib/utils.ts` and never hand-write one. `app-region: drag` is a Chromium property, so it
+  works in WebView2 and does nothing whatsoever in WKWebView; macOS moves the window only via
+  `data-tauri-drag-region`. Verified by A/B: with the attribute removed the macOS titlebar is
+  completely dead. The attribute applies only to the element it sits on and not to its children, so
+  it needs no `no-drag` counterpart — but `no-drag` is still required for the Chromium side.
 - **The asset protocol is deny-all by default.** A directory is granted at runtime
   (`asset_protocol_scope().allow_directory()`) when the user opens a file or folder, so images
   resolve only inside documents the user actually opened.
@@ -273,6 +291,30 @@ curl -s http://127.0.0.1:9222/json           # find the page target
 From there `Runtime.evaluate` scrolls or clicks and `Page.captureScreenshot` captures the result.
 Passing a path on the command line works because of the file-association handling in `assoc.rs`, so
 no dialog has to be driven to open a document.
+
+### Verifying window chrome on macOS
+
+WKWebView has no CDP, so none of the above applies. The chrome is window state rather than page
+state, though, which means it can be checked from outside the app entirely:
+
+```bash
+# Do the traffic lights exist, and where are they? Empty output = the bug this
+# section exists because of: an undecorated window has no buttons at all.
+osascript -e 'tell application "System Events" to tell (first process whose name contains "lindo") \
+  to get {subrole, position, size} of every button of front window'
+
+screencapture -x -R<x>,<y>,<w>,<h> shot.png       # region from the window's own position/size
+```
+
+Dragging needs synthetic input, since `System Events` cannot drag: ~20 lines of Swift posting
+`CGEvent` mouse-down / dragged / up against `.cghidEventTap` does it. **Reset the window position
+before every trial** (`set position of front window to {400, 200}`) and compare against the expected
+delta — measuring drags back to back, without resetting, produces deltas that match nothing and
+invents bugs that are not there.
+
+**`ps %cpu` on macOS is an average over the process lifetime, not current load.** A freshly launched
+app reads 100%+ purely from its startup burst and looks like a spin loop. Use `top -l 2`, or
+`sample <pid>` and check whether the main thread is parked in `mach_msg2_trap`.
 
 **Two ways to test stale code, both of which look like a broken feature rather than a stale build:**
 

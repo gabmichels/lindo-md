@@ -39,7 +39,7 @@ import {
   ITEM_CLASS,
   MENU_CLASS,
 } from "@/components/ui/menu";
-import { basename, cn } from "@/lib/utils";
+import { basename, cn, dragRegion } from "@/lib/utils";
 
 /**
  * The tab strip, living in the titlebar band.
@@ -542,7 +542,11 @@ export function TabStrip({
           this is the only way left to move or maximize it. It also takes every
           pixel the tabs left behind, so the empty run after a short strip is
           draggable rather than dead. */}
-      <div className="drag-region flex-1" style={{ minWidth: DRAG_RESERVE }} aria-hidden />
+      <div
+        {...dragRegion("flex-1")}
+        style={{ minWidth: DRAG_RESERVE }}
+        aria-hidden
+      />
     </div>
   );
 }

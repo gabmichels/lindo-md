@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { Heading, TreeNode } from "@/lib/ipc";
 import { ancestorsOf } from "@/hooks/useFileTree";
-import { basename, cn } from "@/lib/utils";
+import { basename, cn, dragRegion } from "@/lib/utils";
 
 /**
  * The Studio Rail: the tool, in its own constant dark material, against whatever
@@ -180,12 +180,7 @@ function FolderChip({
  * the tab strip on the right is full.
  */
 function TopSpacer() {
-  return (
-    <div
-      className="drag-region h-[var(--ui-titlebar-h)] shrink-0"
-      aria-hidden
-    />
-  );
+  return <div {...dragRegion("h-[var(--ui-titlebar-h)] shrink-0")} aria-hidden />;
 }
 
 function FileTree({
