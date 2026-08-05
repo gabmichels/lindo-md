@@ -201,7 +201,9 @@ function DropOverlayState() {
       </h2>
       <button
         type="button"
-        onClick={() => setActive((current) => !current)}
+        onClick={() => {
+          setActive((current) => !current);
+        }}
         className="rounded-ui-md bg-ui-plane-1 px-3 py-1.5 text-[12px] text-ui-text"
       >
         {active ? "Hide" : "Show"} the drop overlay

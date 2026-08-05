@@ -142,7 +142,12 @@ function Shell() {
   useOsDocuments(loaded, openFromOs);
 
   const dropActive = useFileDrop(
-    useCallback((paths: string[]) => paths.forEach(openFromOs), [openFromOs]),
+    useCallback(
+      (paths: string[]) => {
+        paths.forEach(openFromOs);
+      },
+      [openFromOs],
+    ),
   );
 
   const openFile = useCallback(async () => {
