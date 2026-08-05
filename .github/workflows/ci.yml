@@ -1,21 +1,25 @@
 name: CI
 
-# `paths-ignore` is `*.md` rather than `**/*.md` on purpose: the second form would also
-# ignore `test/fixtures/kitchen-sink.md`, which is the input to the markdown snapshot
-# tests. Editing that fixture must still run CI. Only the root-level prose files —
-# README, AGENTS, DESIGN, CLAUDE — are safe to skip.
+# Prose-only changes skip the expensive jobs, but the workflow still runs.
 #
-# This is only safe while `main` has no required status checks. A skipped workflow
-# reports nothing at all rather than success, so a required check would sit pending
-# forever and block the PR. If branch protection is added, this needs the companion
-# job that reports success for skipped paths.
+# This used to be `paths-ignore` on the trigger, and the comment here used to warn that
+# it was "only safe while main has no required status checks" — a skipped workflow
+# reports nothing at all rather than success, so a required check waits for a report
+# that never comes and the PR can never merge. Branch protection made that real, so the
+# filter moved from the trigger into a job.
+#
+# The shape: `changes` decides, the expensive jobs are conditional on it, and `ci` is a
+# single always-running gate that branch protection can require. A docs PR now costs two
+# small jobs instead of nothing, which is the price of being able to require the check
+# at all.
+#
+# Still `*.md` rather than `**/*.md`: the second form would also ignore
+# `test/fixtures/kitchen-sink.md`, which is the input to the markdown snapshot tests.
+# Editing that fixture must still run everything.
 on:
   push:
     branches: [main]
-    # Duplicated below rather than shared: GitHub Actions does not support YAML anchors.
-    paths-ignore: ["*.md", "docs/**", "LICENSE"]
   pull_request:
-    paths-ignore: ["*.md", "docs/**", "LICENSE"]
   workflow_dispatch:
 
 # CI only reads the repository. Declared explicitly because the default is whatever
@@ -32,10 +36,55 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Did anything that is not prose change? `git diff` rather than a path-filter action:
+  # one less third-party action in the trust boundary, for about ten lines of shell.
+  changes:
+    name: Detect prose-only changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Needed to diff against the base; a shallow clone has no merge base.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: filter
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+
+          # A new branch, a force push, or a manual run gives no usable base. Run
+          # everything: guessing wrong in that direction only costs minutes, and
+          # guessing wrong in the other ships something untested.
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]              || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "no usable base ($base) — running everything"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed=$(git diff --name-only "$base" HEAD)
+          echo "changed files:"; echo "$changed" | sed 's/^/  /'
+
+          # Anything not matching the prose patterns counts as code.
+          if echo "$changed" | grep -qvE '^([^/]*\.md|docs/.*|LICENSE)$'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
   # Typecheck and unit tests are platform-independent, so run them once rather than
   # three times — the expensive matrix below is about proving the app *builds* everywhere.
   frontend:
     name: Typecheck & unit tests
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -62,6 +111,8 @@ jobs:
 
   rust:
     name: Rust tests (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -108,7 +159,8 @@ jobs:
 
   build:
     name: Build bundle (${{ matrix.os }})
-    needs: [frontend, rust]
+    needs: [changes, frontend, rust]
+    if: needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -159,3 +211,28 @@ jobs:
             src-tauri/target/release/bundle/**/*.msi
             src-tauri/target/release/bundle/**/*.exe
           if-no-files-found: warn
+
+  # The one check branch protection requires.
+  #
+  # `if: always()` so it reports even when everything upstream was skipped — that is the
+  # entire point, and the reason `paths-ignore` had to go. "Skipped" counts as success;
+  # anything else does not, including `cancelled`, which a plain `success()` would let
+  # through as a non-failure.
+  ci:
+    name: CI
+    if: always()
+    needs: [changes, frontend, rust, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job succeeded or was deliberately skipped
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '${{ toJSON(needs) }}' | tee results.json
+          if jq -e 'to_entries | all(.value.result == "success" or .value.result == "skipped")' results.json > /dev/null; then
+            echo "CI is green."
+          else
+            echo "::error::a required job did not succeed"
+            jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "  \(.key): \(.value.result)"' results.json
+            exit 1
+          fi
