@@ -67,13 +67,24 @@ export function useDocumentTyping({
   /** True between asking for a save and the rendered document coming back. */
   const inFlight = useRef(false);
 
-  const flush = useCallback(() => {
+  const flush = useCallback((force = false) => {
     if (timer.current !== null) {
       window.clearTimeout(timer.current);
       timer.current = null;
     }
     const next = pending.current;
     if (next === null || inFlight.current) return;
+
+    // Markdown strips the whitespace at the end of a line, so a space typed
+    // there has no character of its own once rendered. Re-rendering now would
+    // leave the caret with nowhere to be, and putting it at the nearest place
+    // instead means the next word lands in front of the space rather than after
+    // it. Waiting costs nothing: the space is only worth writing once there is
+    // something after it, and blur forces the write regardless.
+    if (!force && caret.current !== null && inStrippedSpace(next, caret.current)) {
+      timer.current = window.setTimeout(flush, SETTLE_MS);
+      return;
+    }
 
     // `pending` and `caret` deliberately survive the save. Clearing them here
     // would mark the view clean while the screen still shows unsaved text and
@@ -162,24 +173,27 @@ export function useDocumentTyping({
     };
 
     // Everything that could move the caret without typing. Flushing here is
-    // what lets the fast path trust its tracked offset.
+    // what lets the fast path trust its tracked offset — and it is forced,
+    // because the caret is about to move anyway, so there is nothing left to
+    // protect by waiting.
     const onMove = (event: Event) => {
       if (event instanceof KeyboardEvent && !MOVES.has(event.key)) return;
-      flush();
+      flush(true);
     };
+    const onLeave = () => flush(true);
 
     root.addEventListener("beforeinput", onBeforeInput as EventListener);
     root.addEventListener("pointerdown", onMove);
     root.addEventListener("keydown", onMove);
-    root.addEventListener("blur", flush);
+    root.addEventListener("blur", onLeave);
 
     return () => {
       root.removeEventListener("beforeinput", onBeforeInput as EventListener);
       root.removeEventListener("pointerdown", onMove);
       root.removeEventListener("keydown", onMove);
-      root.removeEventListener("blur", flush);
+      root.removeEventListener("blur", onLeave);
       // Leaving the view must not lose what was typed into it.
-      flush();
+      flush(true);
     };
   }, [article, flush]);
 }
@@ -194,6 +208,15 @@ const MOVES = new Set([
   "PageUp",
   "PageDown",
 ]);
+
+/** Whether the caret sits in whitespace at the end of a line — the whitespace
+ *  Markdown discards, which therefore has no position in the rendered document. */
+function inStrippedSpace(source: string, at: number): boolean {
+  if (at === 0 || !/\s/.test(source[at - 1] ?? "")) return false;
+  const newline = source.indexOf("\n", at);
+  const rest = newline === -1 ? source.slice(at) : source.slice(at, newline);
+  return rest.trim() === "";
+}
 
 function dataOf(event: InputEvent): string | null {
   if (event.data !== null) return event.data;

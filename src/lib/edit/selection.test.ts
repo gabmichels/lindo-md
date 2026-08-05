@@ -174,10 +174,27 @@ describe("round trip", () => {
     expect(window.getSelection()?.toString()).toBe("bold");
   });
 
-  it("declines an offset with nowhere on screen to go", () => {
+  // Markdown strips the whitespace at the end of a line, so typing a space
+  // there puts the caret one past anything on screen. Refusing to place it is
+  // not neutral: the document has just been replaced wholesale, so a caret that
+  // is not put back is a caret at the top of the file.
+  it("clamps an offset with no character of its own rather than giving up", () => {
     const root = article(`<p data-sourcepos="1:1-1:12">a <strong>bold</strong> c</p>`);
-    // Well past the end of the block's text.
-    expect(domPositionOf(root, [emphasised], 500)).toBeNull();
+    const position = domPositionOf(root, [emphasised], 13);
+    expect(position).not.toBeNull();
+    // The end of the block's text — visually exactly where the reader was.
+    expect(position!.node.nodeValue).toBe(" c");
+    expect(position!.offset).toBe(2);
+  });
+
+  it("clamps an offset far past the end of the document", () => {
+    const root = article(`<p data-sourcepos="1:1-1:12">a <strong>bold</strong> c</p>`);
+    expect(domPositionOf(root, [emphasised], 5000)).not.toBeNull();
+  });
+
+  it("still declines when there is nothing on screen at all", () => {
+    const root = article("");
+    expect(domPositionOf(root, [], 0)).toBeNull();
   });
 });
 

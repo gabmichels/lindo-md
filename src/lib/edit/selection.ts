@@ -205,20 +205,39 @@ export function domPositionOf(
   blocks: BlockMap[],
   sourceOffset: number,
 ): { node: Node; offset: number } | null {
+  let firstSeen: { element: HTMLElement; block: BlockMap } | null = null;
+  let before: { element: HTMLElement; block: BlockMap } | null = null;
+
   for (const block of blocks) {
     const first = block.runs[0];
     const last = block.runs[block.runs.length - 1];
     if (!first || !last) continue;
-    if (sourceOffset < first.sourceStart || sourceOffset > last.sourceEnd) continue;
 
     const element = elementFor(article, block.sourcepos);
     if (!element) continue;
+    firstSeen ??= { element, block };
 
-    const textOffset = textOffsetIn(block, sourceOffset);
-    if (textOffset === null) continue;
-    return nodeAt(element, textOffset);
+    if (sourceOffset >= first.sourceStart && sourceOffset <= last.sourceEnd) {
+      const textOffset = textOffsetIn(block, sourceOffset);
+      if (textOffset !== null) return nodeAt(element, textOffset);
+    }
+    if (first.sourceStart <= sourceOffset) before = { element, block };
   }
-  return null;
+
+  // Plenty of file offsets have no character on screen: Markdown strips the
+  // whitespace at the end of a line, so typing a space there leaves the caret
+  // one past everything the reader can see. There is also the markup between
+  // two blocks, and the inside of a fence.
+  //
+  // The caret goes to the nearest place it *can* sit rather than nowhere.
+  // Nowhere is not neutral — the rendered document has just been replaced
+  // wholesale, so a caret that is not put back is a caret at the top of the
+  // file, which is the single most disruptive thing an editor can do to
+  // somebody mid-sentence. A character out is nothing by comparison.
+  const nearest = before ?? firstSeen;
+  if (!nearest) return null;
+  const total = nearest.block.runs.reduce((sum, run) => sum + run.text.length, 0);
+  return nodeAt(nearest.element, before ? total : 0);
 }
 
 /**
