@@ -2,6 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { Document } from "@/lib/ipc";
 import type { Theme } from "@/lib/theme/schema";
+import { FormatMenu } from "@/components/FormatMenu";
+import { applyFormat, type FormatCommand } from "@/lib/edit/format";
+import { selectionRange, type SourceRange } from "@/lib/edit/selection";
 import { taskClickHandler } from "@/lib/edit/tasks";
 import { enhance } from "@/lib/render/enhance";
 import { hasBlockedImages, loadBlockedImages } from "@/lib/render/images";
@@ -154,6 +157,32 @@ export function DocumentView({
     return () => article.removeEventListener("click", handler);
   }, [onSave]);
 
+  // The selection is captured when the menu opens rather than when a row is
+  // chosen: opening the menu can collapse the selection, and by the time the
+  // reader picks "Bold" there may be nothing left to apply it to.
+  const pending = useRef<SourceRange | null>(null);
+  const [canFormat, setCanFormat] = useState(false);
+
+  const onContextMenu = () => {
+    const range = selectionRange(doc.blocks, window.getSelection());
+    pending.current = range;
+    setCanFormat(range !== null && range.end > range.start);
+  };
+
+  const format = (command: FormatCommand) => {
+    const range = pending.current;
+    if (!range) return;
+    // Applied to the Markdown, never to the rendered HTML — the source is the
+    // document and this view is a projection of it.
+    const edit = applyFormat(doc.source, range, command);
+    void onSave(edit.source);
+  };
+
+  const copySelection = () => {
+    const text = window.getSelection()?.toString() ?? "";
+    if (text) void navigator.clipboard.writeText(text);
+  };
+
   // A link that carried an anchor scrolls once the document has rendered. Two
   // frames, because the first only guarantees the HTML is in the DOM — the
   // second lets layout settle so `offsetTop` is the final one.
@@ -207,7 +236,16 @@ export function DocumentView({
           </button>
         </div>
       )}
-      <article ref={articleRef} className="doc" />
+      <FormatMenu
+        canFormat={canFormat}
+        onFormat={format}
+        onCopy={copySelection}
+        // The menu asks once, when it opens: a selection can be gone by the
+        // time a row is chosen, and greying the rows out afterwards would be
+        // worse than deciding up front.
+      >
+        <article ref={articleRef} className="doc" onContextMenu={onContextMenu} />
+      </FormatMenu>
     </div>
   );
 }

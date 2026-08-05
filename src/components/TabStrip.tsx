@@ -33,6 +33,12 @@ import {
   type Slot,
 } from "@/lib/tabs/layout";
 import type { MoveIntent, Session, Tab, TabGroup } from "@/lib/tabs/model";
+import {
+  ContextItem,
+  ContextSeparator,
+  ITEM_CLASS,
+  MENU_CLASS,
+} from "@/components/ui/menu";
 import { basename, cn } from "@/lib/utils";
 
 /**
@@ -710,19 +716,6 @@ function StripButton({
   );
 }
 
-/** Menu surface, shared by the overflow list and both context menus. Radix
- *  supplies the behaviour; every visual decision here is ours (DESIGN.md). */
-const MENU_CLASS = cn(
-  "z-50 min-w-[190px] rounded-ui-lg bg-ui-plane-2 p-1 shadow-2xl",
-  "text-[12.5px] text-ui-text",
-);
-
-const ITEM_CLASS = cn(
-  "flex cursor-default items-center gap-2 rounded-ui-sm px-2 py-1.5 outline-none",
-  "data-[highlighted]:bg-ui-ember-wash data-[highlighted]:text-ui-text-strong",
-  "data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
-);
-
 function MenuContent({ children }: { children: React.ReactNode }) {
   return (
     <DropdownMenu.Portal>
@@ -745,26 +738,6 @@ function MenuItem({
       {children}
     </DropdownMenu.Item>
   );
-}
-
-function ContextItem({
-  children,
-  onSelect,
-  disabled,
-}: {
-  children: React.ReactNode;
-  onSelect: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <ContextMenu.Item className={ITEM_CLASS} onSelect={onSelect} disabled={disabled}>
-      {children}
-    </ContextMenu.Item>
-  );
-}
-
-function ContextSeparator() {
-  return <ContextMenu.Separator className="my-1 h-px bg-ui-hairline" />;
 }
 
 /**

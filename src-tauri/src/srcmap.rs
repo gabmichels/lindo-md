@@ -32,13 +32,13 @@
 //! reports a term on line 56 as `57:1-57:0`, pointing at the definition below
 //! it, so they are excluded (see `is_inline_container`).
 //!
-//! Nothing calls this yet — it exists to be exercised by its tests. The allow
-//! goes away the moment a command uses it; until then it keeps the clippy gate,
-//! which treats warnings as errors, honest about everything else.
-#![allow(dead_code)]
+//! `for_webview` is what leaves this module: aligned blocks only, with offsets
+//! converted from byte indices to UTF-16 ones, because the webview holds the
+//! source as a JavaScript string.
 
 use comrak::nodes::{AstNode, NodeValue};
 use comrak::Arena;
+use serde::Serialize;
 
 use crate::markdown::{self, RenderOptions};
 
@@ -47,11 +47,46 @@ use crate::markdown::{self, RenderOptions};
 /// `\*` is two source bytes for one rendered character, and `&amp;` is five.
 /// The two sides therefore advance at different rates, which is why the run
 /// carries a source *range* rather than the length of its text.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// **Offsets are UTF-16 code units once serialized**, not bytes. The webview
+/// holds the source as a JavaScript string and indexes it that way; handing it
+/// byte offsets would put the caret in the wrong place in any document
+/// containing an accent, a dash, or an emoji — which is to say most of them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TextRun {
     pub text: String,
     pub source_start: usize,
     pub source_end: usize,
+}
+
+/// Byte offset → UTF-16 offset, for the boundary between Rust and the webview.
+///
+/// Recorded at each character boundary and searched, rather than counted from
+/// the start of the document for every offset — a long document has thousands
+/// of runs, and re-counting for each would make opening one quadratic.
+struct Utf16Index(Vec<(usize, usize)>);
+
+impl Utf16Index {
+    fn new(source: &str) -> Self {
+        let mut pairs = Vec::with_capacity(source.len() + 1);
+        let mut units = 0usize;
+        for (byte, character) in source.char_indices() {
+            pairs.push((byte, units));
+            units += character.len_utf16();
+        }
+        pairs.push((source.len(), units));
+        Self(pairs)
+    }
+
+    fn at(&self, byte: usize) -> usize {
+        match self.0.binary_search_by_key(&byte, |(at, _)| *at) {
+            Ok(index) => self.0[index].1,
+            // Mid-character can only happen if an offset was built wrongly;
+            // rounding down keeps the caret in the document rather than panicking.
+            Err(index) => self.0.get(index.saturating_sub(1)).map_or(0, |(_, u)| *u),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,15 +97,35 @@ pub enum Alignment {
     Failed(String),
 }
 
-#[derive(Debug, Clone)]
+/// Four fields never leave Rust: they exist so that a failing alignment can say
+/// *which* block and *what* text, which is the difference between a fixable
+/// report and "some block somewhere did not line up". They are read by the tests
+/// and by the DOM-comparison dump, not by the app.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BlockMap {
+    #[serde(skip)]
+    #[allow(dead_code)]
     pub kind: String,
     /// Byte-for-byte the element's `data-sourcepos` attribute, which is how the
     /// webview correlates a node it is standing in with its entry here.
     pub sourcepos: String,
+    #[serde(skip)]
+    #[allow(dead_code)]
     pub line: usize,
+    /// The block's own byte range in the source. Bytes, not UTF-16 — this one is
+    /// never serialized.
+    #[serde(skip)]
+    #[allow(dead_code)]
     pub source: (usize, usize),
     pub runs: Vec<TextRun>,
+    /// False when some of this block's text could not be located in the source.
+    /// The webview refuses to edit such a block rather than guessing — a wrong
+    /// offset does not misplace a caret, it corrupts a file.
+    #[serde(rename = "aligned")]
+    pub is_aligned: bool,
+    #[serde(skip)]
+    #[allow(dead_code)]
     pub alignment: Alignment,
 }
 
@@ -299,8 +354,30 @@ fn align_block<'a>(source: &str, node: &'a AstNode<'a>, span: Span, smart: bool)
         line,
         source: (start, end),
         runs,
+        is_aligned: matches!(alignment, Alignment::Exact),
         alignment,
     }
+}
+
+/// The map as the webview needs it: only blocks whose text was located in full,
+/// with every offset converted from a byte index to a UTF-16 one.
+///
+/// A partly-aligned block is dropped rather than sent. Editing through a wrong
+/// offset does not misplace a caret, it corrupts the file, so a block we cannot
+/// account for is one the rendered view will not edit.
+pub fn for_webview(source: &str, settings: RenderOptions) -> Vec<BlockMap> {
+    let index = Utf16Index::new(source);
+    build(source, settings)
+        .into_iter()
+        .filter(|block| block.is_aligned && !block.runs.is_empty())
+        .map(|mut block| {
+            for run in &mut block.runs {
+                run.source_start = index.at(run.source_start);
+                run.source_end = index.at(run.source_end);
+            }
+            block
+        })
+        .collect()
 }
 
 /// Gathers this block's caret-addressable text in document order, descending
@@ -707,6 +784,38 @@ mod tests {
         let out = std::env::var("SRCMAP_DUMP").unwrap_or_else(|_| "srcmap-dump.json".to_owned());
         std::fs::write(&out, format!("[{}]", entries.join(","))).unwrap();
         eprintln!("wrote {} blocks to {out}", entries.len());
+    }
+
+    /// The webview indexes the source as a JavaScript string, so what it gets
+    /// has to be UTF-16 offsets. Byte offsets would land in the wrong place in
+    /// any document containing an accent, a dash, or an emoji.
+    #[test]
+    fn webview_offsets_are_utf16_not_bytes() {
+        // "café" is 5 bytes and 4 UTF-16 units; the emoji is 4 bytes and 2 units.
+        let source = "café 🎉 done\n";
+        let blocks = for_webview(source, RenderOptions::default());
+        let runs: Vec<&TextRun> = blocks.iter().flat_map(|b| &b.runs).collect();
+        assert!(!runs.is_empty(), "expected the paragraph to map");
+
+        let utf16: Vec<u16> = source.encode_utf16().collect();
+        for run in runs {
+            let slice = String::from_utf16(&utf16[run.source_start..run.source_end]).unwrap();
+            assert_eq!(
+                slice, run.text,
+                "the run's text must be what those UTF-16 offsets select"
+            );
+        }
+    }
+
+    /// A block that could not be fully located must not reach the webview at
+    /// all: editing through a wrong offset corrupts a file rather than merely
+    /// misplacing a caret.
+    #[test]
+    fn webview_never_sees_a_block_that_did_not_align() {
+        for block in for_webview(KITCHEN_SINK, RenderOptions::default()) {
+            assert!(block.is_aligned, "line {} leaked", block.line);
+            assert!(!block.runs.is_empty(), "line {} has no runs", block.line);
+        }
     }
 
     /// Guards the spike itself: a fixture that stopped covering the hard

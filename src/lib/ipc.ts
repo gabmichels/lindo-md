@@ -43,6 +43,25 @@ export const HeadingSchema = z.object({
 });
 export type Heading = z.infer<typeof HeadingSchema>;
 
+/** One run of caret-addressable text and where it lives in the source. Offsets
+ *  are indices into `Document.source` as a JavaScript string — Rust converts
+ *  them from bytes, because the two disagree on any non-ASCII character. */
+export const TextRunSchema = z.object({
+  text: z.string(),
+  sourceStart: z.number().int().nonnegative(),
+  sourceEnd: z.number().int().nonnegative(),
+});
+export type TextRun = z.infer<typeof TextRunSchema>;
+
+/** Keyed by the `data-sourcepos` attribute on the element it rendered to. Only
+ *  blocks whose text was located in full are sent. */
+export const BlockMapSchema = z.object({
+  sourcepos: z.string(),
+  runs: z.array(TextRunSchema),
+  aligned: z.boolean(),
+});
+export type BlockMap = z.infer<typeof BlockMapSchema>;
+
 export const DocumentSchema = z.object({
   path: z.string(),
   dir: z.string(),
@@ -57,6 +76,9 @@ export const DocumentSchema = z.object({
   /** Handed back on save, so a file that changed on disk is refused rather than
    *  overwritten. */
   contentHash: z.string(),
+  /** Where each block's rendered text lives in `source`. Describes exactly this
+   *  `source` and this `html`, which is why it travels with them. */
+  blocks: z.array(BlockMapSchema),
 });
 export type Document = z.infer<typeof DocumentSchema>;
 

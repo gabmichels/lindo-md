@@ -16,6 +16,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::error::{LindoError, LindoResult};
 use crate::markdown::{self, Heading};
+use crate::srcmap;
 
 pub const MARKDOWN_EXTENSIONS: [&str; 4] = ["md", "markdown", "mdown", "mkd"];
 
@@ -60,6 +61,12 @@ pub struct Document {
     /// Fingerprint of `source`, handed back on save so a file that changed
     /// underneath the reader is refused rather than silently overwritten.
     pub content_hash: String,
+    /// Where each block's rendered text lives in `source`, keyed by the
+    /// `data-sourcepos` attribute on the element it rendered to. Sent with the
+    /// document rather than fetched on demand: it describes exactly this
+    /// `source` and this `html`, and a map that could be one version behind is
+    /// worse than no map at all.
+    pub blocks: Vec<srcmap::BlockMap>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -119,6 +126,7 @@ pub fn read(
         frontmatter: rendered.frontmatter,
         title,
         content_hash: hash(&source),
+        blocks: srcmap::for_webview(&source, render_options),
         source,
     })
 }
