@@ -2304,11 +2304,13 @@ version = "0.1.0"
 dependencies = [
  "ammonia",
  "comrak",
+ "entities",
  "ignore",
  "log",
  "notify",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

@@ -51,6 +51,12 @@ export const DocumentSchema = z.object({
   toc: z.array(HeadingSchema),
   frontmatter: z.string().nullable(),
   title: z.string(),
+  /** The Markdown behind `html`. Every edit is a transform of this string; the
+   *  rendered DOM is only ever asked where the caret is. */
+  source: z.string(),
+  /** Handed back on save, so a file that changed on disk is refused rather than
+   *  overwritten. */
+  contentHash: z.string(),
 });
 export type Document = z.infer<typeof DocumentSchema>;
 
@@ -73,6 +79,21 @@ export const TreeNodeSchema: z.ZodType<TreeNode> = z.object({
 
 export function openDocument(path: string): Promise<Document> {
   return call("open_document", DocumentSchema, { path });
+}
+
+/**
+ * Writes an edited document and returns it re-rendered.
+ *
+ * `expectedHash` is the `contentHash` of the document this edit was made
+ * against. If the file has changed since, the save is refused rather than
+ * silently discarding whatever else wrote to it.
+ */
+export function saveDocument(
+  path: string,
+  source: string,
+  expectedHash: string,
+): Promise<Document> {
+  return call("save_document", DocumentSchema, { path, source, expectedHash });
 }
 
 export function scanFolder(

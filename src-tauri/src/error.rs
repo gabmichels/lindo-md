@@ -27,6 +27,12 @@ pub enum LindoError {
     #[error("{0} is not a file lindo-md can open. Supported: .md, .markdown, .mdown, .mkd")]
     UnsupportedFile(String),
 
+    #[error(
+        "{path} changed on disk since it was opened, so saving would discard \
+         those changes. Reload the document and make the edit again."
+    )]
+    StaleWrite { path: String },
+
     #[error("Settings file at {path} is not valid JSON: {source}. Fix or delete it — lindo-md will not overwrite it automatically.")]
     ConfigParse {
         path: String,

@@ -273,7 +273,7 @@ fn align_block<'a>(source: &str, node: &'a AstNode<'a>, span: Span, smart: bool)
     for piece in pieces {
         let (text, found) = match &piece {
             Piece::Text(text) => (text, scan_forward(slice, cursor, text, smart)),
-            Piece::Emoji(text) => (text, scan_forward_shortcode(slice, cursor)),
+            Piece::Emoji(text) => (text, scan_forward_shortcode(slice, cursor, text)),
         };
 
         match found {
@@ -347,13 +347,20 @@ fn scan_forward(slice: &str, from: usize, text: &str, smart: bool) -> Option<(us
     None
 }
 
-/// Matches `text` against the source at `at`, one rendered character at a time.
-/// A substring comparison cannot be used: the source spells some characters
-/// with more bytes than they render to.
+/// Matches `text` against the source at `at`, consuming from both sides as they
+/// correspond. A substring comparison cannot be used: the source spells some
+/// characters with more bytes than they render to.
+///
+/// The two sides are consumed independently rather than one character each,
+/// because a single source token can produce more than one character — `&nGg;`
+/// is two code points, as is the emoji behind `:warning:`.
 pub fn match_here(slice: &str, at: usize, text: &str, smart: bool) -> Option<usize> {
     let mut cursor = at;
-    for expected in text.chars() {
-        cursor += consume(slice, cursor, expected, smart)?;
+    let mut rest = text;
+    while !rest.is_empty() {
+        let (source_width, text_width) = consume(slice, cursor, rest, smart)?;
+        cursor += source_width;
+        rest = &rest[text_width..];
     }
     Some(cursor)
 }
@@ -366,25 +373,29 @@ pub fn match_here(slice: &str, at: usize, text: &str, smart: bool) -> Option<usi
 /// left or a right curly quote depending on surrounding context, so there is no
 /// single answer to decode *to* — but there is always a definite answer to
 /// whether a given character was what it produced.
-fn consume(slice: &str, at: usize, expected: char, smart: bool) -> Option<usize> {
+/// Returns `(source bytes spent, characters of `expected` produced)`.
+fn consume(slice: &str, at: usize, expected: &str, smart: bool) -> Option<(usize, usize)> {
     let rest = slice.get(at..)?;
     let mut chars = rest.chars();
     let first = chars.next()?;
+    let wanted = expected.chars().next()?;
 
     // CommonMark only honours a backslash before ASCII punctuation; anywhere
     // else the backslash is a literal character.
     if first == '\\' {
         if let Some(escaped) = chars.next() {
-            if escaped.is_ascii_punctuation() && escaped == expected {
-                return Some(1 + escaped.len_utf8());
+            if escaped.is_ascii_punctuation() && escaped == wanted {
+                return Some((1 + escaped.len_utf8(), wanted.len_utf8()));
             }
         }
     }
 
+    // An entity can produce more than one character, which is why this compares
+    // against the whole of `expected` rather than one character of it.
     if first == '&' {
         if let Some((decoded, width)) = decode_entity(rest) {
-            if decoded == expected {
-                return Some(width);
+            if expected.starts_with(&decoded) {
+                return Some((width, decoded.len()));
             }
         }
     }
@@ -392,85 +403,78 @@ fn consume(slice: &str, at: usize, expected: char, smart: bool) -> Option<usize>
     // Longest first: `---` is an em dash, and testing `--` before it would eat
     // two of its three bytes and leave a stray hyphen behind.
     if smart {
-        for (spelling, produced) in [("---", '—'), ("--", '–'), ("...", '…')] {
-            if expected == produced && rest.starts_with(spelling) {
-                return Some(spelling.len());
+        for (spelling, produced) in [("---", '\u{2014}'), ("--", '\u{2013}'), ("...", '\u{2026}')] {
+            if wanted == produced && rest.starts_with(spelling) {
+                return Some((spelling.len(), produced.len_utf8()));
             }
         }
         let curly = match first {
-            '"' => matches!(expected, '\u{201c}' | '\u{201d}'),
-            '\'' => matches!(expected, '\u{2018}' | '\u{2019}'),
+            '"' => matches!(wanted, '\u{201c}' | '\u{201d}'),
+            '\'' => matches!(wanted, '\u{2018}' | '\u{2019}'),
             _ => false,
         };
         if curly {
-            return Some(1);
+            return Some((1, wanted.len_utf8()));
         }
     }
 
-    (first == expected).then(|| first.len_utf8())
+    (first == wanted).then(|| (first.len_utf8(), wanted.len_utf8()))
 }
 
-/// Finds the next `:shortcode:` at or after `from`. Reversing the emoji back to
-/// its name would mean duplicating comrak's shortcode table here; scanning for
-/// the spelling is safe because the scan only ever moves forward, so the nth
-/// shortcode in the output can only match the nth one in the source.
-fn scan_forward_shortcode(slice: &str, from: usize) -> Option<(usize, usize)> {
+/// Finds the next `:shortcode:` at or after `from` that resolves to `emoji`.
+fn scan_forward_shortcode(slice: &str, from: usize, emoji: &str) -> Option<(usize, usize)> {
     for (at, character) in slice[from..].char_indices() {
         if character != ':' {
             continue;
         }
         let at = from + at;
-        if let Some(width) = shortcode_width(&slice[at..]) {
+        if let Some(width) = shortcode_width(&slice[at..], emoji) {
             return Some((at, at + width));
         }
     }
     None
 }
 
-/// The byte length of a `:shortcode:` at the start of `rest`, if it looks like
-/// one. Bounded so a stray colon cannot swallow half a paragraph.
-fn shortcode_width(rest: &str) -> Option<usize> {
+/// The byte length of a `:shortcode:` at the start of `rest`, if it is one and
+/// it produces `emoji`.
+///
+/// Resolving the name through comrak's own table rather than accepting anything
+/// shaped like `:word:` is what stops a literal `:00:` in prose from being
+/// mistaken for the emoji that follows it.
+fn shortcode_width(rest: &str, emoji: &str) -> Option<usize> {
     let body = rest.get(1..)?;
     let end = body.find(':')?;
-    if end == 0 || end > 40 {
-        return None;
-    }
-    let name = &body[..end];
-    name.chars()
-        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '+' | '-'))
-        .then_some(end + 2)
+    let name = body.get(..end)?;
+    let resolved = comrak::nodes::NodeShortCode::resolve(name)?;
+    (resolved.emoji == emoji).then_some(end + 2)
 }
 
-/// SPIKE-level entity decoding: the handful that appear in real documents, plus
-/// the numeric forms. Shipping this needs the full HTML5 table comrak itself
-/// uses — the point here is only to prove the lockstep scan is the right shape.
-fn decode_entity(rest: &str) -> Option<(char, usize)> {
+/// The characters an entity at the start of `rest` produces, and how many source
+/// bytes it occupies.
+///
+/// Named entities come from the generated HTML5 table rather than a hand-written
+/// list, because comrak decodes the whole of it: a document using `&hellip;`
+/// would otherwise misplace every caret after it, silently. Some entities
+/// produce two code points, which is why this returns a string.
+fn decode_entity(rest: &str) -> Option<(String, usize)> {
     let end = rest.find(';')?;
-    let body = &rest[1..end];
+    let body = rest.get(1..end)?;
     let width = end + 1;
 
     if let Some(digits) = body.strip_prefix("#x").or_else(|| body.strip_prefix("#X")) {
         let code = u32::from_str_radix(digits, 16).ok()?;
-        return char::from_u32(code).map(|c| (c, width));
+        return char::from_u32(code).map(|c| (c.to_string(), width));
     }
     if let Some(digits) = body.strip_prefix('#') {
         let code: u32 = digits.parse().ok()?;
-        return char::from_u32(code).map(|c| (c, width));
+        return char::from_u32(code).map(|c| (c.to_string(), width));
     }
 
-    let decoded = match body {
-        "amp" => '&',
-        "lt" => '<',
-        "gt" => '>',
-        "quot" => '"',
-        "apos" => '\'',
-        "nbsp" => '\u{a0}',
-        "hellip" => '…',
-        "mdash" => '—',
-        "ndash" => '–',
-        _ => return None,
-    };
-    Some((decoded, width))
+    let spelling = &rest[..width];
+    entities::ENTITIES
+        .iter()
+        .find(|entity| entity.entity == spelling)
+        .map(|entity| (entity.characters.to_owned(), width))
 }
 
 #[cfg(test)]
@@ -491,7 +495,8 @@ mod tests {
         }
         // An emoji run is spelled `:name:` in the source, so it matches by
         // spelling rather than by character.
-        shortcode_width(&source[run.source_start..]) == Some(run.source_end - run.source_start)
+        shortcode_width(&source[run.source_start..], &run.text)
+            == Some(run.source_end - run.source_start)
     }
 
     /// Every run must be a byte-exact slice of the source at the offset the map
@@ -580,6 +585,16 @@ mod tests {
         let cases = [
             ("escape", r"A \*not emphasis\* B"),
             ("entity", "Fish &amp; chips &lt;here&gt;"),
+            // Beyond the handful anyone would write by hand.
+            (
+                "named entity",
+                "An ellipsis &hellip; a dash &mdash; a space&nbsp;here",
+            ),
+            // `&nGg;` is a single entity producing two code points.
+            ("two-codepoint entity", "Much greater &nGg; than"),
+            ("numeric entity", "Decimal &#8212; and hex &#x2014; dashes"),
+            // A literal `:00:` must not be mistaken for the emoji beside it.
+            ("colon that is not a shortcode", "At :00: sharp :tada: yes"),
             ("autolink", "See https://example.com/a?b=1 now"),
             ("footnote", "Text with a ref[^1]\n\n[^1]: The note"),
             ("nested emphasis", "**bold with _inner_ text** after"),

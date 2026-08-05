@@ -292,7 +292,11 @@ fn sanitizer() -> ammonia::Builder<'static> {
         .add_generic_attributes(["id", "class", "data-sourcepos"])
         .add_tag_attributes("a", ["href", "title", "aria-hidden"])
         .add_tag_attributes("img", ["src", "alt", "title", "align", "width", "height"])
-        .add_tag_attributes("input", ["type", "checked", "disabled"])
+        // `disabled` is deliberately absent, so ammonia strips the attribute
+        // comrak puts on every task-list checkbox. Ticking a box is the one edit
+        // a reader can make without a caret, and a disabled input cannot be
+        // clicked at all.
+        .add_tag_attributes("input", ["type", "checked"])
         .add_tag_attributes("th", ["align"])
         .add_tag_attributes("td", ["align"])
         .add_tag_attributes("ol", ["start"])
@@ -421,6 +425,10 @@ mod tests {
         let out = html("- [x] done\n- [ ] todo\n");
         assert!(out.contains("<input"), "{out}");
         assert!(out.contains("checked"), "{out}");
+        assert!(
+            !out.contains("disabled"),
+            "a checkbox the reader cannot click cannot be ticked\n{out}"
+        );
     }
 
     #[test]

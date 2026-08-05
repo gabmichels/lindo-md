@@ -47,6 +47,38 @@ pub fn open_document(app: AppHandle, path: String) -> LindoResult<Document> {
     Ok(document)
 }
 
+/// Writes an edited document back to disk and returns it re-rendered.
+///
+/// The whole source is sent rather than a range to splice: the frontend already
+/// holds it, every edit is a string transform there, and one code path that
+/// replaces the file is far easier to reason about than an offset protocol whose
+/// two sides can disagree.
+#[tauri::command]
+pub fn save_document(
+    app: AppHandle,
+    state: State<'_, WatchState>,
+    path: String,
+    source: String,
+    expected_hash: String,
+) -> LindoResult<Document> {
+    // Read the same way `open_document` does, so a document is never re-rendered
+    // by different rules than it was opened under.
+    let render_options = RenderOptions {
+        smart_punctuation: config::load(&app)
+            .map(|config| config.smart_punctuation)
+            .unwrap_or(false),
+    };
+
+    files::save(
+        &app,
+        &state,
+        &PathBuf::from(&path),
+        &source,
+        &expected_hash,
+        render_options,
+    )
+}
+
 #[tauri::command]
 pub fn scan_folder(
     path: String,

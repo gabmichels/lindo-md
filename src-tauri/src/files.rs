@@ -4,7 +4,7 @@
 //! permission at all, so every path that reaches disk arrives through one of the
 //! commands here.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::Mutex;
@@ -53,6 +53,13 @@ pub struct Document {
     /// First `#` heading, falling back to the file name so the titlebar always
     /// has something to show.
     pub title: String,
+    /// The Markdown this was rendered from. Editing applies to the source, never
+    /// to the rendered HTML, so the frontend needs it to make any change at all —
+    /// and for a `.md` file it costs nothing to send.
+    pub source: String,
+    /// Fingerprint of `source`, handed back on save so a file that changed
+    /// underneath the reader is refused rather than silently overwritten.
+    pub content_hash: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -111,7 +118,57 @@ pub fn read(
         toc: rendered.toc,
         frontmatter: rendered.frontmatter,
         title,
+        content_hash: hash(&source),
+        source,
     })
+}
+
+/// A content fingerprint. Used to decide whether a file changed, never to
+/// authenticate anything — two documents colliding here would mean a refused
+/// save, not a security failure.
+pub fn hash(contents: &str) -> String {
+    use sha2::{Digest, Sha256};
+    format!("{:x}", Sha256::digest(contents.as_bytes()))
+}
+
+/// Writes an edited document back to disk and re-renders it.
+///
+/// `expected_hash` is the fingerprint the caller last saw. If the file no longer
+/// matches it, something else has written to it — another editor, a `git
+/// checkout`, the other half of a sync — and the write is refused. Overwriting
+/// would silently destroy work the reader never saw.
+pub fn save(
+    app: &AppHandle,
+    state: &WatchState,
+    path: &Path,
+    source: &str,
+    expected_hash: &str,
+    render_options: markdown::RenderOptions,
+) -> LindoResult<Document> {
+    if !is_markdown(path) {
+        return Err(LindoError::UnsupportedFile(path.display().to_string()));
+    }
+
+    let current = std::fs::read_to_string(path).map_err(|source| LindoError::ReadFile {
+        path: path.display().to_string(),
+        source,
+    })?;
+    if hash(&current) != expected_hash {
+        return Err(LindoError::StaleWrite {
+            path: path.display().to_string(),
+        });
+    }
+
+    // Recorded *before* the write, so the event this write is about to cause
+    // cannot arrive before the watcher knows to ignore it.
+    state.expect_write(path, &hash(source));
+
+    std::fs::write(path, source).map_err(|source| LindoError::WriteFile {
+        path: path.display().to_string(),
+        source,
+    })?;
+
+    read(app, path, render_options)
 }
 
 /// What the reader has chosen to see in the rail. A struct rather than two bool
@@ -225,6 +282,42 @@ fn build_tree(root: &Path, files: &[PathBuf]) -> Vec<TreeNode> {
 #[derive(Default)]
 pub struct WatchState {
     watcher: Mutex<Option<notify::RecommendedWatcher>>,
+    /// What we last wrote to a path, so the filesystem event our own write causes
+    /// can be told apart from someone else's.
+    ///
+    /// Matched on content rather than on a time window: a reader typing steadily
+    /// produces a save every few hundred milliseconds, and any window wide enough
+    /// to cover a slow disk would also swallow a real external change.
+    written: Mutex<HashMap<PathBuf, String>>,
+}
+
+impl WatchState {
+    /// Records the content about to be written to `path`.
+    pub fn expect_write(&self, path: &Path, hash: &str) {
+        if let Ok(mut written) = self.written.lock() {
+            written.insert(path.to_path_buf(), hash.to_owned());
+        }
+    }
+
+    /// Whether a change to `path` is the write we just made. Consumes the
+    /// record: a second change to the same content really is someone else, and
+    /// the reader should see it.
+    fn is_our_write(&self, path: &Path) -> bool {
+        let Ok(mut written) = self.written.lock() else {
+            return false;
+        };
+        let Some(expected) = written.get(path) else {
+            return false;
+        };
+        let Ok(current) = std::fs::read_to_string(path) else {
+            return false;
+        };
+        if &hash(&current) != expected {
+            return false;
+        }
+        written.remove(path);
+        true
+    }
 }
 
 /// Watches every open document and, optionally, the open folder. Emits:
@@ -308,6 +401,12 @@ fn debounce_loop(
 
         let (changed, tree_changed) = classify(&batch, &documents);
         for path in changed {
+            // Our own save comes back as a change like any other. Reloading on it
+            // would throw away the caret — and, mid-edit, the reader's place in a
+            // sentence they are still typing.
+            if app.state::<WatchState>().is_our_write(&path) {
+                continue;
+            }
             let _ = app.emit("document-changed", path.display().to_string());
         }
         if tree_changed {
@@ -433,6 +532,47 @@ mod tests {
         );
 
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn hash_distinguishes_content() {
+        assert_eq!(hash("# Title\n"), hash("# Title\n"));
+        assert_ne!(hash("# Title\n"), hash("# Title \n"));
+    }
+
+    /// The suppression is what stops a save from yanking the document out from
+    /// under the caret, and what stops it from hiding somebody else's edit.
+    #[test]
+    fn our_own_write_is_recognized_once_and_only_by_content() {
+        let dir = std::env::temp_dir().join("lindo-md-watch-suppression-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("note.md");
+        std::fs::write(&path, "# Ours\n").unwrap();
+
+        let state = WatchState::default();
+        state.expect_write(&path, &hash("# Ours\n"));
+        assert!(
+            state.is_our_write(&path),
+            "the write we just made must not reload the document"
+        );
+        assert!(
+            !state.is_our_write(&path),
+            "the record is consumed: a second change to the same file is somebody else"
+        );
+
+        // A write we expected, overtaken by different content on disk, is not
+        // ours — that is an external edit and the reader has to see it.
+        state.expect_write(&path, &hash("# Ours\n"));
+        std::fs::write(&path, "# Theirs\n").unwrap();
+        assert!(!state.is_our_write(&path));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_write_we_never_made_is_never_ours() {
+        let state = WatchState::default();
+        assert!(!state.is_our_write(Path::new("/r/never-written.md")));
     }
 
     fn event(paths: &[&str]) -> notify::Event {

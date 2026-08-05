@@ -75,6 +75,18 @@ describe("cleanedMarkup", () => {
     expect(markup).toContain("<code>x</code>");
   });
 
+  it("drops the source positions the editor needs and a reader does not", () => {
+    const element = article(
+      `<h1 data-sourcepos="1:1-1:7">Title</h1><p data-sourcepos="3:1-3:5">Body</p>`,
+    );
+    const markup = _cleanedMarkup(element);
+    // On nearly every element, so leaving them in would bloat the export and
+    // describe the shape of a .md file the reader is not shipping.
+    expect(markup).not.toContain("data-sourcepos");
+    expect(markup).toContain("Title");
+    expect(markup).toContain("Body");
+  });
+
   it("keeps rendered diagrams as markup rather than as something to re-run", () => {
     const element = article(
       `<figure class="mermaid" data-rendered="house-light" data-source="graph TD"><svg><g/></svg></figure>`,
