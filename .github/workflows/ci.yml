@@ -1,9 +1,21 @@
 name: CI
 
+# `paths-ignore` is `*.md` rather than `**/*.md` on purpose: the second form would also
+# ignore `test/fixtures/kitchen-sink.md`, which is the input to the markdown snapshot
+# tests. Editing that fixture must still run CI. Only the root-level prose files —
+# README, AGENTS, DESIGN, CLAUDE — are safe to skip.
+#
+# This is only safe while `main` has no required status checks. A skipped workflow
+# reports nothing at all rather than success, so a required check would sit pending
+# forever and block the PR. If branch protection is added, this needs the companion
+# job that reports success for skipped paths.
 on:
   push:
     branches: [main]
+    # Duplicated below rather than shared: GitHub Actions does not support YAML anchors.
+    paths-ignore: ["*.md", "docs/**", "LICENSE"]
   pull_request:
+    paths-ignore: ["*.md", "docs/**", "LICENSE"]
   workflow_dispatch:
 
 concurrency:
@@ -20,11 +32,11 @@ jobs:
     name: Typecheck & unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -41,7 +53,7 @@ jobs:
         os: [ubuntu-22.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Path handling and the config directory differ per platform, and the markdown
       # snapshot tests must produce byte-identical HTML everywhere. Run on all three.
@@ -59,7 +71,11 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # rustfmt is platform-independent by construction, so running it on all three
+      # runners checks the same bytes three times. Clippy stays on the full matrix —
+      # `cfg`-gated code genuinely can lint differently per platform.
       - name: Check formatting
+        if: matrix.os == 'ubuntu-22.04'
         working-directory: src-tauri
         run: cargo fmt --check
 
@@ -80,7 +96,7 @@ jobs:
         os: [ubuntu-22.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Linux system dependencies
         if: matrix.os == 'ubuntu-22.04'
@@ -88,9 +104,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -106,9 +122,13 @@ jobs:
       - name: Build the app
         run: pnpm tauri build
 
-      - uses: actions/upload-artifact@v4
+      # Kept on pull requests, because downloading a branch build and actually running it
+      # is worth more than the storage. Shortened from the 90-day default: these are
+      # throwaway checks, and the bundles anyone is meant to keep come from release.yml.
+      - uses: actions/upload-artifact@v7
         with:
           name: lindo-md-${{ matrix.os }}
+          retention-days: 7
           path: |
             src-tauri/target/release/bundle/**/*.deb
             src-tauri/target/release/bundle/**/*.AppImage
