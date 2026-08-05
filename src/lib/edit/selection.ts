@@ -133,6 +133,122 @@ export function blockFor(
 }
 
 /**
+ * The inverse of `sourceOffsetOf`: how far into a block's text a file offset is.
+ *
+ * Null when the offset is not inside this block's text — between two runs, say,
+ * where it is sitting on markup rather than on anything the reader can see.
+ */
+export function textOffsetIn(block: BlockMap, sourceOffset: number): number | null {
+  let seen = 0;
+  for (const run of block.runs) {
+    const length = run.text.length;
+    if (sourceOffset >= run.sourceStart && sourceOffset <= run.sourceEnd) {
+      const linear = run.sourceEnd - run.sourceStart === length;
+      return seen + (linear ? sourceOffset - run.sourceStart : 0);
+    }
+    // Past this run but before the next: the offset is on markup. The nearest
+    // place a caret can actually go is the end of the text before it.
+    if (sourceOffset < run.sourceStart) return seen;
+    seen += length;
+  }
+  return sourceOffset >= (block.runs[block.runs.length - 1]?.sourceEnd ?? 0) ? seen : null;
+}
+
+/** The text node and offset that sit `textOffset` units into `block`'s text. */
+export function nodeAt(
+  block: HTMLElement,
+  textOffset: number,
+): { node: Node; offset: number } | null {
+  const walker = block.ownerDocument.createTreeWalker(block, NodeFilter.SHOW_TEXT, {
+    acceptNode(candidate) {
+      const parent = candidate.parentElement;
+      if (!parent) return NodeFilter.FILTER_REJECT;
+      if (parent.closest(ATOM_SELECTOR)) return NodeFilter.FILTER_REJECT;
+      if (parent.closest(GENERATED_SELECTOR)) return NodeFilter.FILTER_REJECT;
+      if (parent.closest(MAPPED_SELECTOR) !== block) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+
+  let seen = 0;
+  let last: Node | null = null;
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const length = node.nodeValue?.length ?? 0;
+    if (textOffset <= seen + length) return { node, offset: textOffset - seen };
+    seen += length;
+    last = node;
+  }
+  return last ? { node: last, offset: last.nodeValue?.length ?? 0 } : null;
+}
+
+/** The element a block map entry describes. Compared as an attribute value
+ *  rather than built into a selector, which keeps a sourcepos out of the
+ *  selector grammar entirely. */
+function elementFor(article: HTMLElement, sourcepos: string): HTMLElement | null {
+  for (const element of article.querySelectorAll<HTMLElement>("[data-sourcepos]")) {
+    if (element.getAttribute("data-sourcepos") === sourcepos) return element;
+  }
+  return null;
+}
+
+/**
+ * Where in the rendered document a file offset is, after the document has been
+ * re-rendered — which is what puts the caret back where the reader left it.
+ *
+ * Returns null when the offset has no on-screen home: inside a code fence, or on
+ * markup between two runs. The caller leaves the caret alone rather than moving
+ * it somewhere arbitrary.
+ */
+export function domPositionOf(
+  article: HTMLElement,
+  blocks: BlockMap[],
+  sourceOffset: number,
+): { node: Node; offset: number } | null {
+  for (const block of blocks) {
+    const first = block.runs[0];
+    const last = block.runs[block.runs.length - 1];
+    if (!first || !last) continue;
+    if (sourceOffset < first.sourceStart || sourceOffset > last.sourceEnd) continue;
+
+    const element = elementFor(article, block.sourcepos);
+    if (!element) continue;
+
+    const textOffset = textOffsetIn(block, sourceOffset);
+    if (textOffset === null) continue;
+    return nodeAt(element, textOffset);
+  }
+  return null;
+}
+
+/**
+ * Puts the reader's selection back over a range of the file.
+ *
+ * Called after a re-render, so it works against the *new* map — the offsets it
+ * is given describe the document as it now is, not as it was when the edit was
+ * made.
+ */
+export function restoreSelection(
+  article: HTMLElement,
+  blocks: BlockMap[],
+  range: SourceRange,
+): boolean {
+  const start = domPositionOf(article, blocks, range.start);
+  const end = domPositionOf(article, blocks, range.end);
+  if (!start || !end) return false;
+
+  const selection = article.ownerDocument.defaultView?.getSelection();
+  if (!selection) return false;
+
+  const domRange = article.ownerDocument.createRange();
+  domRange.setStart(start.node, start.offset);
+  domRange.setEnd(end.node, end.offset);
+  selection.removeAllRanges();
+  selection.addRange(domRange);
+  return true;
+}
+
+/**
  * The range of the file a selection covers, or null if it is not something the
  * rendered view can edit.
  *

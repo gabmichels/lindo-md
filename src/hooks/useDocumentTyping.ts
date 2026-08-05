@@ -1,0 +1,208 @@
+import { useCallback, useEffect, useRef } from "react";
+
+import { applyInput } from "@/lib/edit/input";
+import {
+  ATOM_SELECTOR,
+  selectionRange,
+  type SourceRange,
+} from "@/lib/edit/selection";
+import type { Document } from "@/lib/ipc";
+
+/**
+ * Typing directly into the rendered document.
+ *
+ * The browser never edits anything. Every `beforeinput` is cancelled, turned
+ * into a change to the Markdown, and the document is re-rendered from that —
+ * so the block map always describes what is actually on screen, and no code
+ * anywhere has to read structure back out of the DOM.
+ *
+ * Two speeds, because re-rendering on every keystroke would mean re-running
+ * Shiki and Mermaid over the whole document sixty times a sentence:
+ *
+ * - **A character inside a line** is dropped straight into the text node and
+ *   the re-render waits for a pause. The reader sees it immediately; the
+ *   Markdown catches up a moment later.
+ * - **Anything that moves structure** — a newline, a paste, a deletion across a
+ *   line — is written and re-rendered at once, because patching it in place
+ *   would mean deciding what the Markdown now means.
+ *
+ * While a pause is pending the map is a version behind, so the caret cannot be
+ * resolved from the DOM. It is instead tracked arithmetically from the edit
+ * that moved it, and **anything that could move the caret another way flushes
+ * first** — a click, an arrow key, losing focus. That is the invariant the whole
+ * hook rests on: while there are unsaved characters, the only thing that
+ * happens is more typing at the tracked caret.
+ */
+
+/** Long enough that ordinary typing does not trigger it, short enough that the
+ *  rendering never feels detached from the file. */
+const SETTLE_MS = 500;
+
+interface Options {
+  article: React.RefObject<HTMLElement | null>;
+  document: Document;
+  onSave: (source: string) => Promise<boolean>;
+  /** Shared with `DocumentView`, which puts the caret back after the re-render. */
+  restoring: React.MutableRefObject<SourceRange | null>;
+}
+
+export function useDocumentTyping({
+  article,
+  document: doc,
+  onSave,
+  restoring,
+}: Options) {
+  /** Edited source not yet written, or null when the file is up to date. */
+  const pending = useRef<string | null>(null);
+  /** Where the caret is, as an offset into `pending`. Only meaningful while
+   *  dirty — otherwise the DOM is the authority. */
+  const caret = useRef<number | null>(null);
+  const timer = useRef<number | null>(null);
+
+  const latest = useRef(doc);
+  latest.current = doc;
+  const save = useRef(onSave);
+  save.current = onSave;
+
+  const flush = useCallback(() => {
+    if (timer.current !== null) {
+      window.clearTimeout(timer.current);
+      timer.current = null;
+    }
+    const next = pending.current;
+    if (next === null) return;
+
+    pending.current = null;
+    const at = caret.current;
+    caret.current = null;
+    if (at !== null) restoring.current = { start: at, end: at };
+
+    void save.current(next).then((saved) => {
+      // A refused write leaves the document as it was; the caret has nowhere
+      // meaningful to go, so it is left where the reader put it.
+      if (!saved) restoring.current = null;
+    });
+  }, [restoring]);
+
+  // Atoms are inert to the caret. `contenteditable="false"` is what makes the
+  // browser treat each as one indivisible thing — arrow keys step over it,
+  // selection takes it whole — rather than letting a caret inside a highlighted
+  // code block, where the text on screen is not the text in the file.
+  useEffect(() => {
+    const root = article.current;
+    if (!root) return;
+    for (const atom of root.querySelectorAll<HTMLElement>(ATOM_SELECTOR)) {
+      atom.contentEditable = "false";
+    }
+  }, [article, doc.html]);
+
+  useEffect(() => {
+    const root = article.current;
+    if (!root) return;
+
+    const onBeforeInput = (event: InputEvent) => {
+      // Nothing the browser does to this document is allowed to stand.
+      event.preventDefault();
+
+      const source = pending.current ?? latest.current.source;
+      const selection = window.getSelection();
+      const collapsed = selection?.isCollapsed ?? false;
+
+      let range: SourceRange | null;
+      if (pending.current !== null && caret.current !== null && collapsed) {
+        // Mid-pause: the map is stale, so the tracked caret is the only
+        // trustworthy answer.
+        range = { start: caret.current, end: caret.current };
+      } else {
+        range = selectionRange(latest.current.blocks, selection);
+      }
+      // Nothing to edit: the caret is in a code fence, or the selection spans
+      // two blocks and so covers markup between them. The input is dropped —
+      // the event is already cancelled, and letting the browser have it instead
+      // would put the DOM out of step with the file, which is the one thing this
+      // design does not survive. Typing over a multi-block selection therefore
+      // does nothing at present; it needs a rule for what replacing the markup
+      // between two blocks means.
+      if (!range) return;
+
+      const edit = applyInput(source, range, event.inputType, dataOf(event));
+      if (!edit) return;
+
+      pending.current = edit.source;
+      caret.current = edit.caret;
+
+      if (edit.structural || !applyToDom(event, selection)) {
+        flush();
+        return;
+      }
+
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(flush, SETTLE_MS);
+    };
+
+    // Everything that could move the caret without typing. Flushing here is
+    // what lets the fast path trust its tracked offset.
+    const onMove = (event: Event) => {
+      if (event instanceof KeyboardEvent && !MOVES.has(event.key)) return;
+      flush();
+    };
+
+    root.addEventListener("beforeinput", onBeforeInput as EventListener);
+    root.addEventListener("pointerdown", onMove);
+    root.addEventListener("keydown", onMove);
+    root.addEventListener("blur", flush);
+
+    return () => {
+      root.removeEventListener("beforeinput", onBeforeInput as EventListener);
+      root.removeEventListener("pointerdown", onMove);
+      root.removeEventListener("keydown", onMove);
+      root.removeEventListener("blur", flush);
+      // Leaving the view must not lose what was typed into it.
+      flush();
+    };
+  }, [article, flush]);
+}
+
+const MOVES = new Set([
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+]);
+
+function dataOf(event: InputEvent): string | null {
+  if (event.data !== null) return event.data;
+  // A paste arrives as a data transfer rather than as `data`.
+  return event.dataTransfer?.getData("text/plain") ?? null;
+}
+
+/**
+ * Shows an insertion immediately, without waiting for the round trip.
+ *
+ * Only plain text into a collapsed caret: that cannot change the shape of the
+ * document, so the map stays usable until the pause. Returns false for anything
+ * else, which tells the caller to re-render now instead.
+ */
+function applyToDom(event: InputEvent, selection: Selection | null): boolean {
+  if (event.inputType !== "insertText" || !event.data) return false;
+  if (!selection || !selection.isCollapsed || selection.rangeCount === 0) return false;
+
+  const range = selection.getRangeAt(0);
+  const node = range.startContainer;
+  if (node.nodeType !== Node.TEXT_NODE) return false;
+
+  const text = node as Text;
+  const at = range.startOffset;
+  text.nodeValue = (text.nodeValue ?? "").slice(0, at) + event.data + (text.nodeValue ?? "").slice(at);
+
+  const moved = document.createRange();
+  moved.setStart(text, at + event.data.length);
+  moved.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(moved);
+  return true;
+}

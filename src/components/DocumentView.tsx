@@ -3,8 +3,13 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Document } from "@/lib/ipc";
 import type { Theme } from "@/lib/theme/schema";
 import { FormatMenu } from "@/components/FormatMenu";
+import { useDocumentTyping } from "@/hooks/useDocumentTyping";
 import { applyFormat, type FormatCommand } from "@/lib/edit/format";
-import { selectionRange, type SourceRange } from "@/lib/edit/selection";
+import {
+  restoreSelection,
+  selectionRange,
+  type SourceRange,
+} from "@/lib/edit/selection";
 import { taskClickHandler } from "@/lib/edit/tasks";
 import { enhance } from "@/lib/render/enhance";
 import { hasBlockedImages, loadBlockedImages } from "@/lib/render/images";
@@ -111,6 +116,22 @@ export function DocumentView({
     };
   }, [onScrollChange]);
 
+  // Where the selection should end up once an edit has come back rendered. Held
+  // rather than applied immediately: the document it describes does not exist
+  // yet at the point the edit is made.
+  const restoring = useRef<SourceRange | null>(null);
+
+  // Put the selection back over the words the edit described, against the *new*
+  // map — the offsets describe the document as it now is. Without this, applying
+  // Bold twice means reselecting in between.
+  useLayoutEffect(() => {
+    const article = articleRef.current;
+    const range = restoring.current;
+    if (!article || !range) return;
+    restoring.current = null;
+    restoreSelection(article, doc.blocks, range);
+  }, [doc.html, doc.blocks]);
+
   // Re-runs on a theme change too: syntax highlighting and Mermaid both bake the
   // palette in, so they have to be redone when it changes.
   useEffect(() => {
@@ -175,8 +196,18 @@ export function DocumentView({
     // Applied to the Markdown, never to the rendered HTML — the source is the
     // document and this view is a projection of it.
     const edit = applyFormat(doc.source, range, command);
-    void onSave(edit.source);
+    restoring.current = edit.selection;
+    void onSave(edit.source).then((saved) => {
+      if (!saved) restoring.current = null;
+    });
   };
+
+  useDocumentTyping({
+    article: articleRef,
+    document: doc,
+    onSave,
+    restoring,
+  });
 
   const copySelection = () => {
     const text = window.getSelection()?.toString() ?? "";
@@ -244,7 +275,16 @@ export function DocumentView({
         // time a row is chosen, and greying the rows out afterwards would be
         // worse than deciding up front.
       >
-        <article ref={articleRef} className="doc" onContextMenu={onContextMenu} />
+        <article
+          ref={articleRef}
+          className="doc"
+          onContextMenu={onContextMenu}
+          // Editing is always available — there is no mode to find. The browser
+          // is never allowed to act on the input; see `useDocumentTyping`.
+          contentEditable
+          suppressContentEditableWarning
+          spellCheck={false}
+        />
       </FormatMenu>
     </div>
   );

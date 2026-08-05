@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { BlockMap } from "@/lib/ipc";
-import { selectionRange, sourceOffsetOf, textOffsetOf } from "./selection";
+import {
+  domPositionOf,
+  restoreSelection,
+  selectionRange,
+  sourceOffsetOf,
+  textOffsetOf,
+} from "./selection";
 
 function article(html: string): HTMLElement {
   const element = document.createElement("article");
@@ -124,6 +130,54 @@ describe("sourceOffsetOf", () => {
     };
     expect(sourceOffsetOf(block, 0)).toBe(0);
     expect(sourceOffsetOf(block, 1)).toBe(5);
+  });
+});
+
+describe("round trip", () => {
+  const emphasised: BlockMap = {
+    sourcepos: "1:1-1:12",
+    aligned: true,
+    runs: [
+      { text: "a ", sourceStart: 0, sourceEnd: 2 },
+      { text: "bold", sourceStart: 4, sourceEnd: 8 },
+      { text: " c", sourceStart: 10, sourceEnd: 12 },
+    ],
+  };
+
+  // The property the caret depends on: a position that came *out* of the map
+  // has to go back *in* to the same place, or every re-render nudges the caret.
+  //
+  // Checked against both biases because a text offset on a run boundary
+  // genuinely describes two source offsets — the end of `a ` and the start of
+  // `bold` are the same place on screen, with the `**` in between. Which one you
+  // get back is the caller's choice, not an inaccuracy.
+  it("puts a source offset back where it came from", () => {
+    const root = article(`<p data-sourcepos="1:1-1:12">a <strong>bold</strong> c</p>`);
+    const p = root.querySelector("p")!;
+
+    for (const offset of [0, 1, 4, 6, 8, 11, 12]) {
+      const position = domPositionOf(root, [emphasised], offset);
+      expect(position, `offset ${offset} has no home`).not.toBeNull();
+
+      const textOffset = textOffsetOf(p, position!.node, position!.offset)!;
+      const both = [
+        sourceOffsetOf(emphasised, textOffset, "start"),
+        sourceOffsetOf(emphasised, textOffset, "end"),
+      ];
+      expect(both, `offset ${offset} did not round-trip`).toContain(offset);
+    }
+  });
+
+  it("restores a selection over the words it described", () => {
+    const root = article(`<p data-sourcepos="1:1-1:12">a <strong>bold</strong> c</p>`);
+    expect(restoreSelection(root, [emphasised], { start: 4, end: 8 })).toBe(true);
+    expect(window.getSelection()?.toString()).toBe("bold");
+  });
+
+  it("declines an offset with nowhere on screen to go", () => {
+    const root = article(`<p data-sourcepos="1:1-1:12">a <strong>bold</strong> c</p>`);
+    // Well past the end of the block's text.
+    expect(domPositionOf(root, [emphasised], 500)).toBeNull();
   });
 });
 

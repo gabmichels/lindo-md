@@ -248,6 +248,8 @@ function Shell() {
     scroller,
     onFind: () => setFindOpen(true),
     onCloseFind: () => setFindOpen(false),
+    onUndo: () => active && docs.undoEdit(active.id),
+    onRedo: () => active && docs.redoEdit(active.id),
     onOpenFile: () => void openFile(),
     onOpenFolder: () => void openFolder(),
     onSettings: () => setSettingsOpen((open) => !open),
@@ -470,6 +472,8 @@ function useKeyboardShortcuts(handlers: {
   scroller: HTMLElement | null;
   onFind: () => void;
   onCloseFind: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
   onOpenFile: () => void;
   onOpenFolder: () => void;
   onSettings: () => void;
@@ -534,6 +538,18 @@ function useKeyboardShortcuts(handlers: {
       }
 
       switch (event.key.toLowerCase()) {
+        // The document cancels every input event, so the browser's own undo
+        // stack never sees an edit. Without these two, Ctrl+Z does nothing at
+        // all on a view whose whole job is changing files.
+        case "z":
+          event.preventDefault();
+          if (event.shiftKey) handlers.onRedo();
+          else handlers.onUndo();
+          break;
+        case "y":
+          event.preventDefault();
+          handlers.onRedo();
+          break;
         case "f":
           event.preventDefault();
           handlers.onFind();
