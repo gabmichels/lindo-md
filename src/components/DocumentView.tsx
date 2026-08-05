@@ -15,6 +15,13 @@ import { enhance } from "@/lib/render/enhance";
 import { hasBlockedImages, loadBlockedImages } from "@/lib/render/images";
 import { linkClickHandler } from "@/lib/render/links";
 
+/** Keyed by `event.key` lowercased, so Ctrl+Shift+B never reaches them. */
+const FORMAT_KEYS: Record<string, FormatCommand> = {
+  b: "bold",
+  i: "italic",
+  "`": "code",
+};
+
 /**
  * Renders the document and runs the enhancement passes over it.
  *
@@ -196,8 +203,7 @@ export function DocumentView({
     setCanFormat(range !== null && range.end > range.start);
   };
 
-  const format = (command: FormatCommand) => {
-    const range = pending.current;
+  const formatRange = (range: SourceRange | null, command: FormatCommand) => {
     if (!range) return;
     // Applied to the Markdown, never to the rendered HTML — the source is the
     // document and this view is a projection of it.
@@ -206,6 +212,19 @@ export function DocumentView({
     void onSave(edit.source).then((saved) => {
       if (!saved) restoring.current = null;
     });
+  };
+
+  /** The context menu resolves the range once, when it opens — see
+   *  `onContextMenu` — so by the time a row is chosen the selection may be
+   *  gone and `pending` is the only record of it. */
+  const format = (command: FormatCommand) => formatRange(pending.current, command);
+
+  /** The keyboard has no such gap: the selection is still live at the moment
+   *  the chord arrives, so read it directly rather than depending on a menu
+   *  having been opened first. */
+  const formatSelection = (command: FormatCommand) => {
+    const range = selectionRange(doc.blocks, window.getSelection());
+    formatRange(range && range.end > range.start ? range : null, command);
   };
 
   useDocumentTyping({
@@ -407,6 +426,19 @@ export function DocumentView({
           // nothing and unmounting would mean re-highlighting the whole
           // document on the way back.
           style={draft === null ? undefined : { display: "none" }}
+          // The chords `FormatMenu` prints beside Bold, Italic and Code. Bound
+          // on the article rather than the window because they act on this
+          // document's selection, and background tabs stay mounted — a global
+          // listener would fire for all of them. The browser's own
+          // `formatBold` is suppressed in `useDocumentTyping`, so without this
+          // the menu was advertising keys that did nothing at all.
+          onKeyDown={(event) => {
+            if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+            const command = FORMAT_KEYS[event.key.toLowerCase()];
+            if (!command) return;
+            event.preventDefault();
+            formatSelection(command);
+          }}
           // Editing is always available — there is no mode to find. The browser
           // is never allowed to act on the input; see `useDocumentTyping`.
           contentEditable

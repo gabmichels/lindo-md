@@ -21,9 +21,13 @@ const SHORTCUTS: Array<[string, string]> = [
   ["Ctrl / ⌘ + Shift + ,", "Appearance"],
   ["Ctrl / ⌘ + + or −", "Zoom in / out"],
   ["Ctrl / ⌘ + 0", "Reset zoom"],
-  ["Ctrl / ⌘ + E", "Export as HTML"],
+  ["Ctrl / ⌘ + E", "Edit as Markdown"],
+  ["Ctrl / ⌘ + Shift + E", "Export as HTML"],
   ["Ctrl / ⌘ + P", "Print or save as PDF"],
   ["Ctrl / ⌘ + [ or ]", "Back / forward"],
+  ["Ctrl / ⌘ + B / I / `", "Bold / italic / code"],
+  ["Ctrl / ⌘ + Z", "Undo"],
+  ["Ctrl / ⌘ + Shift + Z", "Redo"],
 ];
 
 export function AboutDialog({
