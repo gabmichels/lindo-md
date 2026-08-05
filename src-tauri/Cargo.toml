@@ -44,6 +44,9 @@ ignore = "0.4"
 notify = "8"
 tauri-plugin-os = "2.3.2"
 tauri-plugin-single-instance = "2.4.3"
+# Window geometry across launches. Its own state file, not `config.rs`: this is
+# remembered window chrome, not a setting anyone chooses in the UI.
+tauri-plugin-window-state = "2"
 
 # Reading which application owns `.md`. Writing it is not possible — see
 # `src/defaults.rs` — so this is a read-only dependency on the registry.
