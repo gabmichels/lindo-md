@@ -113,14 +113,17 @@ pub fn run() {
         // `build` + `run` rather than `run` alone, purely to get at the run loop:
         // `RunEvent::Opened` is the *only* way a double-clicked document reaches
         // the app on macOS, and it has nowhere else to be observed.
-        .run(|_app, _event| {
-            // Underscored so the non-macOS builds, where the block below is
-            // compiled out, do not warn on unused parameters — CI treats clippy
-            // warnings as errors.
+        .run(|app, event| {
             #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Opened { urls } = &_event {
-                assoc::deliver(_app, assoc::documents_from_urls(urls.iter()));
+            if let tauri::RunEvent::Opened { urls } = &event {
+                assoc::deliver(app, assoc::documents_from_urls(urls.iter()));
             }
+            // Everywhere else the block above is compiled out and both parameters go
+            // unread. They used to be underscore-prefixed for that, but then the macOS
+            // build — the one place they *are* read — trips `used_underscore_binding`.
+            // Consuming them explicitly satisfies both sides without a lint exception.
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
         });
 }
 
