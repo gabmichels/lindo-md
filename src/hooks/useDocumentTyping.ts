@@ -253,7 +253,7 @@ function applyToDom(event: InputEvent, selection: Selection | null): boolean {
   switch (event.inputType) {
     case "insertText":
       if (!event.data) return false;
-      inserted = event.data;
+      inserted = visible(event.data, value, at);
       break;
     case "deleteContentBackward":
       // Not at the start of the node: crossing out of it could mean leaving the
@@ -277,6 +277,28 @@ function applyToDom(event: InputEvent, selection: Selection | null): boolean {
   selection.removeAllRanges();
   selection.addRange(moved);
   return true;
+}
+
+/**
+ * The character to put in the DOM so the reader can see they typed it.
+ *
+ * HTML collapses a run of whitespace and drops it entirely at the end of a
+ * line, so a space typed there changes the text without changing the picture —
+ * the caret does not move and it looks as though the key did nothing. Browsers
+ * paper over this in `contenteditable` by inserting a non-breaking space; since
+ * every insertion here is made by hand, this has to do the same.
+ *
+ * Only the *rendered* character changes. What goes into the file is the space
+ * the reader actually typed, and the next render replaces this node from the
+ * source anyway.
+ */
+function visible(data: string, value: string, at: number): string {
+  if (data !== " ") return data;
+  const collapses =
+    at === value.length || value[at - 1] === " " || value[at] === " ";
+  // Written as an escape, not a literal: the two are indistinguishable on
+  // screen and which one this is happens to be the whole point.
+  return collapses ? "\u00a0" : data;
 }
 
 /** 2 when the character ending at `at` is half of a surrogate pair, else 1 —
