@@ -447,14 +447,6 @@ function Shell() {
         onOpenAppearance={() => setAppearanceOpen(true)}
       />
 
-      <SettingsDialog
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        config={config}
-        onUpdateConfig={update}
-        onOpenAppearance={() => setAppearanceOpen(true)}
-      />
-
       <SettingsDrawer
         open={appearanceOpen}
         onOpenChange={setAppearanceOpen}
@@ -567,9 +559,15 @@ function useKeyboardShortcuts(handlers: {
           event.preventDefault();
           handlers.onRedo();
           break;
+        // Ctrl+E and Ctrl+Shift+E both used to be spelled `case "e"`, and a
+        // switch takes the first match, so export was unreachable while the
+        // About dialog advertised it. Toggling the source keeps the bare
+        // chord because that is what v1.0.0 shipped and readers have it in
+        // their fingers; export moves to the shifted one.
         case "e":
           event.preventDefault();
-          handlers.onToggleSource();
+          if (event.shiftKey) handlers.onExport();
+          else handlers.onToggleSource();
           break;
         case "f":
           event.preventDefault();
@@ -580,9 +578,6 @@ function useKeyboardShortcuts(handlers: {
           if (event.shiftKey) handlers.onOpenFolder();
           else handlers.onOpenFile();
           break;
-        // Shift does not just set `shiftKey` for punctuation — it changes the
-        // character, so `Ctrl+Shift+,` arrives as `<` on a US layout and testing
-        // `shiftKey` alone would never match.
         // Shift does not just set `shiftKey` for punctuation — it changes the
         // character, so `Ctrl+Shift+,` arrives as `<` on a US layout and testing
         // `shiftKey` alone would never match.
@@ -607,27 +602,6 @@ function useKeyboardShortcuts(handlers: {
           event.preventDefault();
           handlers.onZoomOut();
           break;
-        case "<":
-          event.preventDefault();
-          handlers.onAppearance();
-          break;
-        // Both the unshifted and shifted spellings of the zoom keys: on a US
-        // layout Ctrl and `+` means Ctrl+Shift+`=`, and reporting differs
-        // between layouts and browsers.
-        case "=":
-        case "+":
-          event.preventDefault();
-          handlers.onZoomIn();
-          break;
-        case "-":
-        case "_":
-          event.preventDefault();
-          handlers.onZoomOut();
-          break;
-        case "0":
-          event.preventDefault();
-          handlers.onZoomReset();
-          break;
         case "0":
           event.preventDefault();
           handlers.onZoomReset();
@@ -635,10 +609,6 @@ function useKeyboardShortcuts(handlers: {
         case "p":
           event.preventDefault();
           handlers.onPrint();
-          break;
-        case "e":
-          event.preventDefault();
-          handlers.onExport();
           break;
         case "t":
           event.preventDefault();
