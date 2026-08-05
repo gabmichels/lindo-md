@@ -24,7 +24,10 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use tauri::{AppHandle, Emitter, Manager, Url};
+use tauri::{AppHandle, Emitter, Manager};
+// Only the Apple Event route speaks in URLs, and it exists on one platform.
+#[cfg(target_os = "macos")]
+use tauri::Url;
 
 use crate::files;
 
@@ -108,6 +111,11 @@ where
 ///
 /// `Url::to_file_path` is what does the percent-decoding, so a document called
 /// `My Notes.md` arrives as a path and not as `My%20Notes.md`.
+///
+/// Compiled only on macOS, because its one call site is: leaving it in place
+/// everywhere makes it dead code, and `-D warnings` turns that into a failed
+/// build on the two platforms this cannot be tested from.
+#[cfg(target_os = "macos")]
 pub fn documents_from_urls<'a, I>(urls: I) -> Vec<PathBuf>
 where
     I: IntoIterator<Item = &'a Url>,
@@ -214,48 +222,55 @@ mod tests {
         std::fs::remove_file(&path).ok();
     }
 
-    #[test]
-    fn reads_every_markdown_file_url_in_an_open_event() {
-        let first = fixture("one.md");
-        let second = fixture("two.md");
+    /// The Apple Event route. Gated as a block rather than test by test because
+    /// the function under test does not exist off macOS either.
+    #[cfg(target_os = "macos")]
+    mod apple_events {
+        use super::*;
 
-        let urls = [
-            Url::from_file_path(&first).unwrap(),
-            Url::from_file_path(&second).unwrap(),
-        ];
-        assert_eq!(
-            documents_from_urls(urls.iter()),
-            vec![first.clone(), second.clone()]
-        );
+        #[test]
+        fn reads_every_markdown_file_url_in_an_open_event() {
+            let first = fixture("one.md");
+            let second = fixture("two.md");
 
-        std::fs::remove_file(&first).ok();
-        std::fs::remove_file(&second).ok();
-    }
+            let urls = [
+                Url::from_file_path(&first).unwrap(),
+                Url::from_file_path(&second).unwrap(),
+            ];
+            assert_eq!(
+                documents_from_urls(urls.iter()),
+                vec![first.clone(), second.clone()]
+            );
 
-    #[test]
-    fn decodes_a_percent_escaped_file_url() {
-        // Finder sends `file:///…/My%20Notes.md`; opening that literally fails
-        // with "no such file", which looks like a broken association.
-        let path = fixture("My Notes.md");
-        let url = Url::from_file_path(&path).unwrap();
-        assert!(url.as_str().contains("%20"), "the fixture must be escaped");
+            std::fs::remove_file(&first).ok();
+            std::fs::remove_file(&second).ok();
+        }
 
-        assert_eq!(documents_from_urls([&url]), vec![path.clone()]);
+        #[test]
+        fn decodes_a_percent_escaped_file_url() {
+            // Finder sends `file:///…/My%20Notes.md`; opening that literally
+            // fails with "no such file", which looks like a broken association.
+            let path = fixture("My Notes.md");
+            let url = Url::from_file_path(&path).unwrap();
+            assert!(url.as_str().contains("%20"), "the fixture must be escaped");
 
-        std::fs::remove_file(&path).ok();
-    }
+            assert_eq!(documents_from_urls([&url]), vec![path.clone()]);
 
-    #[test]
-    fn ignores_urls_that_are_not_local_markdown() {
-        let text = fixture("notes.txt");
-        let urls = [
-            Url::parse("https://example.com/readme.md").unwrap(),
-            Url::from_file_path(&text).unwrap(),
-            Url::from_file_path(std::env::temp_dir().join("absent.md")).unwrap(),
-        ];
-        assert!(documents_from_urls(urls.iter()).is_empty());
+            std::fs::remove_file(&path).ok();
+        }
 
-        std::fs::remove_file(&text).ok();
+        #[test]
+        fn ignores_urls_that_are_not_local_markdown() {
+            let text = fixture("notes.txt");
+            let urls = [
+                Url::parse("https://example.com/readme.md").unwrap(),
+                Url::from_file_path(&text).unwrap(),
+                Url::from_file_path(std::env::temp_dir().join("absent.md")).unwrap(),
+            ];
+            assert!(documents_from_urls(urls.iter()).is_empty());
+
+            std::fs::remove_file(&text).ok();
+        }
     }
 
     #[test]

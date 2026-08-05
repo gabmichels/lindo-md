@@ -288,6 +288,13 @@ existing group's run does still join it, and that is ordinary reordering with a 
   harmless, since `tabs/model.ts` never opens one file in two tabs. The queue reads `argv` in
   `OpenQueue::from_launch` rather than from `setup`, because `setup` and the invoke handler run on
   different threads and a `setup` seed races the frontend's first call.
+- **A helper whose only call site is `#[cfg]`-gated is dead code everywhere else**, and `-D warnings`
+  turns that into a *failed build* on the platforms you are not developing on — `documents_from_urls`
+  broke Linux and Windows CI while every macOS gate stayed green. Gate the helper and its tests with
+  the same `cfg` as the call site. You can check the other side locally without cross-compiling: flip
+  `target_os = "macos"` to a target you are not on, `touch` the file so cargo really re-checks it, and
+  run clippy. A suspiciously fast `Finished` with no `Checking lindo-md` line means nothing was
+  rebuilt and the run proved nothing.
 - **`dragDropEnabled` is on by default, so an HTML5 `ondrop` handler never fires.** The native side
   swallows the drag before the webview sees it. Tauri's own `onDragDropEvent` is the only route, and
   the only one that yields real filesystem paths instead of sandboxed `File` objects — see
