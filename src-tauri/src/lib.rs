@@ -9,6 +9,7 @@ mod markdown;
 mod srcmap;
 
 use tauri::{Emitter, Manager};
+use tauri_plugin_window_state::StateFlags;
 
 use files::WatchState;
 
@@ -26,6 +27,16 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
+        // Size, position and maximized state survive a restart. The remaining
+        // default flags are deliberately left out: they restore properties this
+        // app never varies — the window is frameless and always visible by
+        // config, and there is no fullscreen affordance anywhere in the UI — so
+        // saving them only risks a restored value contradicting `tauri.conf.json`.
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED)
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
