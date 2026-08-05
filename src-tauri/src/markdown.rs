@@ -828,10 +828,8 @@ mod tests {
                 return Some(format!("output contains a <{name}> element"));
             }
 
-            for scheme in ["javascript:", "vbscript:", "data:text/html"] {
-                if lower.contains(scheme) {
-                    return Some(format!("a tag carries `{scheme}`: {tag}"));
-                }
+            if let Some(found) = dangerous_url_scheme(tag) {
+                return Some(format!("a tag carries {found}: {tag}"));
             }
             for attribute in ["srcdoc", "formaction", "xlink:href"] {
                 if lower.contains(attribute) {
@@ -846,6 +844,75 @@ mod tests {
             }
         }
 
+        None
+    }
+
+    /// Attributes whose value a browser will actually navigate to or fetch. A scheme
+    /// anywhere else in a tag is text.
+    const URL_ATTRIBUTES: &[&str] = &[
+        "href",
+        "src",
+        "srcset",
+        "action",
+        "formaction",
+        "data",
+        "poster",
+        "background",
+        "xlink:href",
+    ];
+
+    /// A dangerous scheme in an attribute that is a URL, if there is one.
+    ///
+    /// Scoped this way because the blunt version — "the tag contains `javascript:`" —
+    /// is wrong, and the property test proved it. A fence whose info string is
+    /// `![image](javascript:alert(1))` renders as
+    /// `<pre data-lang="![image](javascript:alert(1))">`: the text is attacker-chosen,
+    /// it is HTML-escaped by `rewrite_code_blocks`, and `data-lang` is not a URL, so
+    /// nothing navigates anywhere. Flagging it taught the test to fail on safe output,
+    /// which is how a security test gets weakened until it checks nothing.
+    fn dangerous_url_scheme(tag: &str) -> Option<String> {
+        let lower = tag.to_lowercase();
+        let bytes = lower.as_bytes();
+
+        for name in URL_ATTRIBUTES {
+            let mut from = 0;
+            while let Some(offset) = lower.get(from..).and_then(|rest| rest.find(name)) {
+                let at = from + offset;
+                from = at + name.len();
+
+                // Must be a whole attribute name: preceded by whitespace or a quote.
+                let preceded_ok = at > 0
+                    && bytes
+                        .get(at - 1)
+                        .is_some_and(|b| b.is_ascii_whitespace() || *b == b'"' || *b == b'\'');
+                if !preceded_ok {
+                    continue;
+                }
+
+                // …then optional whitespace, `=`, optional whitespace, optional quote.
+                let mut i = from;
+                while bytes.get(i).is_some_and(u8::is_ascii_whitespace) {
+                    i = i.saturating_add(1);
+                }
+                if bytes.get(i) != Some(&b'=') {
+                    continue;
+                }
+                i = i.saturating_add(1);
+                while bytes
+                    .get(i)
+                    .is_some_and(|b| b.is_ascii_whitespace() || *b == b'"' || *b == b'\'')
+                {
+                    i = i.saturating_add(1);
+                }
+
+                let value = lower.get(i..).unwrap_or_default();
+                for scheme in ["javascript:", "vbscript:", "data:text/html"] {
+                    if value.starts_with(scheme) {
+                        return Some(format!("{name}=\"{scheme}…\""));
+                    }
+                }
+            }
+        }
         None
     }
 
