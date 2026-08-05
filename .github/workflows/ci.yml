@@ -1,9 +1,21 @@
 name: CI
 
+# `paths-ignore` is `*.md` rather than `**/*.md` on purpose: the second form would also
+# ignore `test/fixtures/kitchen-sink.md`, which is the input to the markdown snapshot
+# tests. Editing that fixture must still run CI. Only the root-level prose files —
+# README, AGENTS, DESIGN, CLAUDE — are safe to skip.
+#
+# This is only safe while `main` has no required status checks. A skipped workflow
+# reports nothing at all rather than success, so a required check would sit pending
+# forever and block the PR. If branch protection is added, this needs the companion
+# job that reports success for skipped paths.
 on:
   push:
     branches: [main]
+    # Duplicated below rather than shared: GitHub Actions does not support YAML anchors.
+    paths-ignore: ["*.md", "docs/**", "LICENSE"]
   pull_request:
+    paths-ignore: ["*.md", "docs/**", "LICENSE"]
   workflow_dispatch:
 
 concurrency:
@@ -59,7 +71,11 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # rustfmt is platform-independent by construction, so running it on all three
+      # runners checks the same bytes three times. Clippy stays on the full matrix —
+      # `cfg`-gated code genuinely can lint differently per platform.
       - name: Check formatting
+        if: matrix.os == 'ubuntu-22.04'
         working-directory: src-tauri
         run: cargo fmt --check
 
@@ -106,9 +122,13 @@ jobs:
       - name: Build the app
         run: pnpm tauri build
 
+      # Kept on pull requests, because downloading a branch build and actually running it
+      # is worth more than the storage. Shortened from the 90-day default: these are
+      # throwaway checks, and the bundles anyone is meant to keep come from release.yml.
       - uses: actions/upload-artifact@v4
         with:
           name: lindo-md-${{ matrix.os }}
+          retention-days: 7
           path: |
             src-tauri/target/release/bundle/**/*.deb
             src-tauri/target/release/bundle/**/*.AppImage
