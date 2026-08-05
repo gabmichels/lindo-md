@@ -1,5 +1,5 @@
 import { docTokens } from "../theme/apply";
-import type { Theme } from "../theme/schema";
+import { isSafeCssValue, type Theme } from "../theme/schema";
 
 /**
  * Builds a standalone HTML file from the document as it is currently rendered.
@@ -27,7 +27,14 @@ export interface ExportOptions {
 export function buildStandaloneHtml(options: ExportOptions): string {
   const { title, theme, article, documentCss } = options;
 
+  // `ThemeSchema` already refuses these characters, so nothing that has been through
+  // `parseThemeFile` can trip this. It is here because this is the one place a theme
+  // becomes *text* rather than going through `setProperty`, and a `</style>` in a
+  // token value would end the element and start running markup. A token that cannot
+  // be written safely is dropped rather than escaped: the value has no legitimate
+  // meaning, and a half-escaped colour is not worth reconstructing.
   const tokens = Object.entries(docTokens(theme))
+    .filter(([, value]) => isSafeCssValue(value))
     .map(([property, value]) => `      ${property}: ${value};`)
     .join("\n");
 

