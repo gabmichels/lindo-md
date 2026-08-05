@@ -141,10 +141,28 @@ jobs:
           out="checksums-${{ matrix.os }}.txt"
           : > "$out"
           while IFS= read -r p; do
-            [ -f "$p" ] || continue
+            # tauri-action reports native Windows paths; Git Bash's `test -f` rejects some
+            # backslash forms that the Win32 API itself accepts, which silently dropped the
+            # .msi from v1.0.0's checksums. Forward slashes are understood on both platforms,
+            # and this is a no-op on Linux's already-forward paths.
+            #
+            # `tr` rather than `${p//\\//}`: that expansion is a silent no-op in the MSYS bash
+            # these runners use. '\134' is octal for the backslash, which avoids tr's
+            # "unescaped backslash at end of string" warning.
+            p=$(printf '%s' "$p" | tr '\134' '/')
+            # A reported artifact that cannot be hashed is a broken release, not something to
+            # skip: the file still reaches the release page, just with no checksum to check it
+            # against, and that is indistinguishable from success unless it fails here.
+            [ -f "$p" ] || { echo "::error::artifact reported but not found: $p"; exit 1; }
             # Bare filenames, so `sha256sum -c` works from the directory of the downloads.
             (cd "$(dirname "$p")" && sha256sum "$(basename "$p")") >> "$GITHUB_WORKSPACE/$out"
           done <<< "$paths"
+
+          # Every reported artifact must appear, so a silent truncation cannot ship again.
+          expected=$(echo "$paths" | grep -c .)
+          actual=$(grep -c . "$out")
+          [ "$expected" = "$actual" ] || {
+            echo "::error::expected $expected checksums, wrote $actual"; exit 1; }
 
           cat "$out"
           gh release upload "${{ github.ref_name }}" "$out" --clobber
