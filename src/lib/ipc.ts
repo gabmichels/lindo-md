@@ -143,6 +143,30 @@ export function watchPaths(documents: string[], folder: string | null): Promise<
 export const AppearanceModeSchema = z.enum(["light", "dark", "system"]);
 export type AppearanceMode = z.infer<typeof AppearanceModeSchema>;
 
+/**
+ * Every custom theme that still parses, in order.
+ *
+ * The same treatment `StoredSessionSchema` already documents next door, and for the
+ * same reason — it just only ran one way. A `z.array(ThemeSchema)` rejects the whole
+ * array if any single element fails, `parseOrThrow` then rejects the whole config,
+ * and `useConfig` falls back to defaults. One theme missing one field therefore took
+ * out every other theme, the recents, the last folder and the saved session with it.
+ *
+ * That is not hypothetical maintenance-wise: tightening `ThemeSchema` in a release
+ * invalidates every stored theme at once, which is a normal thing to want to do.
+ *
+ * Dropping the unreadable one loses less than refusing the file does, and it is what
+ * `config.rs` already promises: "A corrupt config is reported, never silently reset —
+ * the user's carefully tuned custom themes live in this file."
+ */
+export const StoredCustomThemesSchema = z.unknown().transform((value): Theme[] => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const parsed = ThemeSchema.safeParse(entry);
+    return parsed.success ? [parsed.data] : [];
+  });
+});
+
 /** Mirrors `AppConfig` in `src-tauri/src/config.rs`. Adding a field means adding
  *  it in both places — except `customThemes` and `session`, which Rust stores
  *  opaquely so their schemas live only here. */
@@ -150,7 +174,7 @@ export const AppConfigSchema = z.object({
   version: z.number(),
   themeId: z.string(),
   appearance: AppearanceModeSchema,
-  customThemes: z.array(ThemeSchema),
+  customThemes: StoredCustomThemesSchema,
   railWidth: z.number(),
   railCollapsed: z.boolean(),
   recentFiles: z.array(z.string()),
