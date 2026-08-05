@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { Document } from "@/lib/ipc";
 import type { Theme } from "@/lib/theme/schema";
+import { taskClickHandler } from "@/lib/edit/tasks";
 import { enhance } from "@/lib/render/enhance";
 import { hasBlockedImages, loadBlockedImages } from "@/lib/render/images";
 import { linkClickHandler } from "@/lib/render/links";
@@ -23,6 +24,8 @@ interface DocumentViewProps {
   onAnchorConsumed: () => void;
   onOpenDocument: (path: string, fragment: string) => void;
   onScrollerReady: (element: HTMLElement | null) => void;
+  /** Writes edited Markdown. Resolves false if the write was refused. */
+  onSave: (source: string) => Promise<boolean>;
   /** False for a background tab: still mounted, so its highlighted code and
    *  rendered diagrams survive, but not drawn. */
   visible?: boolean;
@@ -39,6 +42,7 @@ export function DocumentView({
   onAnchorConsumed,
   onOpenDocument,
   onScrollerReady,
+  onSave,
   visible = true,
   restoreScrollTop = 0,
   onScrollChange,
@@ -55,11 +59,19 @@ export function DocumentView({
 
   // Layout effect, not effect: the HTML has to be in place before the browser
   // paints, or every document open flashes empty first.
+  //
+  // Scroll only resets when a *different* document arrives. Re-rendering the
+  // same one is what an edit does, and jumping to the top after every tick of a
+  // checkbox would make the document unusable.
+  const shown = useRef<string | null>(null);
   useLayoutEffect(() => {
     const article = articleRef.current;
     if (!article) return;
     article.innerHTML = doc.html;
-    scrollerRef.current?.scrollTo({ top: 0 });
+    if (shown.current !== doc.path) {
+      shown.current = doc.path;
+      scrollerRef.current?.scrollTo({ top: 0 });
+    }
   }, [doc.path, doc.html]);
 
   // Hiding a tab with `display: none` destroys its layout box and with it the
@@ -124,6 +136,23 @@ export function DocumentView({
     article.addEventListener("click", handler);
     return () => article.removeEventListener("click", handler);
   }, [doc.dir, onOpenDocument]);
+
+  // Ticking a checkbox writes to the file. Read through a ref so the listener is
+  // not rebuilt on every save — and so it always edits the newest source rather
+  // than whichever one it closed over.
+  const source = useRef(doc.source);
+  source.current = doc.source;
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article) return;
+
+    const handler = taskClickHandler({
+      source: () => source.current,
+      save: onSave,
+    });
+    article.addEventListener("click", handler);
+    return () => article.removeEventListener("click", handler);
+  }, [onSave]);
 
   // A link that carried an anchor scrolls once the document has rendered. Two
   // frames, because the first only guarantees the HTML is in the DOM — the

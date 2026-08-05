@@ -131,6 +131,25 @@ pub fn hash(contents: &str) -> String {
     format!("{:x}", Sha256::digest(contents.as_bytes()))
 }
 
+/// Fails unless `path` still holds exactly what the caller last saw.
+///
+/// This is the whole data-loss guard. Without it an edit made against a document
+/// the reader opened ten minutes ago would overwrite whatever a `git checkout`,
+/// another editor, or the far side of a sync had written since — work nobody
+/// ever had the chance to look at.
+fn ensure_unchanged(path: &Path, expected_hash: &str) -> LindoResult<()> {
+    let current = std::fs::read_to_string(path).map_err(|source| LindoError::ReadFile {
+        path: path.display().to_string(),
+        source,
+    })?;
+    if hash(&current) != expected_hash {
+        return Err(LindoError::StaleWrite {
+            path: path.display().to_string(),
+        });
+    }
+    Ok(())
+}
+
 /// Writes an edited document back to disk and re-renders it.
 ///
 /// `expected_hash` is the fingerprint the caller last saw. If the file no longer
@@ -149,15 +168,7 @@ pub fn save(
         return Err(LindoError::UnsupportedFile(path.display().to_string()));
     }
 
-    let current = std::fs::read_to_string(path).map_err(|source| LindoError::ReadFile {
-        path: path.display().to_string(),
-        source,
-    })?;
-    if hash(&current) != expected_hash {
-        return Err(LindoError::StaleWrite {
-            path: path.display().to_string(),
-        });
-    }
+    ensure_unchanged(path, expected_hash)?;
 
     // Recorded *before* the write, so the event this write is about to cause
     // cannot arrive before the watcher knows to ignore it.
@@ -565,6 +576,31 @@ mod tests {
         state.expect_write(&path, &hash("# Ours\n"));
         std::fs::write(&path, "# Theirs\n").unwrap();
         assert!(!state.is_our_write(&path));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The guard that stops an edit from overwriting work the reader never saw.
+    #[test]
+    fn a_save_is_refused_when_the_file_moved_underneath_it() {
+        let dir = std::env::temp_dir().join("lindo-md-stale-write-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("note.md");
+        std::fs::write(&path, "# As opened\n").unwrap();
+
+        let opened = hash("# As opened\n");
+        assert!(ensure_unchanged(&path, &opened).is_ok());
+
+        // Somebody else writes: a git checkout, another editor, a sync.
+        std::fs::write(&path, "# Somebody else's work\n").unwrap();
+        let error = ensure_unchanged(&path, &opened).unwrap_err();
+        assert!(
+            matches!(error, LindoError::StaleWrite { .. }),
+            "expected a refusal, got {error:?}"
+        );
+        // The message has to tell the reader what to do about it.
+        let shown = error.to_string();
+        assert!(shown.contains("Reload"), "{shown}");
 
         std::fs::remove_dir_all(&dir).ok();
     }

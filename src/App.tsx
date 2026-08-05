@@ -396,6 +396,7 @@ function Shell() {
               onAnchorConsumed={docs.clearPendingAnchor}
               onScrollChange={docs.rememberScroll}
               onScrollerReady={setScroller}
+              onSave={docs.save}
             />
           )}
         </div>

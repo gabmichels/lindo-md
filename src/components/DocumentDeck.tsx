@@ -32,6 +32,7 @@ interface DocumentDeckProps {
   onAnchorConsumed: (tabId: string) => void;
   onScrollChange: (tabId: string, scrollTop: number) => void;
   onScrollerReady: (element: HTMLElement | null) => void;
+  onSave: (tabId: string, source: string) => Promise<boolean>;
 }
 
 export function DocumentDeck({
@@ -43,6 +44,7 @@ export function DocumentDeck({
   onAnchorConsumed,
   onScrollChange,
   onScrollerReady,
+  onSave,
 }: DocumentDeckProps) {
   const mru = useRef<string[]>([]);
   const active = session.activeTabId;
@@ -73,6 +75,7 @@ export function DocumentDeck({
             }
             onScrollChange={(scrollTop) => onScrollChange(tab.id, scrollTop)}
             onScrollerReady={onScrollerReady}
+            onSave={(source) => onSave(tab.id, source)}
           />
         );
       })}
