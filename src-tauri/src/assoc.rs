@@ -81,18 +81,21 @@ impl OpenQueue {
 /// Split from `initial_document` so it is testable: the shapes that matter are a
 /// bare launch, a launch with flags Tauri or the OS added, and a launch with a
 /// path that is not Markdown at all.
+///
+/// Takes anything that is already a path rather than `AsRef<str>`, so the caller
+/// can hand it `OsString`s — see `initial_document` for why that matters.
 pub fn document_from_args<I, S>(args: I) -> Option<PathBuf>
 where
     I: IntoIterator<Item = S>,
-    S: AsRef<str>,
+    S: Into<PathBuf>,
 {
     args.into_iter()
+        .map(Into::into)
         // `skip(1)` would be wrong for the single-instance callback, which
         // passes the full argv of the *second* process; filtering by shape
         // handles both callers. It also drops the `-psn_0_…` process serial
         // number macOS appends when Finder launches a bundle.
-        .filter(|arg| !arg.as_ref().starts_with('-'))
-        .map(|arg| PathBuf::from(arg.as_ref()))
+        .filter(|path: &PathBuf| !path.to_string_lossy().starts_with('-'))
         .find(|path| files::is_markdown(path) && path.is_file())
 }
 
@@ -119,7 +122,12 @@ where
 
 /// The document this process was launched with, if any.
 pub fn initial_document() -> Option<PathBuf> {
-    document_from_args(std::env::args().skip(1))
+    // `args_os`, not `args`: the latter panics on an argument that is not valid
+    // Unicode, and a filename that is not valid Unicode is ordinary on Linux.
+    // This runs while the builder is assembling, before any window exists, so
+    // that panic would be a launch producing no window at all — the whole app
+    // lost to one oddly-named file being dragged onto its icon.
+    document_from_args(std::env::args_os().skip(1))
 }
 
 /// Hands documents to the window by both routes at once — see [`OpenQueue`].
@@ -186,6 +194,24 @@ mod tests {
     #[test]
     fn returns_nothing_for_a_bare_launch() {
         assert_eq!(document_from_args(Vec::<String>::new()), None);
+    }
+
+    /// argv is read before the window exists, so anything that can panic there
+    /// costs the whole launch rather than one document. `std::env::args` panics
+    /// on exactly this input, which is why `initial_document` uses `args_os`.
+    #[cfg(unix)]
+    #[test]
+    fn survives_an_argument_that_is_not_valid_unicode() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let path = fixture("valid.md");
+        let invalid = OsString::from_vec(vec![0x66, 0x80, 0x6f, 0x2e, 0x6d, 0x64]);
+
+        let found = document_from_args([invalid, path.clone().into_os_string()]);
+        assert_eq!(found, Some(path.clone()));
+
+        std::fs::remove_file(&path).ok();
     }
 
     #[test]
