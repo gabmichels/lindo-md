@@ -103,17 +103,6 @@ function asDiagramSource(element: HTMLElement): HTMLElement {
 }
 
 /**
- * Re-runs only the theme-dependent passes. Called when the reader switches
- * theme, which must not re-fetch or re-parse the document.
- */
-export function reenhanceForTheme(root: HTMLElement, options: EnhanceOptions): () => void {
-  for (const figure of root.querySelectorAll<HTMLElement>("figure.mermaid")) {
-    delete figure.dataset.rendered;
-  }
-  return enhance(root, options);
-}
-
-/**
  * Adds a copy button to every code block. The button copies `data-source`, the
  * text as it was before highlighting — copying the rendered DOM would bring the
  * span structure along and, with line numbers on, the numbers too.

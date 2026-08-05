@@ -81,10 +81,6 @@ export function tabByPath(session: Session, path: string): Tab | undefined {
   return session.tabs.find((tab) => tab.path === path);
 }
 
-export function groupById(session: Session, id: string): TabGroup | undefined {
-  return session.groups.find((group) => group.id === id);
-}
-
 export function activeTab(session: Session): Tab | undefined {
   return session.activeTabId ? tabById(session, session.activeTabId) : undefined;
 }

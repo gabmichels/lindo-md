@@ -107,6 +107,9 @@ jobs:
       # the job means one install rather than three.
       - run: pnpm format:check
       - run: pnpm lint
+      # Dead code and dependencies nothing imports. Cheap, and it caught seven
+      # unused packages the first time it ran.
+      - run: pnpm knip
       - run: pnpm test
 
   rust:
