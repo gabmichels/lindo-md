@@ -155,6 +155,14 @@ Two smaller decisions:
   `chore:` ships to nobody. See [Releasing](#releasing).
 - **Comments** explain *why*, not *what*. A comment restating the code is worse than no comment.
 - **Tokens only.** No color literal in a component. No hardcoded radius — use `--ui-r-sm|md|lg`.
+- **A theme is untrusted input**, because it is a file people share. `ThemeSchema` refuses any
+  colour or font family containing CSS structure — `<>{};@`, `url(`, a comment — and
+  `isSafeCssValue` is exported so the HTML exporter can apply the same rule. In the app a theme is
+  safe regardless (`setProperty` goes through CSSOM), but the exporter writes those tokens as
+  *text* into a literal `<style>`, and `<style>` is a raw-text element: the tokenizer ends it at
+  the first `</style`. A shared theme could therefore export a file that ran script at `file://`.
+  Keep the check a character rule rather than a colour grammar — presets are authored in `oklch()`
+  and `var()` has to keep working.
 - **`aria-label` on every icon-only control.** The rail is almost all icon-only controls.
 - **New setting?** It has to land in five places: the Rust struct in `config.rs`, the zod schema and
   TS type in `src/lib/ipc.ts` / `src/lib/types.ts`, the `FALLBACK` in `hooks/useConfig.tsx`, and the
