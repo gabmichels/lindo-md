@@ -8,7 +8,7 @@ mod files;
 mod markdown;
 mod srcmap;
 
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 use tauri_plugin_window_state::StateFlags;
 
 use files::WatchState;
@@ -18,11 +18,11 @@ pub fn run() {
     let mut builder = tauri::Builder::default()
         // Must be registered first, per the plugin's contract: a second launch
         // (a double-clicked .md while the app is open) is routed into the
-        // running window rather than starting another copy.
+        // running window rather than starting another copy. This never fires on
+        // macOS, which reactivates the running bundle itself and sends an Apple
+        // Event instead — handled in the run loop below.
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            if let Some(path) = assoc::document_from_args(argv) {
-                let _ = app.emit("open-document", path.display().to_string());
-            }
+            assoc::deliver(app, assoc::document_from_args(argv));
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_focus();
             }
@@ -40,7 +40,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
-        .manage(WatchState::default());
+        .manage(WatchState::default())
+        // Reads argv now, so the launch argument is already queued before the
+        // webview that collects it exists — see `OpenQueue::from_launch`.
+        .manage(assoc::OpenQueue::from_launch());
 
     // Logging is a development aid; a release build stays silent.
     if cfg!(debug_assertions) {
@@ -62,12 +65,24 @@ pub fn run() {
             commands::read_theme_file,
             commands::write_theme_file,
             commands::write_html_file,
-            commands::get_initial_document,
+            commands::get_pending_documents,
             commands::get_default_app_status,
             commands::request_default_app,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running lindo-md");
+        .build(tauri::generate_context!())
+        .expect("error while building lindo-md")
+        // `build` + `run` rather than `run` alone, purely to get at the run loop:
+        // `RunEvent::Opened` is the *only* way a double-clicked document reaches
+        // the app on macOS, and it has nowhere else to be observed.
+        .run(|_app, _event| {
+            // Underscored so the non-macOS builds, where the block below is
+            // compiled out, do not warn on unused parameters — CI treats clippy
+            // warnings as errors.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = &_event {
+                assoc::deliver(_app, assoc::documents_from_urls(urls.iter()));
+            }
+        });
 }
 
 #[cfg(test)]

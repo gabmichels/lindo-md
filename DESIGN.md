@@ -47,7 +47,9 @@ Text runs `--ui-text` → `--ui-text-muted` → `--ui-text-faint`; anything that
 ### Ember
 
 One chrome accent: `oklch(0.74 0.15 62)`, a warm amber-ochre. It marks the active file, focus rings,
-and the reading-progress hairline — nothing else. It
+the reading-progress hairline, and the ring around a window holding a droppable file — nothing else.
+That last one is on the list because it *is* the second one: a focus ring drawn around the whole
+window rather than around one control. It
 is warm on purpose, so it never reads as "part of" a document theme, and it is not the blue-violet
 every desktop app defaults to.
 

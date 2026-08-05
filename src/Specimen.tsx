@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { DropOverlay } from "@/components/DropOverlay";
 import { FormatMenu } from "@/components/FormatMenu";
 import { Rail } from "@/components/Rail";
 import { SettingsDialog } from "@/components/SettingsDialog";
@@ -142,6 +143,8 @@ export default function Specimen() {
 
         <FormatMenuState />
 
+        <DropOverlayState />
+
         <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(340px,1fr))]">
           {PRESETS.map((preset) => (
             <PaperCard
@@ -174,6 +177,34 @@ export default function Specimen() {
  * disabled column is what a reader sees with no selection, or one spanning two
  * blocks.
  */
+/**
+ * The drop target, which is otherwise only reachable by holding a real file over
+ * a real window — the one chrome state that cannot be photographed at leisure.
+ *
+ * It covers the whole viewport, specimen included, because that is what it does
+ * in the app. Nothing under it stops working: the overlay never takes pointer
+ * events, so the toggle below it is still clickable while it is up.
+ */
+function DropOverlayState() {
+  const [active, setActive] = useState(false);
+
+  return (
+    <section className="mb-4">
+      <h2 className="mb-2 text-[10.5px] uppercase tracking-[0.08em] text-ui-text-faint">
+        Drop target
+      </h2>
+      <button
+        type="button"
+        onClick={() => setActive((current) => !current)}
+        className="rounded-ui-md bg-ui-plane-1 px-3 py-1.5 text-[12px] text-ui-text"
+      >
+        {active ? "Hide" : "Show"} the drop overlay
+      </button>
+      <DropOverlay active={active} />
+    </section>
+  );
+}
+
 function FormatMenuState() {
   const [command, setCommand] = useState<string | null>(null);
 

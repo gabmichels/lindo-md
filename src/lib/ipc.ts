@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { z } from "zod";
 
 import { StoredSessionSchema } from "./tabs/schema";
@@ -181,10 +182,11 @@ export type { Theme };
 // Narrow commands rather than a webview `fs` permission: each takes one path
 // that came from an OS dialog and refuses any extension but its own.
 
-/** The document the app was launched with — a double-clicked `.md`, or
- *  "Open with → lindo-md". `null` for a normal launch. */
-export function getInitialDocument(): Promise<string | null> {
-  return call("get_initial_document", z.string().nullable());
+/** The documents the OS has handed us and this window has not collected yet — a
+ *  double-clicked `.md`, an "Open with → lindo-md", a launch argument. Empty for
+ *  a normal launch, and draining: each hand-off is collected once. */
+export function getPendingDocuments(): Promise<string[]> {
+  return call("get_pending_documents", z.array(z.string()));
 }
 
 export function readThemeFile(path: string): Promise<string> {
@@ -238,12 +240,49 @@ export function onDocumentChanged(
   return subscribe("document-changed", z.string(), handler);
 }
 
-/** A second launch handed us a document — the single-instance plugin routes it
- *  here rather than opening another window. */
+/** The OS handed us a document while we were already running — a second launch
+ *  routed here by the single-instance plugin, or an Apple Event on macOS. Paired
+ *  with `getPendingDocuments`, which covers the hand-offs that land before this
+ *  listener exists; see `assoc::OpenQueue` in Rust for why it takes both. */
 export function onOpenDocumentRequested(
   handler: (path: string) => void,
 ): Promise<UnlistenFn> {
   return subscribe("open-document", z.string(), handler);
+}
+
+/** Where a drag of files from outside the app currently stands. `over` and
+ *  `drop` carry every path in the drag, filtered by nobody yet. */
+export type FileDrag =
+  | { phase: "over"; paths: string[] }
+  | { phase: "drop"; paths: string[] }
+  | { phase: "leave" };
+
+/**
+ * Files dragged onto the window from the OS.
+ *
+ * Not an HTML5 `ondrop` handler, which would never fire: `dragDropEnabled` is on
+ * (Tauri's default) and it makes the native side swallow the drag before the
+ * webview ever sees it. This event is the only route, and it is also the only
+ * one that yields real filesystem paths rather than sandboxed `File` objects.
+ */
+export function onFileDrag(
+  handler: (event: FileDrag) => void,
+): Promise<UnlistenFn> {
+  return getCurrentWebview().onDragDropEvent(({ payload }) => {
+    switch (payload.type) {
+      case "enter":
+        handler({ phase: "over", paths: payload.paths });
+        break;
+      case "drop":
+        handler({ phase: "drop", paths: payload.paths });
+        break;
+      case "leave":
+        handler({ phase: "leave" });
+        break;
+      // `over` is a cursor position, fired continuously for the whole hover and
+      // carrying no paths. Nothing here needs it.
+    }
+  });
 }
 
 /** Markdown files appeared or disappeared in the open folder. */

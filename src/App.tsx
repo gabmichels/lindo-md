@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AboutDialog } from "@/components/AboutDialog";
 import { DocumentDeck } from "@/components/DocumentDeck";
+import { DropOverlay } from "@/components/DropOverlay";
 import { EmptyState } from "@/components/EmptyState";
 import { FindBar } from "@/components/FindBar";
 import { Rail } from "@/components/Rail";
@@ -14,17 +15,15 @@ import { TabStrip } from "@/components/TabStrip";
 import { TitleBar } from "@/components/TitleBar";
 import { Toolbar } from "@/components/Toolbar";
 import { ConfigProvider, useConfig } from "@/hooks/useConfig";
+import { useFileDrop } from "@/hooks/useFileDrop";
 import { useFileTree } from "@/hooks/useFileTree";
 import { useFind } from "@/hooks/useFind";
+import { useOsDocuments } from "@/hooks/useOsDocuments";
 import { useOutline } from "@/hooks/useOutline";
 import { useTabDocuments } from "@/hooks/useTabDocuments";
 import { useTabs } from "@/hooks/useTabs";
 import { useTheme } from "@/hooks/useTheme";
-import {
-  getInitialDocument,
-  onOpenDocumentRequested,
-  writeHtmlFile,
-} from "@/lib/ipc";
+import { writeHtmlFile } from "@/lib/ipc";
 import { buildStandaloneHtml } from "@/lib/export/html";
 import { stepZoom } from "@/lib/zoom";
 import documentCss from "@/document.css?inline";
@@ -131,9 +130,10 @@ function Shell() {
     [folder, tabs],
   );
 
-  // A document handed to us by the OS — a double-clicked `.md`, or a second
-  // launch routed here by the single-instance plugin. It always earns a real
-  // tab: the reader asked for this file by name.
+  // A document handed to us by the OS — a double-clicked `.md`, a second launch
+  // routed here by the single-instance plugin, an Apple Event, a file dropped on
+  // the window. It always earns a real tab rather than a preview one: the reader
+  // asked for this file by name.
   const openFromOs = useCallback(
     (path: string) => {
       setFolder((current) => current ?? dirname(path));
@@ -142,30 +142,18 @@ function Shell() {
     [tabs],
   );
 
-  // Waits for the config: the session is restored from it, and opening on top
-  // of a restore is the only order that keeps both the saved tabs and this one.
-  const openedInitial = useRef(false);
-  useEffect(() => {
-    if (!loaded || openedInitial.current) return;
-    openedInitial.current = true;
+  // "Reopen last document" is the tab session coming back, restored in
+  // `useTabs`; all that is left here is what the OS handed us, which always wins
+  // because the reader asked for that one by name. Gated on `loaded` so it lands
+  // on top of the restored session rather than under it.
+  useOsDocuments(loaded, openFromOs);
 
-    // "Reopen last document" is now the tab session coming back, restored in
-    // `useTabs`; all that is left here is the file the OS handed us, which
-    // always wins because the reader asked for that one by name.
-    getInitialDocument().then(
-      (path) => {
-        if (path) openFromOs(path);
-      },
-      () => undefined,
-    );
-  }, [loaded, openFromOs]);
-
-  useEffect(() => {
-    const unlisten = onOpenDocumentRequested(openFromOs);
-    return () => {
-      void unlisten.then((off) => off());
-    };
-  }, [openFromOs]);
+  const dropActive = useFileDrop(
+    useCallback(
+      (paths: string[]) => paths.forEach(openFromOs),
+      [openFromOs],
+    ),
+  );
 
   const openFile = useCallback(async () => {
     const path = await openDialog({
@@ -454,6 +442,10 @@ function Shell() {
         theme={theme}
         onUpdateConfig={update}
       />
+
+      {/* Outside `<main>` on purpose: the canvas is where `--doc-*` lives, and
+          this is chrome. */}
+      <DropOverlay active={dropActive} />
     </div>
   );
 }
