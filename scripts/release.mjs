@@ -54,8 +54,16 @@ if (positional.length > 1) {
 }
 const override = positional[0] ?? null;
 
+// stderr is captured rather than inherited: several of these calls are questions whose failure
+// is a valid answer (`describe` before the first tag, `rev-parse origin/main` with no remote),
+// and letting git print `fatal:` for them reads as a broken release. Real failures still throw,
+// and the catch decides what to say.
 function git(...args) {
-  return execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
+  return execFileSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
 }
 
 // No shell: a commit message like `chore(release): v0.2.0` contains parentheses, which cmd.exe
