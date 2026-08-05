@@ -18,9 +18,7 @@ let appliedThemeId: string | null = null;
 let counter = 0;
 
 async function getMermaid(theme: Theme): Promise<MermaidApi> {
-  if (!mermaidPromise) {
-    mermaidPromise = import("mermaid").then((m) => m.default);
-  }
+  mermaidPromise ??= import("mermaid").then((m) => m.default);
   const mermaid = await mermaidPromise;
 
   // Mermaid bakes colors into the SVG rather than reading CSS variables, so the
@@ -65,11 +63,8 @@ async function fontReady(family: string, size: number): Promise<void> {
  * and the parser's message instead of an empty gap: a broken diagram in someone
  * else's document is information, not a failure of the viewer.
  */
-export async function renderDiagram(
-  block: HTMLElement,
-  theme: Theme,
-): Promise<void> {
-  const source = block.dataset.source ?? block.textContent ?? "";
+export async function renderDiagram(block: HTMLElement, theme: Theme): Promise<void> {
+  const source = block.dataset.source ?? block.textContent;
   block.dataset.source = source;
 
   try {
@@ -78,11 +73,7 @@ export async function renderDiagram(
     // Dagre measures label text through the live DOM; with nothing attached the
     // measurement fails silently and flowcharts come out with a nonsense square
     // viewBox (a 200px graph inside a 2100x2100 box).
-    const { svg } = await mermaid.render(
-      `mermaid-${counter++}`,
-      source,
-      measuringHost(theme),
-    );
+    const { svg } = await mermaid.render(`mermaid-${counter++}`, source, measuringHost(theme));
 
     const figure = document.createElement("figure");
     figure.className = "mermaid";
@@ -149,10 +140,7 @@ function normalizeViewBox(figure: HTMLElement): void {
   const width = box.width + PAD * 2;
   const height = box.height + PAD * 2;
 
-  svg.setAttribute(
-    "viewBox",
-    `${box.x - PAD} ${box.y - PAD} ${width} ${height}`,
-  );
+  svg.setAttribute("viewBox", `${box.x - PAD} ${box.y - PAD} ${width} ${height}`);
   svg.setAttribute("width", "100%");
   // A fixed height attribute would fight the aspect ratio the viewBox implies.
   svg.removeAttribute("height");
@@ -171,8 +159,7 @@ function normalizeViewBox(figure: HTMLElement): void {
  */
 function measuringHost(theme: Theme): HTMLElement {
   const host =
-    (document.getElementById(HOST_ID) as HTMLElement | null) ??
-    document.body.appendChild(document.createElement("div"));
+    document.getElementById(HOST_ID) ?? document.body.appendChild(document.createElement("div"));
 
   host.id = HOST_ID;
   host.setAttribute("aria-hidden", "true");
@@ -212,6 +199,9 @@ const HOST_ID = "lindo-md-mermaid-host";
 /** Mermaid's parse errors are multi-line with an ASCII pointer; the first line
  *  is the part a reader can act on. */
 function firstLine(message: string): string {
+  // `||`, not `??`: a first line that trims to the empty string has to fall back too,
+  // and `??` only catches null and undefined.
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- "" must fall back
   return message.split("\n")[0]?.trim() || "unknown error";
 }
 

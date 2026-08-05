@@ -5,11 +5,7 @@ import type { Theme } from "@/lib/theme/schema";
 import { FormatMenu } from "@/components/FormatMenu";
 import { useDocumentTyping } from "@/hooks/useDocumentTyping";
 import { applyFormat, type FormatCommand } from "@/lib/edit/format";
-import {
-  restoreSelection,
-  selectionRange,
-  type SourceRange,
-} from "@/lib/edit/selection";
+import { restoreSelection, selectionRange, type SourceRange } from "@/lib/edit/selection";
 import { taskClickHandler } from "@/lib/edit/tasks";
 import { enhance } from "@/lib/render/enhance";
 import { hasBlockedImages, loadBlockedImages } from "@/lib/render/images";
@@ -75,7 +71,9 @@ export function DocumentView({
   useEffect(() => {
     if (!visible) return;
     onScrollerReady(scrollerRef.current);
-    return () => onScrollerReady(null);
+    return () => {
+      onScrollerReady(null);
+    };
   }, [onScrollerReady, visible]);
 
   // Layout effect, not effect: the HTML has to be in place before the browser
@@ -168,10 +166,14 @@ export function DocumentView({
     const handler = linkClickHandler({
       dir: doc.dir,
       openDocument: onOpenDocument,
-      scrollToAnchor: (id) => scrollToAnchor(scroller, id),
+      scrollToAnchor: (id) => {
+        scrollToAnchor(scroller, id);
+      },
     });
     article.addEventListener("click", handler);
-    return () => article.removeEventListener("click", handler);
+    return () => {
+      article.removeEventListener("click", handler);
+    };
   }, [doc.dir, onOpenDocument]);
 
   // Ticking a checkbox writes to the file. Read through a ref so the listener is
@@ -188,7 +190,9 @@ export function DocumentView({
       save: onSave,
     });
     article.addEventListener("click", handler);
-    return () => article.removeEventListener("click", handler);
+    return () => {
+      article.removeEventListener("click", handler);
+    };
   }, [onSave]);
 
   // The selection is captured when the menu opens rather than when a row is
@@ -217,7 +221,9 @@ export function DocumentView({
   /** The context menu resolves the range once, when it opens — see
    *  `onContextMenu` — so by the time a row is chosen the selection may be
    *  gone and `pending` is the only record of it. */
-  const format = (command: FormatCommand) => formatRange(pending.current, command);
+  const format = (command: FormatCommand) => {
+    formatRange(pending.current, command);
+  };
 
   /** The keyboard has no such gap: the selection is still live at the moment
    *  the chord arrives, so read it directly rather than depending on a menu
@@ -321,6 +327,12 @@ export function DocumentView({
     const before = textarea.value.slice(0, entryOffset.current).split("\n").length - 1;
     const top = (textarea.offsetHeight / Math.max(1, lines)) * before;
     scrollerRef.current?.scrollTo({ top: Math.max(0, top - 120) });
+    // Deliberately keyed on `inSource` alone. This effect exists to place the caret
+    // when the reader switches between the rendered and source views; adding
+    // `doc.blocks` would re-run it on every edit and yank the caret mid-typing. The
+    // closure is rebuilt each render, so the `doc.blocks` it reads is never stale —
+    // it is the *re-running* that would be wrong, not the value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [inSource]);
 
   // Typing in the source view reaches the file the same way typing in the
@@ -332,9 +344,12 @@ export function DocumentView({
     if (sourceTimer.current !== null) window.clearTimeout(sourceTimer.current);
     sourceTimer.current = window.setTimeout(() => void onSave(next), 600);
   };
-  useEffect(() => () => {
-    if (sourceTimer.current !== null) window.clearTimeout(sourceTimer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (sourceTimer.current !== null) window.clearTimeout(sourceTimer.current);
+    },
+    [],
+  );
 
   const copySelection = () => {
     const text = window.getSelection()?.toString() ?? "";
@@ -355,7 +370,9 @@ export function DocumentView({
         onAnchorConsumed();
       }),
     );
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+    };
   }, [pendingAnchor, doc.path, onAnchorConsumed]);
 
   return (
@@ -372,16 +389,14 @@ export function DocumentView({
       // Page Up/Down. Not auto-focused: the focus ring would then be painted
       // around the page permanently, on every document, for everyone.
       // Keyboard scrolling without focusing is handled in App's key handler.
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region must be reachable by keyboard (WCAG 2.1.1); see the note above
       tabIndex={0}
       role="region"
       aria-label={`${doc.title}, document content`}
     >
       {blocked && (
         <div className="doc-notice">
-          <span>
-            Remote images are blocked so opening a document cannot report that you
-            did.
-          </span>
+          <span>Remote images are blocked so opening a document cannot report that you did.</span>
           <button
             type="button"
             onClick={() => {
@@ -401,7 +416,9 @@ export function DocumentView({
           value={draft}
           spellCheck={false}
           aria-label={`${doc.title}, Markdown source`}
-          onChange={(event) => editSource(event.target.value)}
+          onChange={(event) => {
+            editSource(event.target.value);
+          }}
           onBlur={() => {
             if (draft !== doc.source) void onSave(draft);
           }}
@@ -417,6 +434,9 @@ export function DocumentView({
         // time a row is chosen, and greying the rows out afterwards would be
         // worse than deciding up front.
       >
+        {/* A right-click menu on the document body is ordinary reader behaviour; the rule
+            is aimed at click handlers that fake a button out of a div. */}
+        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- context menu on document content */}
         <article
           ref={articleRef}
           className="doc"

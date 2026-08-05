@@ -6,7 +6,30 @@ authors = ["lindo-md contributors"]
 license = "MIT"
 repository = "https://github.com/gabmichels/lindo-md"
 edition = "2021"
-rust-version = "1.82"
+# No `rust-version`. The 1.82 that used to be declared here was untrue — `globset`
+# alone now ships a manifest that 1.82's cargo cannot parse — and an MSRV is a promise
+# to people compiling this as a dependency, which nobody does: lindo-md ships as a
+# binary. Track stable rather than defend a number no test checks.
+
+# `pedantic` is package-wide. The four lints that ban panicking — unwrap/expect/panic/
+# indexing — live in `src/lib.rs` instead, because a `[lints]` table applies to every
+# target including the integration tests under `tests/`, which are separate crates that
+# cannot see a `#![cfg_attr(test, allow(...))]` in the library and have every right to
+# assert by panicking.
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+
+# Tauri command handlers take owned `String`s because that is the signature the macro
+# generates; rewriting them to take `&str` is not possible.
+needless_pass_by_value = "allow"
+# Wants backticks around every identifier-shaped word in a doc comment. The comments in
+# this crate are prose written for a reader, and that is deliberate.
+doc_markdown = "allow"
+# `Config` having several booleans is what a settings struct is.
+struct_excessive_bools = "allow"
 
 [lib]
 name = "lindo_md_lib"

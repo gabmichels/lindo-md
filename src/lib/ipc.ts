@@ -134,10 +134,7 @@ export function scanFolder(
 /** Replaces the current watch set. Every open document is watched, not just the
  *  visible one, so a background tab still live-reloads. An empty list and no
  *  folder stops watching. */
-export function watchPaths(
-  documents: string[],
-  folder: string | null,
-): Promise<void> {
+export function watchPaths(documents: string[], folder: string | null): Promise<void> {
   return call("watch_paths", z.void(), { documents, folder });
 }
 
@@ -157,7 +154,10 @@ export const AppConfigSchema = z.object({
   railWidth: z.number(),
   railCollapsed: z.boolean(),
   recentFiles: z.array(z.string()),
-  lastFolder: z.string().nullish().transform((v) => v ?? null),
+  lastFolder: z
+    .string()
+    .nullish()
+    .transform((v) => v ?? null),
   blockRemoteImages: z.boolean(),
   respectGitignore: z.boolean(),
   showHiddenFiles: z.boolean(),
@@ -209,7 +209,10 @@ export const DefaultAppStatusSchema = z.object({
    *  control that cannot work. */
   supported: z.boolean(),
   isDefault: z.boolean(),
-  currentHandler: z.string().nullish().transform((v) => v ?? null),
+  currentHandler: z
+    .string()
+    .nullish()
+    .transform((v) => v ?? null),
 });
 export type DefaultAppStatus = z.infer<typeof DefaultAppStatusSchema>;
 
@@ -230,13 +233,13 @@ function subscribe<T>(
   schema: z.ZodType<T>,
   handler: (payload: T) => void,
 ): Promise<UnlistenFn> {
-  return listen(event, (e) => handler(parseOrThrow(event, schema, e.payload)));
+  return listen(event, (e) => {
+    handler(parseOrThrow(event, schema, e.payload));
+  });
 }
 
 /** The open document changed on disk. Payload is its path. */
-export function onDocumentChanged(
-  handler: (path: string) => void,
-): Promise<UnlistenFn> {
+export function onDocumentChanged(handler: (path: string) => void): Promise<UnlistenFn> {
   return subscribe("document-changed", z.string(), handler);
 }
 
@@ -244,18 +247,14 @@ export function onDocumentChanged(
  *  routed here by the single-instance plugin, or an Apple Event on macOS. Paired
  *  with `getPendingDocuments`, which covers the hand-offs that land before this
  *  listener exists; see `assoc::OpenQueue` in Rust for why it takes both. */
-export function onOpenDocumentRequested(
-  handler: (path: string) => void,
-): Promise<UnlistenFn> {
+export function onOpenDocumentRequested(handler: (path: string) => void): Promise<UnlistenFn> {
   return subscribe("open-document", z.string(), handler);
 }
 
 /** Where a drag of files from outside the app currently stands. `over` and
  *  `drop` carry every path in the drag, filtered by nobody yet. */
 export type FileDrag =
-  | { phase: "over"; paths: string[] }
-  | { phase: "drop"; paths: string[] }
-  | { phase: "leave" };
+  { phase: "over"; paths: string[] } | { phase: "drop"; paths: string[] } | { phase: "leave" };
 
 /**
  * Files dragged onto the window from the OS.
@@ -265,9 +264,7 @@ export type FileDrag =
  * webview ever sees it. This event is the only route, and it is also the only
  * one that yields real filesystem paths rather than sandboxed `File` objects.
  */
-export function onFileDrag(
-  handler: (event: FileDrag) => void,
-): Promise<UnlistenFn> {
+export function onFileDrag(handler: (event: FileDrag) => void): Promise<UnlistenFn> {
   return getCurrentWebview().onDragDropEvent(({ payload }) => {
     switch (payload.type) {
       case "enter":
@@ -287,5 +284,7 @@ export function onFileDrag(
 
 /** Markdown files appeared or disappeared in the open folder. */
 export function onTreeChanged(handler: () => void): Promise<UnlistenFn> {
-  return subscribe("tree-changed", z.unknown(), () => handler());
+  return subscribe("tree-changed", z.unknown(), () => {
+    handler();
+  });
 }

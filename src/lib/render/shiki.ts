@@ -37,10 +37,7 @@ async function getHighlighter(theme: string): Promise<Highlighter> {
   return highlighter;
 }
 
-async function ensureLanguage(
-  highlighter: Highlighter,
-  lang: string,
-): Promise<boolean> {
+async function ensureLanguage(highlighter: Highlighter, lang: string): Promise<boolean> {
   if (loadedLanguages.has(lang)) return true;
   if (unknownLanguages.has(lang)) return false;
 
@@ -61,14 +58,11 @@ async function ensureLanguage(
  * later theme change can re-highlight without re-reading the document, and so
  * the copy button always copies the code rather than the rendered spans.
  */
-export async function highlightBlock(
-  block: HTMLElement,
-  theme: string,
-): Promise<void> {
+export async function highlightBlock(block: HTMLElement, theme: string): Promise<void> {
   const code = block.querySelector("code");
   if (!code) return;
 
-  const source = block.dataset.source ?? code.textContent ?? "";
+  const source = block.dataset.source ?? code.textContent;
   block.dataset.source = source;
 
   const lang = block.dataset.lang;

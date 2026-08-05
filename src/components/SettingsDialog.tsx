@@ -56,9 +56,7 @@ export function SettingsDialog({
           )}
         >
           <div className="flex items-center justify-between px-5 pt-4 pb-1">
-            <Dialog.Title className="text-[15px] text-ui-text-strong">
-              Settings
-            </Dialog.Title>
+            <Dialog.Title className="text-[15px] text-ui-text-strong">Settings</Dialog.Title>
             <Dialog.Close
               aria-label="Close settings"
               className="grid size-7 place-items-center rounded-ui-sm text-ui-text-muted hover:bg-ui-plane-2 hover:text-ui-text-strong"
@@ -67,15 +65,12 @@ export function SettingsDialog({
             </Dialog.Close>
           </div>
           <Dialog.Description className="sr-only">
-            File associations, startup, reading and file-tree behavior. Fonts,
-            colors and spacing live in the appearance panel.
+            File associations, startup, reading and file-tree behavior. Fonts, colors and spacing
+            live in the appearance panel.
           </Dialog.Description>
 
           <Tabs.Root defaultValue="general" className="flex min-h-0 flex-col">
-            <Tabs.List
-              aria-label="Settings sections"
-              className="flex gap-1 px-5 pb-1"
-            >
+            <Tabs.List aria-label="Settings sections" className="flex gap-1 px-5 pb-1">
               <Tab value="general" label="General" />
               <Tab value="reading" label="Reading" />
               <Tab value="files" label="Files" />
@@ -93,14 +88,14 @@ export function SettingsDialog({
                     <Switch
                       label="Reopen the tabs from last time on launch"
                       checked={config.reopenLastDocument}
-                      onChange={(reopenLastDocument) =>
-                        onUpdateConfig({ reopenLastDocument })
-                      }
+                      onChange={(reopenLastDocument) => {
+                        onUpdateConfig({ reopenLastDocument });
+                      }}
                     />
                   </Row>
                   <Note>
-                    Every tab comes back, in its groups. A file you double-click
-                    opens alongside them rather than instead of them.
+                    Every tab comes back, in its groups. A file you double-click opens alongside
+                    them rather than instead of them.
                   </Note>
                 </Section>
               </Tabs.Content>
@@ -109,16 +104,18 @@ export function SettingsDialog({
                 <Section title="Zoom">
                   <ZoomControl
                     zoom={config.zoom}
-                    onStep={(delta) =>
+                    onStep={(delta) => {
                       onUpdateConfig((current) => ({
                         zoom: stepZoom(current.zoom, delta),
-                      }))
-                    }
-                    onReset={() => onUpdateConfig({ zoom: 1 })}
+                      }));
+                    }}
+                    onReset={() => {
+                      onUpdateConfig({ zoom: 1 });
+                    }}
                   />
                   <Note>
-                    Scales the document without changing the theme, so an
-                    exported file keeps the theme&rsquo;s own size.
+                    Scales the document without changing the theme, so an exported file keeps the
+                    theme&rsquo;s own size.
                   </Note>
                 </Section>
 
@@ -127,15 +124,15 @@ export function SettingsDialog({
                     <Switch
                       label="Smart punctuation"
                       checked={config.smartPunctuation}
-                      onChange={(smartPunctuation) =>
-                        onUpdateConfig({ smartPunctuation })
-                      }
+                      onChange={(smartPunctuation) => {
+                        onUpdateConfig({ smartPunctuation });
+                      }}
                     />
                   </Row>
                   <Note>
-                    Turns straight quotes curly and <code>--</code> into an en
-                    dash. Off by default because it rewrites the author&rsquo;s
-                    text. Takes effect the next time a document is opened.
+                    Turns straight quotes curly and <code>--</code> into an en dash. Off by default
+                    because it rewrites the author&rsquo;s text. Takes effect the next time a
+                    document is opened.
                   </Note>
                 </Section>
 
@@ -144,15 +141,14 @@ export function SettingsDialog({
                     <Switch
                       label="Block remote images"
                       checked={config.blockRemoteImages}
-                      onChange={(blockRemoteImages) =>
-                        onUpdateConfig({ blockRemoteImages })
-                      }
+                      onChange={(blockRemoteImages) => {
+                        onUpdateConfig({ blockRemoteImages });
+                      }}
                     />
                   </Row>
                   <Note>
-                    Remote images become a click-to-load placeholder, so opening
-                    an untrusted document cannot phone home through a tracking
-                    pixel.
+                    Remote images become a click-to-load placeholder, so opening an untrusted
+                    document cannot phone home through a tracking pixel.
                   </Note>
                 </Section>
 
@@ -166,9 +162,8 @@ export function SettingsDialog({
                     }}
                   />
                   <Note>
-                    Themes, fonts, sizes, spacing and colors — in a panel you can
-                    keep open while reading, because the document behind it is
-                    the preview.
+                    Themes, fonts, sizes, spacing and colors — in a panel you can keep open while
+                    reading, because the document behind it is the preview.
                   </Note>
                 </Section>
               </Tabs.Content>
@@ -179,24 +174,23 @@ export function SettingsDialog({
                     <Switch
                       label="Respect gitignore when scanning folders"
                       checked={config.respectGitignore}
-                      onChange={(respectGitignore) =>
-                        onUpdateConfig({ respectGitignore })
-                      }
+                      onChange={(respectGitignore) => {
+                        onUpdateConfig({ respectGitignore });
+                      }}
                     />
                   </Row>
                   <Row label="Show hidden files">
                     <Switch
                       label="Show hidden files and folders"
                       checked={config.showHiddenFiles}
-                      onChange={(showHiddenFiles) =>
-                        onUpdateConfig({ showHiddenFiles })
-                      }
+                      onChange={(showHiddenFiles) => {
+                        onUpdateConfig({ showHiddenFiles });
+                      }}
                     />
                   </Row>
                   <Note>
-                    The rail lists Markdown files only. Folders with none at any
-                    depth are left out, so opening a source repository shows its
-                    docs rather than its source layout.
+                    The rail lists Markdown files only. Folders with none at any depth are left out,
+                    so opening a source repository shows its docs rather than its source layout.
                   </Note>
                 </Section>
               </Tabs.Content>
@@ -225,11 +219,7 @@ function Tab({ value, label }: { value: string; label: string }) {
 }
 
 function Note({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="pt-1 text-[11.5px] leading-[1.5] text-ui-text-faint">
-      {children}
-    </p>
-  );
+  return <p className="pt-1 text-[11.5px] leading-[1.5] text-ui-text-faint">{children}</p>;
 }
 
 /**
@@ -246,7 +236,9 @@ function DefaultAppSection({ open }: { open: boolean }) {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
-    getDefaultAppStatus().then(setStatus, () => setStatus(null));
+    getDefaultAppStatus().then(setStatus, () => {
+      setStatus(null);
+    });
   }, []);
 
   useEffect(() => {
@@ -259,7 +251,9 @@ function DefaultAppSection({ open }: { open: boolean }) {
   useEffect(() => {
     if (!open) return;
     window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+    };
   }, [open, refresh]);
 
   if (!status?.supported) return null;
@@ -285,9 +279,9 @@ function DefaultAppSection({ open }: { open: boolean }) {
               label="Make lindo-md the default"
               onClick={() => {
                 setError(null);
-                requestDefaultApp().catch((e: unknown) =>
-                  setError(e instanceof Error ? e.message : String(e)),
-                );
+                requestDefaultApp().catch((e: unknown) => {
+                  setError(e instanceof Error ? e.message : String(e));
+                });
               }}
             />
           </div>
@@ -325,7 +319,9 @@ function ZoomControl({
         label="Zoom out"
         icon={Minus}
         disabled={zoom <= ZOOM_MIN}
-        onClick={() => onStep(-ZOOM_STEP)}
+        onClick={() => {
+          onStep(-ZOOM_STEP);
+        }}
       />
       <span className="min-w-[52px] text-center text-[12.5px] text-ui-text tabular-nums">
         {Math.round(zoom * 100)}%
@@ -334,7 +330,9 @@ function ZoomControl({
         label="Zoom in"
         icon={Plus}
         disabled={zoom >= ZOOM_MAX}
-        onClick={() => onStep(ZOOM_STEP)}
+        onClick={() => {
+          onStep(ZOOM_STEP);
+        }}
       />
       <button
         type="button"

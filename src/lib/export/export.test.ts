@@ -43,7 +43,7 @@ describe("buildStandaloneHtml", () => {
 
   it("escapes the title rather than letting it close the tag", () => {
     const html = buildStandaloneHtml({
-      title: '</title><script>alert(1)</script>',
+      title: "</title><script>alert(1)</script>",
       theme,
       article: article(""),
       documentCss: "",

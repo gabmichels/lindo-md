@@ -74,15 +74,21 @@ export function DocumentDeck({
             pendingAnchor={runtime.pendingAnchor}
             visible={tab.id === active}
             restoreScrollTop={runtime.scrollTop}
-            onAnchorConsumed={() => onAnchorConsumed(tab.id)}
-            onOpenDocument={(path, fragment) =>
-              onOpenDocument(tab.id, path, fragment)
-            }
-            onScrollChange={(scrollTop) => onScrollChange(tab.id, scrollTop)}
+            onAnchorConsumed={() => {
+              onAnchorConsumed(tab.id);
+            }}
+            onOpenDocument={(path, fragment) => {
+              onOpenDocument(tab.id, path, fragment);
+            }}
+            onScrollChange={(scrollTop) => {
+              onScrollChange(tab.id, scrollTop);
+            }}
             onScrollerReady={onScrollerReady}
             onSave={(source) => onSave(tab.id, source)}
             sourceMode={sourceTabs.has(tab.id)}
-            onToggleSource={() => onToggleSource(tab.id)}
+            onToggleSource={() => {
+              onToggleSource(tab.id);
+            }}
           />
         );
       })}

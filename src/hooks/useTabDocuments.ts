@@ -86,10 +86,7 @@ export interface TabDocuments {
   canRedo: (id: string) => boolean;
 }
 
-export function useTabDocuments(
-  session: Session,
-  folder: string | null,
-): TabDocuments {
+export function useTabDocuments(session: Session, folder: string | null): TabDocuments {
   const [runtimes, setRuntimes] = useState<Record<string, TabRuntime>>({});
 
   const current = useRef(runtimes);
@@ -254,10 +251,7 @@ export function useTabDocuments(
     [patch],
   );
 
-  const save = useCallback(
-    (id: string, source: string) => write(id, source, "push"),
-    [write],
-  );
+  const save = useCallback((id: string, source: string) => write(id, source, "push"), [write]);
 
   /** Moves one step along the edit history. Named apart from `step`, which walks
    *  the *navigation* history — two different back buttons in one hook. */
@@ -280,9 +274,7 @@ export function useTabDocuments(
     setRuntimes((runtimes) => {
       const keys = Object.keys(runtimes);
       if (keys.every((key) => live.has(key))) return runtimes;
-      return Object.fromEntries(
-        Object.entries(runtimes).filter(([key]) => live.has(key)),
-      );
+      return Object.fromEntries(Object.entries(runtimes).filter(([key]) => live.has(key)));
     });
   }, [session.tabs]);
 
@@ -312,7 +304,9 @@ export function useTabDocuments(
       }
     });
     return () => {
-      void unlisten.then((off) => off());
+      void unlisten.then((off) => {
+        off();
+      });
     };
   }, [load]);
 
@@ -321,12 +315,32 @@ export function useTabDocuments(
     hydrate,
     navigate,
     save,
-    undoEdit: useCallback((id) => rewind(id, "undo"), [rewind]),
-    redoEdit: useCallback((id) => rewind(id, "redo"), [rewind]),
+    undoEdit: useCallback(
+      (id) => {
+        rewind(id, "undo");
+      },
+      [rewind],
+    ),
+    redoEdit: useCallback(
+      (id) => {
+        rewind(id, "redo");
+      },
+      [rewind],
+    ),
     canUndo: useCallback((id) => (runtimes[id]?.undo.length ?? 0) > 0, [runtimes]),
     canRedo: useCallback((id) => (runtimes[id]?.redo.length ?? 0) > 0, [runtimes]),
-    back: useCallback((id) => step(id, -1), [step]),
-    forward: useCallback((id) => step(id, 1), [step]),
+    back: useCallback(
+      (id) => {
+        step(id, -1);
+      },
+      [step],
+    ),
+    forward: useCallback(
+      (id) => {
+        step(id, 1);
+      },
+      [step],
+    ),
     canGoBack: useCallback((id) => (runtimes[id]?.cursor ?? 0) > 0, [runtimes]),
     canGoForward: useCallback(
       (id) => {
@@ -350,7 +364,9 @@ export function useTabDocuments(
       [patch],
     ),
     clearPendingAnchor: useCallback(
-      (id) => patch(id, { pendingAnchor: null }),
+      (id) => {
+        patch(id, { pendingAnchor: null });
+      },
       [patch],
     ),
   };

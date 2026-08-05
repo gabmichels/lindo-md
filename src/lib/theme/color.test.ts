@@ -56,9 +56,7 @@ describe("mermaidThemeVariables", () => {
         const vars = mermaidThemeVariables(preset[half]);
         for (const [key, value] of Object.entries(vars)) {
           if (key === "fontFamily" || key === "fontSize") continue;
-          expect(value, `${preset.id}.${half} ${key} = ${value}`).toMatch(
-            /^#[0-9a-f]{6}$/,
-          );
+          expect(value, `${preset.id}.${half} ${key} = ${value}`).toMatch(/^#[0-9a-f]{6}$/);
         }
       }
     }

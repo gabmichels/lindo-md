@@ -17,10 +17,7 @@ import { getPendingDocuments, onOpenDocumentRequested } from "@/lib/ipc";
  * opening on top of that restore is the only order that keeps both the saved
  * tabs and this one.
  */
-export function useOsDocuments(
-  ready: boolean,
-  onOpen: (path: string) => void,
-): void {
+export function useOsDocuments(ready: boolean, onOpen: (path: string) => void): void {
   // The subscription is made once and reads the callback through a ref, rather
   // than re-subscribing whenever `onOpen` changes identity. `listen` is async,
   // so every re-subscribe leaves a gap with no listener attached — and a
@@ -31,9 +28,13 @@ export function useOsDocuments(
   }, [onOpen]);
 
   useEffect(() => {
-    const unlisten = onOpenDocumentRequested((path) => handler.current(path));
+    const unlisten = onOpenDocumentRequested((path) => {
+      handler.current(path);
+    });
     return () => {
-      void unlisten.then((off) => off());
+      void unlisten.then((off) => {
+        off();
+      });
     };
   }, []);
 
@@ -43,7 +44,11 @@ export function useOsDocuments(
     drained.current = true;
 
     void getPendingDocuments().then(
-      (paths) => paths.forEach((path) => handler.current(path)),
+      (paths) => {
+        paths.forEach((path) => {
+          handler.current(path);
+        });
+      },
       () => undefined,
     );
   }, [ready]);

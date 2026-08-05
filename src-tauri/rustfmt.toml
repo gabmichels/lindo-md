@@ -1,0 +1,12 @@
+# Pinned rather than inherited, so `cargo fmt --check` means the same thing on every
+# machine and in every toolchain release.
+#
+# Only stable options are listed. `imports_granularity` and `group_imports` — the two
+# most commonly wanted here — are nightly-only, so import order stays a convention
+# rather than a check.
+edition = "2021"
+max_width = 100
+
+# CI runs `cargo fmt --check` on Windows as well as Linux and macOS. Without this,
+# rustfmt follows the platform and the Windows job fails on line endings alone.
+newline_style = "Unix"

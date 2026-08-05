@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import { applyInput } from "@/lib/edit/input";
-import {
-  ATOM_SELECTOR,
-  selectionRange,
-  type SourceRange,
-} from "@/lib/edit/selection";
+import { ATOM_SELECTOR, selectionRange, type SourceRange } from "@/lib/edit/selection";
 import type { Document } from "@/lib/ipc";
 
 /**
@@ -43,15 +39,10 @@ interface Options {
   document: Document;
   onSave: (source: string) => Promise<boolean>;
   /** Shared with `DocumentView`, which puts the caret back after the re-render. */
-  restoring: React.MutableRefObject<SourceRange | null>;
+  restoring: React.RefObject<SourceRange | null>;
 }
 
-export function useDocumentTyping({
-  article,
-  document: doc,
-  onSave,
-  restoring,
-}: Options) {
+export function useDocumentTyping({ article, document: doc, onSave, restoring }: Options) {
   /** Edited source not yet written, or null when the file is up to date. */
   const pending = useRef<string | null>(null);
   /** Where the caret is, as an offset into `pending`. Only meaningful while
@@ -67,45 +58,48 @@ export function useDocumentTyping({
   /** True between asking for a save and the rendered document coming back. */
   const inFlight = useRef(false);
 
-  const flush = useCallback((force = false) => {
-    if (timer.current !== null) {
-      window.clearTimeout(timer.current);
-      timer.current = null;
-    }
-    const next = pending.current;
-    if (next === null || inFlight.current) return;
-
-    // Markdown strips the whitespace at the end of a line, so a space typed
-    // there has no character of its own once rendered. Re-rendering now would
-    // leave the caret with nowhere to be, and putting it at the nearest place
-    // instead means the next word lands in front of the space rather than after
-    // it. Waiting costs nothing: the space is only worth writing once there is
-    // something after it, and blur forces the write regardless.
-    if (!force && caret.current !== null && inStrippedSpace(next, caret.current)) {
-      timer.current = window.setTimeout(flush, SETTLE_MS);
-      return;
-    }
-
-    // `pending` and `caret` deliberately survive the save. Clearing them here
-    // would mark the view clean while the screen still shows unsaved text and
-    // the map still describes the previous document — and the next keystroke
-    // would then resolve its position against a map that does not match what
-    // the reader is looking at. They are cleared when the render catches up.
-    inFlight.current = true;
-    const at = caret.current;
-    if (at !== null) restoring.current = { start: at, end: at };
-
-    void save.current(next).then((saved) => {
-      inFlight.current = false;
-      // A refused write leaves the document as it was; the caret has nowhere
-      // meaningful to go, so it is left where the reader put it.
-      if (!saved) restoring.current = null;
-      // More was typed while that was in the air.
-      if (pending.current !== null && pending.current !== latest.current.source) {
-        flush();
+  const flush = useCallback(
+    (force = false) => {
+      if (timer.current !== null) {
+        window.clearTimeout(timer.current);
+        timer.current = null;
       }
-    });
-  }, [restoring]);
+      const next = pending.current;
+      if (next === null || inFlight.current) return;
+
+      // Markdown strips the whitespace at the end of a line, so a space typed
+      // there has no character of its own once rendered. Re-rendering now would
+      // leave the caret with nowhere to be, and putting it at the nearest place
+      // instead means the next word lands in front of the space rather than after
+      // it. Waiting costs nothing: the space is only worth writing once there is
+      // something after it, and blur forces the write regardless.
+      if (!force && caret.current !== null && inStrippedSpace(next, caret.current)) {
+        timer.current = window.setTimeout(flush, SETTLE_MS);
+        return;
+      }
+
+      // `pending` and `caret` deliberately survive the save. Clearing them here
+      // would mark the view clean while the screen still shows unsaved text and
+      // the map still describes the previous document — and the next keystroke
+      // would then resolve its position against a map that does not match what
+      // the reader is looking at. They are cleared when the render catches up.
+      inFlight.current = true;
+      const at = caret.current;
+      if (at !== null) restoring.current = { start: at, end: at };
+
+      void save.current(next).then((saved) => {
+        inFlight.current = false;
+        // A refused write leaves the document as it was; the caret has nowhere
+        // meaningful to go, so it is left where the reader put it.
+        if (!saved) restoring.current = null;
+        // More was typed while that was in the air.
+        if (pending.current !== null && pending.current !== latest.current.source) {
+          flush();
+        }
+      });
+    },
+    [restoring],
+  );
 
   // The render has caught up: what is on screen is now what was saved, so the
   // DOM and the map agree again and the tracked caret can be let go.
@@ -180,7 +174,9 @@ export function useDocumentTyping({
       if (event instanceof KeyboardEvent && !MOVES.has(event.key)) return;
       flush(true);
     };
-    const onLeave = () => flush(true);
+    const onLeave = () => {
+      flush(true);
+    };
 
     root.addEventListener("beforeinput", onBeforeInput as EventListener);
     root.addEventListener("pointerdown", onMove);
@@ -294,8 +290,7 @@ function applyToDom(event: InputEvent, selection: Selection | null): boolean {
  */
 function visible(data: string, value: string, at: number): string {
   if (data !== " ") return data;
-  const collapses =
-    at === value.length || value[at - 1] === " " || value[at] === " ";
+  const collapses = at === value.length || value[at - 1] === " " || value[at] === " ";
   // Written as an escape, not a literal: the two are indistinguishable on
   // screen and which one this is happens to be the whole point.
   return collapses ? "\u00a0" : data;

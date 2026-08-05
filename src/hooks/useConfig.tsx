@@ -26,9 +26,7 @@ import { EMPTY_SESSION } from "@/lib/tabs/model";
  * would otherwise compute every step from the values of the render it was drawn
  * in, so three fast clicks all produce the same single step.
  */
-export type ConfigPatch =
-  | Partial<AppConfig>
-  | ((current: AppConfig) => Partial<AppConfig>);
+export type ConfigPatch = Partial<AppConfig> | ((current: AppConfig) => Partial<AppConfig>);
 
 interface ConfigContextValue {
   config: AppConfig;
@@ -79,7 +77,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         // defaults and say so, rather than failing to start.
         setError(e instanceof Error ? e.message : String(e));
       })
-      .finally(() => setLoaded(true));
+      .finally(() => {
+        setLoaded(true);
+      });
   }, []);
 
   useEffect(reload, [reload]);

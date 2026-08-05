@@ -101,12 +101,7 @@ function build(
         settings: { foreground: c.type },
       },
       {
-        scope: [
-          "punctuation",
-          "meta.brace",
-          "keyword.operator",
-          "punctuation.separator",
-        ],
+        scope: ["punctuation", "meta.brace", "keyword.operator", "punctuation.separator"],
         settings: { foreground: c.punctuation },
       },
       {

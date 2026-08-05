@@ -30,9 +30,7 @@ pub fn open_document(app: AppHandle, path: String) -> LindoResult<Document> {
     // for every document, and a frontend that had to remember to send them would
     // eventually render one document by different rules than the last.
     let render_options = RenderOptions {
-        smart_punctuation: config::load(&app)
-            .map(|config| config.smart_punctuation)
-            .unwrap_or(false),
+        smart_punctuation: config::load(&app).is_ok_and(|config| config.smart_punctuation),
     };
 
     let document = files::read(&app, &PathBuf::from(&path), render_options)?;
@@ -64,9 +62,7 @@ pub fn save_document(
     // Read the same way `open_document` does, so a document is never re-rendered
     // by different rules than it was opened under.
     let render_options = RenderOptions {
-        smart_punctuation: config::load(&app)
-            .map(|config| config.smart_punctuation)
-            .unwrap_or(false),
+        smart_punctuation: config::load(&app).is_ok_and(|config| config.smart_punctuation),
     };
 
     files::save(

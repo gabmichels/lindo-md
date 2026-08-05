@@ -17,18 +17,20 @@ import type { Appearance, Theme } from "@/lib/theme/schema";
 
 export function useSystemAppearance(): Appearance {
   const [appearance, setAppearance] = useState<Appearance>(() =>
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
+    typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
       ? "dark"
       : "light",
   );
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = (event: MediaQueryListEvent) =>
+    const onChange = (event: MediaQueryListEvent) => {
       setAppearance(event.matches ? "dark" : "light");
+    };
     media.addEventListener("change", onChange);
-    return () => media.removeEventListener("change", onChange);
+    return () => {
+      media.removeEventListener("change", onChange);
+    };
   }, []);
 
   return appearance;

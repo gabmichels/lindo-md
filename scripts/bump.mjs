@@ -42,10 +42,7 @@ if (version === current) {
 // package.json — rewrite the field in place rather than re-serializing, so key order and
 // formatting survive and the diff stays one line.
 const pkgRaw = readFileSync(pkgPath, "utf8");
-const pkgNext = pkgRaw.replace(
-  /("version"\s*:\s*")[^"]+(")/,
-  (_m, a, b) => `${a}${version}${b}`,
-);
+const pkgNext = pkgRaw.replace(/("version"\s*:\s*")[^"]+(")/, (_m, a, b) => `${a}${version}${b}`);
 if (pkgNext === pkgRaw) throw new Error("could not find a version field in package.json");
 writeFileSync(pkgPath, pkgNext);
 
@@ -72,4 +69,4 @@ try {
 console.log(`${current} -> ${version}`);
 console.log("package.json, src-tauri/Cargo.toml updated (tauri.conf.json follows package.json)");
 console.log("\nNot committed or tagged — `pnpm release` does that, and normally calls this script");
-console.log("itself rather than the other way round. See \"Releasing\" in AGENTS.md.");
+console.log('itself rather than the other way round. See "Releasing" in AGENTS.md.');

@@ -1,3 +1,32 @@
+// `panic = "abort"` is set in the release profile, so a panic reachable from a document
+// is not an error message: it takes the window down with every open tab, and the input is
+// arbitrary Markdown from an arbitrary file.
+//
+// Denied here rather than in Cargo.toml's `[lints]` because that table applies to every
+// target in the package, including the integration tests under `tests/` — separate crates
+// that cannot see the `cfg_attr` below and are entitled to assert by panicking.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
+// A panicking test is a failing test — that is the mechanism working, not a violation.
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        // Fixture values compared exactly, helper `fn`s declared beside the assertions
+        // that use them, and `Default::default()` spelled out in struct literals.
+        clippy::float_cmp,
+        clippy::items_after_statements,
+        clippy::default_trait_access
+    )
+)]
+
 mod assoc;
 mod commands;
 mod config;
@@ -13,7 +42,17 @@ use tauri_plugin_window_state::StateFlags;
 
 use files::WatchState;
 
+/// Builds the Tauri application and runs it to completion.
+///
+/// # Panics
+///
+/// If the webview cannot be created. There is no window to report that in, and no
+/// meaningful way to continue without one.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+#[allow(
+    clippy::expect_used,
+    reason = "startup failure has nowhere to be reported"
+)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
         // Must be registered first, per the plugin's contract: a second launch
@@ -74,14 +113,17 @@ pub fn run() {
         // `build` + `run` rather than `run` alone, purely to get at the run loop:
         // `RunEvent::Opened` is the *only* way a double-clicked document reaches
         // the app on macOS, and it has nowhere else to be observed.
-        .run(|_app, _event| {
-            // Underscored so the non-macOS builds, where the block below is
-            // compiled out, do not warn on unused parameters — CI treats clippy
-            // warnings as errors.
+        .run(|app, event| {
             #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Opened { urls } = &_event {
-                assoc::deliver(_app, assoc::documents_from_urls(urls.iter()));
+            if let tauri::RunEvent::Opened { urls } = &event {
+                assoc::deliver(app, assoc::documents_from_urls(urls.iter()));
             }
+            // Everywhere else the block above is compiled out and both parameters go
+            // unread. They used to be underscore-prefixed for that, but then the macOS
+            // build — the one place they *are* read — trips `used_underscore_binding`.
+            // Consuming them explicitly satisfies both sides without a lint exception.
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
         });
 }
 

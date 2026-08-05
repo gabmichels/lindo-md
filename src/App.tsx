@@ -69,11 +69,7 @@ function Shell() {
     canvas,
     config.zoom,
   );
-  const { tree } = useFileTree(
-    folder,
-    config.respectGitignore,
-    config.showHiddenFiles,
-  );
+  const { tree } = useFileTree(folder, config.respectGitignore, config.showHiddenFiles);
 
   const tabs = useTabs();
   const { session } = tabs;
@@ -117,10 +113,7 @@ function Shell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.activeTabId]);
 
-  const openPaths = useMemo(
-    () => new Set(session.tabs.map((tab) => tab.path)),
-    [session.tabs],
-  );
+  const openPaths = useMemo(() => new Set(session.tabs.map((tab) => tab.path)), [session.tabs]);
 
   const openInTab = useCallback(
     (path: string, permanent: boolean) => {
@@ -150,7 +143,9 @@ function Shell() {
 
   const dropActive = useFileDrop(
     useCallback(
-      (paths: string[]) => paths.forEach(openFromOs),
+      (paths: string[]) => {
+        paths.forEach(openFromOs);
+      },
       [openFromOs],
     ),
   );
@@ -158,9 +153,7 @@ function Shell() {
   const openFile = useCallback(async () => {
     const path = await openDialog({
       multiple: false,
-      filters: [
-        { name: "Markdown", extensions: ["md", "markdown", "mdown", "mkd"] },
-      ],
+      filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdown", "mkd"] }],
     });
     if (typeof path !== "string") return;
     // Opening a loose file also gives the rail something to show, which is more
@@ -207,9 +200,7 @@ function Shell() {
    */
   const followLink = useCallback(
     (tabId: string, path: string, fragment: string) => {
-      const elsewhere = session.tabs.find(
-        (tab) => tab.path === path && tab.id !== tabId,
-      );
+      const elsewhere = session.tabs.find((tab) => tab.path === path && tab.id !== tabId);
       if (elsewhere) {
         tabs.activate(elsewhere.id);
         return;
@@ -238,36 +229,69 @@ function Shell() {
   // Computed from the current value at apply time, not from this render's — a
   // held Ctrl+`+` fires faster than React re-renders.
   const zoomBy = useCallback(
-    (delta: number) =>
-      update((current) => ({ zoom: stepZoom(current.zoom, delta) })),
+    (delta: number) => {
+      update((current) => ({ zoom: stepZoom(current.zoom, delta) }));
+    },
     [update],
   );
 
   useKeyboardShortcuts({
     scroller,
-    onFind: () => setFindOpen(true),
-    onCloseFind: () => setFindOpen(false),
-    onToggleSource: () => active && toggleSource(active.id),
-    onUndo: () => active && docs.undoEdit(active.id),
-    onRedo: () => active && docs.redoEdit(active.id),
+    onFind: () => {
+      setFindOpen(true);
+    },
+    onCloseFind: () => {
+      setFindOpen(false);
+    },
+    onToggleSource: () => {
+      if (active) toggleSource(active.id);
+    },
+    onUndo: () => {
+      if (active) docs.undoEdit(active.id);
+    },
+    onRedo: () => {
+      if (active) docs.redoEdit(active.id);
+    },
     onOpenFile: () => void openFile(),
     onOpenFolder: () => void openFolder(),
-    onSettings: () => setSettingsOpen((open) => !open),
-    onAppearance: () => setAppearanceOpen((open) => !open),
-    onZoomIn: () => zoomBy(0.1),
-    onZoomOut: () => zoomBy(-0.1),
-    onZoomReset: () => update({ zoom: 1 }),
-    onPrint: () => window.print(),
+    onSettings: () => {
+      setSettingsOpen((open) => !open);
+    },
+    onAppearance: () => {
+      setAppearanceOpen((open) => !open);
+    },
+    onZoomIn: () => {
+      zoomBy(0.1);
+    },
+    onZoomOut: () => {
+      zoomBy(-0.1);
+    },
+    onZoomReset: () => {
+      update({ zoom: 1 });
+    },
+    onPrint: () => {
+      window.print();
+    },
     onExport: () => void exportHtml(),
-    onBack: () => step(-1),
-    onForward: () => step(1),
+    onBack: () => {
+      step(-1);
+    },
+    onForward: () => {
+      step(1);
+    },
     onNewTab: () => void openFile(),
     onCloseTab: () => {
       if (active) tabs.close(active.id);
     },
-    onCycleTab: (delta) => tabs.cycle(delta),
-    onSelectTab: (index) => tabs.activateIndex(index),
-    onReopenTab: () => tabs.reopenClosed(),
+    onCycleTab: (delta) => {
+      tabs.cycle(delta);
+    },
+    onSelectTab: (index) => {
+      tabs.activateIndex(index);
+    },
+    onReopenTab: () => {
+      tabs.reopenClosed();
+    },
     onMoveTab: (delta) => {
       if (!active) return;
       const index = session.tabs.findIndex((tab) => tab.id === active.id);
@@ -295,7 +319,9 @@ function Shell() {
     <div className="flex h-full">
       <Rail
         collapsed={config.railCollapsed}
-        onToggleCollapsed={() => update({ railCollapsed: !config.railCollapsed })}
+        onToggleCollapsed={() => {
+          update({ railCollapsed: !config.railCollapsed });
+        }}
         folder={folder}
         onPickFolder={() => void openFolder()}
         tree={tree}
@@ -306,10 +332,16 @@ function Shell() {
         activeHeadingId={outline.activeId}
         progress={outline.progress}
         onJumpTo={jumpTo}
-        onOpenAppearance={() => setAppearanceOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenAppearance={() => {
+          setAppearanceOpen(true);
+        }}
+        onOpenSettings={() => {
+          setSettingsOpen(true);
+        }}
         onExport={() => void exportHtml()}
-        onOpenAbout={() => setAboutOpen(true)}
+        onOpenAbout={() => {
+          setAboutOpen(true);
+        }}
       />
 
       {/* The canvas: everything inside it is styled by --doc-* tokens, which
@@ -319,10 +351,7 @@ function Shell() {
           theme can land within a few percent of the rail's own value, and
           without an explicit edge the two planes merge into one surface and the
           whole tool/paper distinction disappears. */}
-      <main
-        ref={setCanvas}
-        className="canvas-edge relative flex min-w-0 flex-1 flex-col bg-doc-bg"
-      >
+      <main ref={setCanvas} className="canvas-edge relative flex min-w-0 flex-1 flex-col bg-doc-bg">
         <TitleBar railCollapsed={config.railCollapsed}>
           <TabStrip
             session={session}
@@ -338,7 +367,9 @@ function Shell() {
             onCloseOthers={tabs.closeOthers}
             onCloseToRight={tabs.closeToRight}
             onRemoveFromGroup={tabs.removeFromGroup}
-            onNewGroup={(id) => setNamingGroup(tabs.group([id]))}
+            onNewGroup={(id) => {
+              setNamingGroup(tabs.group([id]));
+            }}
             onAddToGroup={tabs.addToGroup}
             onRenameGroup={setNamingGroup}
             onUngroup={tabs.ungroup}
@@ -361,13 +392,23 @@ function Shell() {
           }
           path={document?.path ?? null}
           sourceMode={active ? sourceTabs.has(active.id) : false}
-          onToggleSource={() => active && toggleSource(active.id)}
+          onToggleSource={() => {
+            if (active) toggleSource(active.id);
+          }}
           canGoBack={active ? docs.canGoBack(active.id) : false}
           canGoForward={active ? docs.canGoForward(active.id) : false}
-          onBack={() => step(-1)}
-          onForward={() => step(1)}
-          onFind={() => setFindOpen(true)}
-          onAppearance={() => setAppearanceOpen(true)}
+          onBack={() => {
+            step(-1);
+          }}
+          onForward={() => {
+            step(1);
+          }}
+          onFind={() => {
+            setFindOpen(true);
+          }}
+          onAppearance={() => {
+            setAppearanceOpen(true);
+          }}
         />
 
         {findOpen && (
@@ -410,9 +451,7 @@ function Shell() {
 
       <TabGroupDialog
         group={
-          namingGroup
-            ? (session.groups.find((group) => group.id === namingGroup) ?? null)
-            : null
+          namingGroup ? (session.groups.find((group) => group.id === namingGroup) ?? null) : null
         }
         onOpenChange={(open) => {
           if (!open) setNamingGroup(null);
@@ -432,7 +471,9 @@ function Shell() {
         onOpenChange={setSettingsOpen}
         config={config}
         onUpdateConfig={update}
-        onOpenAppearance={() => setAppearanceOpen(true)}
+        onOpenAppearance={() => {
+          setAppearanceOpen(true);
+        }}
       />
 
       <SettingsDrawer
@@ -623,7 +664,9 @@ function useKeyboardShortcuts(handlers: {
     };
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, []);
 }
 

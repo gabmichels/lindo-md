@@ -8,14 +8,12 @@
 let katexPromise: Promise<typeof import("katex").default> | null = null;
 
 async function getKatex() {
-  if (!katexPromise) {
-    katexPromise = Promise.all([
-      import("katex"),
-      // The stylesheet has to be present before the first render or the layout
-      // reflows visibly; importing it here keeps it out of the initial bundle.
-      import("katex/dist/katex.min.css"),
-    ]).then(([module]) => module.default);
-  }
+  katexPromise ??= Promise.all([
+    import("katex"),
+    // The stylesheet has to be present before the first render or the layout
+    // reflows visibly; importing it here keeps it out of the initial bundle.
+    import("katex/dist/katex.min.css"),
+  ]).then(([module]) => module.default);
   return katexPromise;
 }
 
@@ -27,15 +25,13 @@ async function getKatex() {
  * the whole pass.
  */
 export async function renderMath(root: HTMLElement): Promise<void> {
-  const nodes = root.querySelectorAll<HTMLElement>(
-    "[data-math-style]:not([data-math-rendered])",
-  );
+  const nodes = root.querySelectorAll<HTMLElement>("[data-math-style]:not([data-math-rendered])");
   if (nodes.length === 0) return;
 
   const katex = await getKatex();
 
   for (const node of nodes) {
-    const source = node.dataset.source ?? node.textContent ?? "";
+    const source = node.dataset.source ?? node.textContent;
     node.dataset.source = source;
     try {
       katex.render(stripDelimiters(source), node, {

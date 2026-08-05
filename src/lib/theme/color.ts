@@ -23,20 +23,19 @@ export function toHex(value: string, fallback = "#000000"): string {
 
   if (/^#[0-9a-f]{6}$/i.test(input)) return input.toLowerCase();
   if (/^#[0-9a-f]{3}$/i.test(input)) {
-    const [r, g, b] = [...input.slice(1)];
+    // Indexed rather than spread: the regex above guarantees three ASCII hex
+    // digits, and spreading a string is a code-point operation the linter rightly
+    // flags as unsafe for the general case.
+    const [r, g, b] = [input[1], input[2], input[3]];
     return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
   }
 
-  const rgb = input.match(
-    /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i,
-  );
+  const rgb = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(input);
   if (rgb) {
     return channelsToHex(Number(rgb[1]), Number(rgb[2]), Number(rgb[3]));
   }
 
-  const oklch = input.match(
-    /^oklch\(\s*([\d.]+%?)\s+([\d.]+%?)\s+([\d.-]+)(?:deg)?/i,
-  );
+  const oklch = /^oklch\(\s*([\d.]+%?)\s+([\d.]+%?)\s+([\d.-]+)(?:deg)?/i.exec(input);
   if (oklch) {
     const lightness = percentOr(oklch[1]!, 1);
     const chroma = percentOr(oklch[2]!, 0.4);
@@ -49,9 +48,7 @@ export function toHex(value: string, fallback = "#000000"): string {
 
 /** `50%` means half of `full`; a bare number is already in the right unit. */
 function percentOr(token: string, full: number): number {
-  return token.endsWith("%")
-    ? (Number(token.slice(0, -1)) / 100) * full
-    : Number(token);
+  return token.endsWith("%") ? (Number(token.slice(0, -1)) / 100) * full : Number(token);
 }
 
 /**
@@ -76,9 +73,7 @@ function oklchToHex(lightness: number, chroma: number, hue: number): string {
 
 /** Linear sRGB → sRGB transfer function. */
 function gamma(channel: number): number {
-  return channel <= 0.0031308
-    ? 12.92 * channel
-    : 1.055 * Math.pow(channel, 1 / 2.4) - 0.055;
+  return channel <= 0.0031308 ? 12.92 * channel : 1.055 * Math.pow(channel, 1 / 2.4) - 0.055;
 }
 
 function channelsToHex(r: number, g: number, b: number): string {

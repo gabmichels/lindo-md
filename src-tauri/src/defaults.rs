@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn executable_is_taken_from_an_unquoted_command() {
         assert_eq!(
-            executable_from_command(r#"C:\Windows\notepad.exe %1"#),
+            executable_from_command(r"C:\Windows\notepad.exe %1"),
             Some("notepad.exe".to_string())
         );
     }

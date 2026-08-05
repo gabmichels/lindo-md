@@ -18,10 +18,7 @@ function build(count: number, groupFrom?: number, groupTo?: number): Session {
   const tabs: Tab[] = Array.from({ length: count }, (_, index) => ({
     id: `t${index}`,
     path: `/t${index}.md`,
-    groupId:
-      groupFrom !== undefined && index >= groupFrom && index <= groupTo!
-        ? "G"
-        : null,
+    groupId: groupFrom !== undefined && index >= groupFrom && index <= groupTo! ? "G" : null,
     preview: false,
     openerId: null,
   }));
@@ -29,9 +26,7 @@ function build(count: number, groupFrom?: number, groupTo?: number): Session {
   return normalize({
     tabs,
     groups:
-      groupFrom === undefined
-        ? []
-        : [{ id: "G", name: "Specs", color: "clay", collapsed: false }],
+      groupFrom === undefined ? [] : [{ id: "G", name: "Specs", color: "clay", collapsed: false }],
     activeTabId: "t0",
   });
 }
@@ -43,11 +38,7 @@ function widths(session: Session, stripWidth: number, pill = 100) {
 describe("widen and squeeze", () => {
   it("caps a handful of tabs rather than stretching them across the window", () => {
     const layout = widths(build(3), 1000);
-    expect(layout.slots.map((slot) => slot.width)).toEqual([
-      TAB_MAX,
-      TAB_MAX,
-      TAB_MAX,
-    ]);
+    expect(layout.slots.map((slot) => slot.width)).toEqual([TAB_MAX, TAB_MAX, TAB_MAX]);
     expect(layout.overflow).toBe(false);
   });
 
@@ -63,8 +54,7 @@ describe("widen and squeeze", () => {
     // pixel lands on a different tab every time the ResizeObserver fires.
     const layout = widths(build(10), 1000);
     const total =
-      layout.slots.reduce((sum, slot) => sum + slot.width, 0) +
-      GAP * (layout.slots.length - 1);
+      layout.slots.reduce((sum, slot) => sum + slot.width, 0) + GAP * (layout.slots.length - 1);
 
     expect(total).toBe(1000 - PLUS_W - DRAG_RESERVE);
 
@@ -100,13 +90,7 @@ describe("widen and squeeze", () => {
 describe("groups", () => {
   it("gives a group a pill and keeps its tabs inside the band", () => {
     const layout = widths(build(4, 1, 2), 1000);
-    expect(layout.slots.map((slot) => slot.kind)).toEqual([
-      "tab",
-      "pill",
-      "tab",
-      "tab",
-      "tab",
-    ]);
+    expect(layout.slots.map((slot) => slot.kind)).toEqual(["tab", "pill", "tab", "tab", "tab"]);
     expect(layout.slots[1]!.width).toBe(100);
   });
 

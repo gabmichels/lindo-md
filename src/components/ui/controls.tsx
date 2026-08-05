@@ -42,13 +42,7 @@ export function Field({
   );
 }
 
-export function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
+export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="border-t border-ui-hairline px-4 py-3 first:border-t-0">
       <h3 className="rail-label mb-1">{title}</h3>
@@ -79,7 +73,9 @@ export function Slider({
       min={min}
       max={max}
       step={step}
-      onValueChange={([next]) => next !== undefined && onChange(next)}
+      onValueChange={([next]) => {
+        if (next !== undefined) onChange(next);
+      }}
       className="relative flex h-4 w-full touch-none items-center select-none"
     >
       <RadixSlider.Track className="relative h-[3px] w-full grow rounded-full bg-ui-sunken">
@@ -126,13 +122,7 @@ export function Switch({
   );
 }
 
-export function Row({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+export function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex items-center justify-between gap-3 py-1.5 text-[12.5px] text-ui-text">
       <span>{label}</span>
@@ -236,12 +226,12 @@ export function ColorSwatch({
           type="color"
           aria-label={label}
           value={toHex(value)}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => {
+            onChange(event.target.value);
+          }}
           className="size-5 cursor-pointer rounded-ui-sm border-0 bg-transparent p-0"
         />
       </span>
     </label>
   );
 }
-
-

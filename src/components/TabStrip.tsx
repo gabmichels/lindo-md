@@ -33,12 +33,7 @@ import {
   type Slot,
 } from "@/lib/tabs/layout";
 import type { MoveIntent, Session, Tab, TabGroup } from "@/lib/tabs/model";
-import {
-  ContextItem,
-  ContextSeparator,
-  ITEM_CLASS,
-  MENU_CLASS,
-} from "@/components/ui/menu";
+import { ContextItem, ContextSeparator, ITEM_CLASS, MENU_CLASS } from "@/components/ui/menu";
 import { basename, cn, dragRegion } from "@/lib/utils";
 
 /**
@@ -132,7 +127,9 @@ export function TabStrip({
       setWidth(entry!.contentRect.width);
     });
     observer.observe(element);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+    };
   }, []);
 
   const pillWidths = usePillWidths(session.groups);
@@ -164,8 +161,7 @@ export function TabStrip({
       const members = slots.filter((slot) => slot.groupId === group.id);
       if (members.length === 0) return [];
       const left = Math.min(...members.map((slot) => slot.left)) - GROUP_PAD;
-      const right =
-        Math.max(...members.map((slot) => slot.left + slot.width)) + GROUP_PAD;
+      const right = Math.max(...members.map((slot) => slot.left + slot.width)) + GROUP_PAD;
       return [{ id: group.id, color: group.color, left, width: right - left }];
     });
   }, [slots, session.groups]);
@@ -202,9 +198,7 @@ export function TabStrip({
 
   const trackPoint = useCallback((clientX: number, clientY: number) => {
     const box = track.current?.getBoundingClientRect();
-    return box
-      ? { x: clientX - box.left, y: clientY - box.top }
-      : { x: clientX, y: clientY };
+    return box ? { x: clientX - box.left, y: clientY - box.top } : { x: clientX, y: clientY };
   }, []);
 
   const onPointerDown = useCallback(
@@ -250,7 +244,9 @@ export function TabStrip({
     [dispatch, onReorder, onReorderGroup],
   );
 
-  const cancel = useCallback(() => dispatch({ type: "cancel" }), [dispatch]);
+  const cancel = useCallback(() => {
+    dispatch({ type: "cancel" });
+  }, [dispatch]);
 
   // A drag in progress owns Escape outright — bound in the capture phase so the
   // find bar and any open dialog cannot swallow it first.
@@ -293,8 +289,7 @@ export function TabStrip({
       const index = drawn.findIndex((slot) => slot.key === activeId);
       if (index < 0) return;
 
-      const delta =
-        event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+      const delta = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
       if (delta === 0) return;
       event.preventDefault();
       const next = drawn[(index + delta + drawn.length) % drawn.length];
@@ -326,6 +321,10 @@ export function TabStrip({
       className="flex h-full min-w-0 flex-1 items-stretch"
       style={{ paddingLeft: STRIP_INSET }}
     >
+      {/* The ARIA tab pattern puts focus on the individual tabs and moves it with the
+          arrow keys, which the `onKeyDown` below implements; the tablist itself is not a
+          tab stop. The rule assumes any interactive role must be focusable. */}
+      {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- APG: the tabs are focusable, the tablist is not */}
       <div
         ref={viewport}
         // Sized to the track rather than to the space available: the `+` button
@@ -377,9 +376,7 @@ export function TabStrip({
                   <ContextMenu.Trigger asChild>
                     <GroupPill
                       group={group}
-                      count={
-                        session.tabs.filter((tab) => tab.groupId === group.id).length
-                      }
+                      count={session.tabs.filter((tab) => tab.groupId === group.id).length}
                       slot={slot}
                       offset={offset}
                       dragging={subjectId === group.id && isDragging(drag)}
@@ -387,9 +384,9 @@ export function TabStrip({
                         if (dragged.current) return;
                         onToggleGroup(group.id);
                       }}
-                      onPointerDown={(event) =>
-                        onPointerDown(event, { kind: "group", id: group.id })
-                      }
+                      onPointerDown={(event) => {
+                        onPointerDown(event, { kind: "group", id: group.id });
+                      }}
                       {...gestures}
                     />
                   </ContextMenu.Trigger>
@@ -399,14 +396,14 @@ export function TabStrip({
                         Rename and recolour…
                       </ContextItem>
                       <ContextItem
-                        onSelect={() => onToggleGroup(group.id)}
+                        onSelect={() => {
+                          onToggleGroup(group.id);
+                        }}
                       >
                         {group.collapsed ? "Expand" : "Collapse"}
                       </ContextItem>
                       <ContextSeparator />
-                      <ContextItem onSelect={() => onUngroup?.(group.id)}>
-                        Ungroup
-                      </ContextItem>
+                      <ContextItem onSelect={() => onUngroup?.(group.id)}>Ungroup</ContextItem>
                       <ContextItem onSelect={() => onCloseGroup?.(group.id)}>
                         Close group
                       </ContextItem>
@@ -429,17 +426,27 @@ export function TabStrip({
                     offset={offset}
                     dragging={subjectId === tab.id && isDragging(drag)}
                     title={pathFor?.(tab) ?? tab.path}
-                    onActivate={() => activate(tab.id)}
-                    onClose={() => onClose(tab.id)}
-                    onPointerDown={(event) =>
-                      onPointerDown(event, { kind: "tab", id: tab.id })
-                    }
+                    onActivate={() => {
+                      activate(tab.id);
+                    }}
+                    onClose={() => {
+                      onClose(tab.id);
+                    }}
+                    onPointerDown={(event) => {
+                      onPointerDown(event, { kind: "tab", id: tab.id });
+                    }}
                     {...gestures}
                   />
                 </ContextMenu.Trigger>
                 <ContextMenu.Portal>
                   <ContextMenu.Content className={MENU_CLASS}>
-                    <ContextItem onSelect={() => onClose(tab.id)}>Close</ContextItem>
+                    <ContextItem
+                      onSelect={() => {
+                        onClose(tab.id);
+                      }}
+                    >
+                      Close
+                    </ContextItem>
                     <ContextItem
                       onSelect={() => onCloseOthers?.(tab.id)}
                       disabled={session.tabs.length < 2}
@@ -512,7 +519,12 @@ export function TabStrip({
                   ? session.groups.find((candidate) => candidate.id === tab.groupId)
                   : undefined;
                 return (
-                  <MenuItem key={tab.id} onSelect={() => onActivate(tab.id)}>
+                  <MenuItem
+                    key={tab.id}
+                    onSelect={() => {
+                      onActivate(tab.id);
+                    }}
+                  >
                     <span className="grid size-3.5 shrink-0 place-items-center">
                       {tab.id === activeId && <Check size={12} strokeWidth={2} aria-hidden />}
                     </span>
@@ -542,11 +554,7 @@ export function TabStrip({
           this is the only way left to move or maximize it. It also takes every
           pixel the tabs left behind, so the empty run after a short strip is
           draggable rather than dead. */}
-      <div
-        {...dragRegion("flex-1")}
-        style={{ minWidth: DRAG_RESERVE }}
-        aria-hidden
-      />
+      <div {...dragRegion("flex-1")} style={{ minWidth: DRAG_RESERVE }} aria-hidden />
     </div>
   );
 }
@@ -627,9 +635,7 @@ function TabButton({
       )}
       style={{ ...placement(slot, offset, dragging), height: 28 }}
     >
-      <span className={cn("min-w-0 flex-1 truncate", tab.preview && "italic")}>
-        {label}
-      </span>
+      <span className={cn("min-w-0 flex-1 truncate", tab.preview && "italic")}>{label}</span>
 
       <button
         type="button"
@@ -638,7 +644,9 @@ function TabButton({
         draggable={false}
         // Stops the press from arming a drag, so the close button stays a
         // button rather than a very small handle.
-        onPointerDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => {
+          event.stopPropagation();
+        }}
         onClick={(event) => {
           event.stopPropagation();
           onClose();
@@ -678,9 +686,7 @@ function GroupPill({
   return (
     <button
       type="button"
-      aria-label={
-        group.collapsed ? `Expand ${label}, ${count} documents` : `Collapse ${label}`
-      }
+      aria-label={group.collapsed ? `Expand ${label}, ${count} documents` : `Collapse ${label}`}
       aria-expanded={!group.collapsed}
       title={label}
       draggable={false}
@@ -749,13 +755,7 @@ function MenuContent({ children }: { children: React.ReactNode }) {
   );
 }
 
-function MenuItem({
-  children,
-  onSelect,
-}: {
-  children: React.ReactNode;
-  onSelect: () => void;
-}) {
+function MenuItem({ children, onSelect }: { children: React.ReactNode; onSelect: () => void }) {
   return (
     <DropdownMenu.Item className={ITEM_CLASS} onSelect={onSelect}>
       {children}
@@ -770,9 +770,7 @@ function MenuItem({
  */
 function usePillWidths(groups: TabGroup[]): Record<string, number> {
   const [widths, setWidths] = useState<Record<string, number>>({});
-  const key = groups
-    .map((group) => `${group.id}:${group.name}:${group.collapsed}`)
-    .join("|");
+  const key = groups.map((group) => `${group.id}:${group.name}:${group.collapsed}`).join("|");
 
   useLayoutEffect(() => {
     const measure = () => {
@@ -794,7 +792,7 @@ function usePillWidths(groups: TabGroup[]): Record<string, number> {
     // the fallback face, whose metrics are narrower, and a pill sized from it
     // truncates its own group's name.
     let stale = false;
-    void document.fonts?.ready.then(() => {
+    void document.fonts.ready.then(() => {
       if (!stale) measure();
     });
     return () => {

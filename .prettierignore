@@ -1,0 +1,14 @@
+dist
+node_modules
+src-tauri/target
+src-tauri/gen
+pnpm-lock.yaml
+
+# pnpm rewrites parts of this file itself (minimumReleaseAgeExclude, allowBuilds).
+# Formatting it here just means the two tools take turns reverting each other.
+pnpm-workspace.yaml
+
+# Prose. Prettier reflows Markdown paragraphs, and AGENTS.md / DESIGN.md are written
+# with deliberate line breaks that carry meaning in the diff — a reflowed paragraph
+# turns a one-word edit into a twelve-line change.
+*.md

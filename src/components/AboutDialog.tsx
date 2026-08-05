@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 const REPOSITORY = "https://github.com/gabmichels/lindo-md";
 
-const SHORTCUTS: Array<[string, string]> = [
+const SHORTCUTS: [string, string][] = [
   ["Ctrl / ⌘ + O", "Open a file"],
   ["Ctrl / ⌘ + Shift + O", "Open a folder"],
   ["Ctrl / ⌘ + T", "Open a file in a new tab"],
@@ -59,8 +59,8 @@ export function AboutDialog({
             lindo-md {version && <span className="text-ui-text-faint">{version}</span>}
           </Dialog.Title>
           <Dialog.Description className="mt-1 text-[12.5px] text-ui-text-muted">
-            A Markdown viewer with editorial typography and deeply customizable
-            themes. Everything runs offline.
+            A Markdown viewer with editorial typography and deeply customizable themes. Everything
+            runs offline.
           </Dialog.Description>
 
           <h3 className="rail-label mt-5 mb-1">Shortcuts</h3>

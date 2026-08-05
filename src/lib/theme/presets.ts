@@ -1,10 +1,4 @@
-import type {
-  Appearance,
-  Theme,
-  ThemeColors,
-  ThemePreset,
-  ThemeTypography,
-} from "./schema";
+import type { Appearance, Theme, ThemeColors, ThemePreset, ThemeTypography } from "./schema";
 
 /**
  * The built-in themes.

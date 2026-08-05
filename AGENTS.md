@@ -27,7 +27,7 @@ pnpm install
 pnpm tauri dev
 ```
 
-Requires Node ≥ 22, pnpm 10, a stable Rust toolchain, and (on Windows) WebView2, which ships with
+Requires Node ≥ 22.13, pnpm 11, a stable Rust toolchain, and (on Windows) WebView2, which ships with
 Windows 11.
 
 ## Commands
@@ -36,16 +36,23 @@ Windows 11.
 | --- | --- |
 | `pnpm tauri dev` | Run the app |
 | `pnpm typecheck` | `tsc --noEmit` |
+| `pnpm lint` | ESLint, type-aware — warnings fail |
+| `pnpm lint:fix` | ESLint with `--fix` |
+| `pnpm format` | Prettier, write |
+| `pnpm format:check` | Prettier, check only — this is the CI gate |
 | `pnpm test` | vitest, once |
 | `pnpm test:watch` | vitest, watching |
 | `cargo test` | Rust unit tests (run from `src-tauri/`) |
 | `cargo clippy --all-targets -- -D warnings` | Lint — CI treats warnings as errors |
 | `cargo fmt --check` | Format check |
+| `cargo deny check` | Advisories, licences, wildcards and crate sources — see [Dependencies](#dependencies) |
 | `pnpm tauri build` | Bundle for the host platform |
 | `pnpm release` | Derive the next version from the commits, tag, push — see [Releasing](#releasing) |
 | `pnpm bump <major\|minor\|patch>` | Sync the version across `package.json` and `Cargo.toml` |
 
-All six gates run in CI on Linux, macOS and Windows. Run them locally before pushing.
+Every gate runs in CI. Typecheck, lint, format and the unit tests run once on Linux —
+they are platform-independent — while the Rust suite and the bundle build run on all
+three. Run them locally before pushing.
 
 ## Layout
 
@@ -83,6 +90,64 @@ the response with a zod schema, and attaches the command name to any parse failu
 `#[serde(rename_all = "camelCase")]`; Tauri converts argument names, so Rust `snake_case` parameters
 are called with `camelCase` keys.
 
+## TypeScript
+
+Prettier owns formatting and ESLint owns correctness; the two never overlap, so there is nothing
+to argue about in review. `pnpm format` before `pnpm lint`.
+
+The linting is **type-aware** (`strictTypeChecked` + `stylisticTypeChecked`), which is why it takes
+minutes rather than seconds. It earns that: `no-floating-promises` is the rule that would have
+caught the dead-links bug in v1.0.0, where `void follow(href, handlers)` swallowed a rejection from
+every external link in every document for a whole release.
+
+What the config decides, and why, so nobody re-litigates it in a PR:
+
+- **`no-non-null-assertion` is off**, because `noUncheckedIndexedAccess` is on. Every index is
+  `T | undefined`, so code that has already bounds-checked has to write `!` to proceed. The two
+  settings are a pair; if the tsconfig one ever goes, this should come back.
+- **The React Compiler rules** (`react-hooks/refs`, `set-state-in-effect`, `immutability`) are
+  **off**, and this is a debt, not a decision. They flag 27 real places — refs read during render
+  in `DocumentDeck` and `TabStrip`, `setState` inside effects in `App` and `DocumentView`. Turning
+  them on means reshaping the deck and the measuring passes, which is a behaviour change; it
+  belongs in its own commit, one rule at a time.
+- **Inline `eslint-disable` needs a reason after `--`**, and every one currently in the tree has
+  one. They are almost all `jsx-a11y` rules objecting to standard ARIA patterns — a `ul`/`li`
+  tree, a non-focusable `tablist` — rather than real defects.
+
+The rules at the bottom of `eslint.config.js` are the invariants this document states in prose:
+no `fetch`/`XHR`/`WebSocket`/`sendBeacon` anywhere in `src/`, no static import of `mermaid` or
+`shiki`, and no `invoke` outside `lib/ipc.ts`. A documented invariant that nothing checks is a
+comment, and the audit found several the code had quietly stopped honouring.
+
+## Rust
+
+`cargo clippy` runs `pedantic`, and CI treats warnings as errors, so the lint config lives in
+`Cargo.toml` rather than in a CI flag — `cargo clippy` locally means exactly what CI means.
+
+**Four restriction lints are denied: `unwrap_used`, `expect_used`, `panic`, `indexing_slicing.`**
+Not style. `panic = "abort"` is set in the release profile, so a panic reachable from a document
+is not an error message — it takes the window down with every open tab, and the input is arbitrary
+Markdown from an arbitrary file. Turning these on cost exactly three `#[allow]`s in the whole
+crate, each with a `reason` and each provably safe: an index that came from a successful
+`binary_search`, a `write!` into a `String`, and `run()` failing to create a webview. If you need
+a fourth, that is a design conversation, not an attribute.
+
+Tests allow all four — a panicking test is a failing test, which is the mechanism working.
+
+Two smaller decisions:
+
+- **`rustfmt.toml` sets `newline_style = "Unix"`.** `cargo fmt --check` runs on the Windows job
+  too, and without it that job fails on line endings alone.
+- **There is no `rust-version`.** The `1.82` that used to be declared was untrue — `globset` alone
+  now ships a manifest 1.82's cargo cannot parse — and an MSRV is a promise to people compiling
+  this as a dependency, which nobody does. The toolchain is deliberately *not* pinned either: a
+  `rust-toolchain.toml` would make every CI job download a second toolchain, since
+  `dtolnay/rust-toolchain` does not read that file. Two consequences, and the second one bites
+  harder than expected: a new clippy release can turn `main` red without anyone pushing, and —
+  because CI tracks stable — **an out-of-date local toolchain reports a green build that CI then
+  fails.** That happened on this branch: clippy 1.97 extended `map_unwrap_or` to `Result`, which
+  1.92 locally did not flag. Run `rustup update stable` before trusting a local `cargo clippy`.
+
 ## Conventions
 
 - **Commits**: Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`). The type is
@@ -104,6 +169,45 @@ are called with `camelCase` keys.
 - **Tests are part of the change, not a follow-up.** Every new pure function gets a unit test; every
   new Markdown construct gets a case in `test/fixtures/kitchen-sink.md` and a Rust snapshot test;
   every sanitizer-relevant change gets a test proving the hostile input is neutralized.
+
+## Dependencies
+
+A desktop app statically links its whole dependency tree into a binary that people download and
+run. There is no server to patch afterwards, so the tree is part of what ships.
+
+**Adding one is a decision.** Four things make it a reviewable decision rather than a reflex:
+
+- **New versions wait seven days.** `minimumReleaseAge` in `pnpm-workspace.yaml` refuses to resolve
+  anything published more recently. Every large npm compromise of recent years was found and
+  unpublished well inside that window. It is **also a CI gate**: pnpm 11 re-verifies every entry of
+  an existing lockfile against the policy, so `--frozen-lockfile` fails on a lockfile carrying
+  anything too young, rather than passing because resolution was skipped.
+  `minimumReleaseAgeStrict` is off, so a range with *no* old-enough version installs anyway and
+  pnpm records the exact versions it accepted in `minimumReleaseAgeExclude`. Do not hand-edit that
+  list — it is generated, and it is pinned per version so it lapses on the next bump.
+- **Install scripts are denied by default.** `allowBuilds` in `pnpm-workspace.yaml` lists the only
+  packages allowed to run `preinstall`/`install`/`postinstall`. It is one entry (`esbuild`) and
+  should stay short: a compromised transitive package that cannot execute at install time has to
+  wait for someone to actually import it.
+- **`cargo deny check`** covers the Rust half — RustSec advisories, a licence allow-list (we ship a
+  binary; a copyleft crate appearing in it should be a decision), a ban on wildcard versions, and
+  `sources`, which fails if anything resolves to somewhere other than crates.io.
+- **`osv-scanner`** reads both lockfiles against one database, daily and on dependency PRs. It
+  earned its place on the first run, catching GHSA-rgw5-rvv9-x895 in `brace-expansion` — which
+  had arrived transitively with ESLint in the very commit that added the scanner.
+
+When a security fix is newer than the age floor, override it and record the exception rather than
+lowering the floor: the `overrides` block and the matching `minimumReleaseAgeExclude` entries in
+`pnpm-workspace.yaml` are pinned per version, so they expire on their own. Bound an override on
+**both** sides — `>=1.1.18` alone also satisfies `5.x`, which is how a v1 request resolved into a
+v5 release and left the vulnerable version in the tree anyway.
+
+**Renovate** (`.github/renovate.json5`) opens the update PRs. Its `minimumReleaseAge` must stay
+equal to pnpm's — set it lower and Renovate proposes versions pnpm then refuses to lock, which
+looks like a broken PR rather than a policy working. Security fixes deliberately bypass the delay.
+`comrak`, `ammonia`, `mermaid`, `katex` and `shiki` are never auto-merged: comrak runs with
+`unsafe_` on and is only safe because ammonia runs after it, and the other three each parse
+untrusted document content.
 
 ## Workflow
 

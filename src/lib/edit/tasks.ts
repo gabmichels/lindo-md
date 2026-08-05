@@ -74,7 +74,7 @@ export interface TaskHandlers {
 export function taskClickHandler(handlers: TaskHandlers) {
   return (event: MouseEvent): void => {
     const box = event.target as HTMLInputElement | null;
-    if (!box || box.tagName !== "INPUT" || box.type !== "checkbox") return;
+    if (box?.tagName !== "INPUT" || box.type !== "checkbox") return;
 
     // The browser flips the box before the click handler ever runs, so every
     // path out of here that does not write has to put it back. A box showing a
@@ -103,7 +103,9 @@ export function taskClickHandler(handlers: TaskHandlers) {
       (saved) => {
         if (!saved) revert();
       },
-      () => revert(),
+      () => {
+        revert();
+      },
     );
   };
 }

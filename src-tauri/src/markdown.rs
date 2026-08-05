@@ -105,7 +105,11 @@ pub fn render_with(source: &str, settings: RenderOptions) -> RenderedDoc {
     rewrite_code_blocks(&arena, root);
 
     let mut html = String::new();
-    comrak::format_html(root, &options, &mut html).expect("writing to a String cannot fail");
+    // Infallible: the sink is a `String`, whose `io::Write` impl never returns Err.
+    #[allow(clippy::expect_used, reason = "writing to a String cannot fail")]
+    {
+        comrak::format_html(root, &options, &mut html).expect("writing to a String cannot fail");
+    }
 
     RenderedDoc {
         html: sanitizer().clean(&html).to_string(),

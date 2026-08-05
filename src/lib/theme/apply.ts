@@ -86,10 +86,7 @@ export function applyTheme(theme: Theme, target: HTMLElement, zoom = 1): void {
   for (const [property, value] of Object.entries(docTokens(theme))) {
     target.style.setProperty(property, value);
   }
-  target.style.setProperty(
-    "--doc-size",
-    `${round(theme.typography.baseSize * zoom)}px`,
-  );
+  target.style.setProperty("--doc-size", `${round(theme.typography.baseSize * zoom)}px`);
   // Read by the code-block renderer for line numbers, and by `color-scheme` so
   // native form controls and scrollbars inside the document match the paper.
   target.dataset.appearance = theme.appearance;

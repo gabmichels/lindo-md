@@ -44,7 +44,9 @@ export function useFileDrop(onDrop: (paths: string[]) => void): boolean {
     });
 
     return () => {
-      void unlisten.then((off) => off());
+      void unlisten.then((off) => {
+        off();
+      });
     };
   }, []);
 

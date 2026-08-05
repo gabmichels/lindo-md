@@ -211,7 +211,7 @@ pnpm tauri dev      # run
 pnpm tauri build    # bundle
 ```
 
-Node ≥ 22, pnpm 10, and a stable Rust toolchain. On Linux you also need
+Node ≥ 22.13, pnpm 11, and a stable Rust toolchain. On Linux you also need
 `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev` and `patchelf`.
 
 ## Not yet

@@ -1,12 +1,6 @@
 import { z } from "zod";
 
-import {
-  EMPTY_SESSION,
-  GROUP_COLORS,
-  MAX_GROUP_NAME,
-  normalize,
-  type Session,
-} from "./model";
+import { EMPTY_SESSION, GROUP_COLORS, MAX_GROUP_NAME, normalize, type Session } from "./model";
 
 /**
  * The persisted shape of a tab session.

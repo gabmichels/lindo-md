@@ -11,12 +11,10 @@ import type { BlockMap } from "@/lib/ipc";
 
 /** The four constructs a caret never goes inside. Their rendered text is not
  *  their source text — Shiki, KaTeX and Mermaid see to that. */
-export const ATOM_SELECTOR =
-  "pre.code-block, figure.mermaid, pre.mermaid-src, [data-math-style]";
+export const ATOM_SELECTOR = "pre.code-block, figure.mermaid, pre.mermaid-src, [data-math-style]";
 
 /** Text the renderer generated, which no character of the file corresponds to. */
-export const GENERATED_SELECTOR =
-  "a.anchor, .footnote-backref, .code-copy, .footnote-ref";
+export const GENERATED_SELECTOR = "a.anchor, .footnote-backref, .code-copy, .footnote-ref";
 
 /** The elements a block map entry can be keyed by. `li`, `dt` and `dd` are here
  *  because a paragraph in a *tight* list is not wrapped in `<p>`; its text sits
@@ -36,11 +34,7 @@ export interface SourceRange {
  * Counts only text whose nearest mapped ancestor is `block`, which is what keeps
  * a nested list's text with its own item instead of counting it twice.
  */
-export function textOffsetOf(
-  block: HTMLElement,
-  node: Node,
-  offset: number,
-): number | null {
+export function textOffsetOf(block: HTMLElement, node: Node, offset: number): number | null {
   const document = block.ownerDocument;
   const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, {
     acceptNode(candidate) {
@@ -97,7 +91,9 @@ export function sourceOffsetOf(
     // selecting the text before them ends outside. Getting this backwards
     // produces `****bold****` on the first toggle.
     const claims =
-      bias === "end" ? textOffset <= finish : textOffset < finish || (last && textOffset === finish);
+      bias === "end"
+        ? textOffset <= finish
+        : textOffset < finish || (last && textOffset === finish);
 
     if (claims) {
       const within = textOffset - seen;
@@ -118,10 +114,7 @@ export function blockFor(
   blocks: BlockMap[],
   node: Node,
 ): { element: HTMLElement; map: BlockMap } | null {
-  const start =
-    node.nodeType === Node.ELEMENT_NODE
-      ? (node as HTMLElement)
-      : node.parentElement;
+  const start = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
   const element = start?.closest<HTMLElement>(MAPPED_SELECTOR);
   if (!element || element.closest(ATOM_SELECTOR)) return null;
 

@@ -105,9 +105,15 @@ export function useFind(root: HTMLElement | null): FindState {
     setQuery,
     matchCount,
     activeIndex,
-    next: useCallback(() => move(1), [move]),
-    previous: useCallback(() => move(-1), [move]),
-    clear: useCallback(() => setQuery(""), []),
+    next: useCallback(() => {
+      move(1);
+    }, [move]),
+    previous: useCallback(() => {
+      move(-1);
+    }, [move]),
+    clear: useCallback(() => {
+      setQuery("");
+    }, []),
     supported: supported.current,
   };
 }

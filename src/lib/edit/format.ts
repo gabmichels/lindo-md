@@ -12,13 +12,7 @@ import type { SourceRange } from "./selection";
 
 export type WrapCommand = "bold" | "italic" | "code" | "strikethrough";
 export type LineCommand =
-  | "heading1"
-  | "heading2"
-  | "heading3"
-  | "bullet"
-  | "numbered"
-  | "task"
-  | "quote";
+  "heading1" | "heading2" | "heading3" | "bullet" | "numbered" | "task" | "quote";
 export type FormatCommand = WrapCommand | LineCommand;
 
 const WRAPPERS: Record<WrapCommand, string> = {
@@ -73,11 +67,7 @@ export function isWrapCommand(command: FormatCommand): command is WrapCommand {
   return command in WRAPPERS;
 }
 
-export function applyFormat(
-  source: string,
-  range: SourceRange,
-  command: FormatCommand,
-): Edit {
+export function applyFormat(source: string, range: SourceRange, command: FormatCommand): Edit {
   return isWrapCommand(command)
     ? wrap(source, range, WRAPPERS[command])
     : prefixLines(source, range, command);
@@ -95,8 +85,7 @@ function wrap(source: string, range: SourceRange, marker: string): Edit {
   const width = marker.length;
 
   const outside =
-    source.slice(start - width, start) === marker &&
-    source.slice(end, end + width) === marker;
+    source.slice(start - width, start) === marker && source.slice(end, end + width) === marker;
   if (outside) {
     const inner = source.slice(start, end);
     return {
@@ -106,11 +95,7 @@ function wrap(source: string, range: SourceRange, marker: string): Edit {
   }
 
   const selected = source.slice(start, end);
-  if (
-    selected.length >= width * 2 &&
-    selected.startsWith(marker) &&
-    selected.endsWith(marker)
-  ) {
+  if (selected.length >= width * 2 && selected.startsWith(marker) && selected.endsWith(marker)) {
     const inner = selected.slice(width, -width);
     return {
       source: source.slice(0, start) + inner + source.slice(end),
@@ -131,11 +116,7 @@ function wrap(source: string, range: SourceRange, marker: string): Edit {
  * All-or-nothing on purpose: with a mixed selection the reader means "make these
  * all headings", and toggling each line independently would scramble them.
  */
-function prefixLines(
-  source: string,
-  range: SourceRange,
-  command: LineCommand,
-): Edit {
+function prefixLines(source: string, range: SourceRange, command: LineCommand): Edit {
   const prefix = PREFIXES[command];
   const from = source.lastIndexOf("\n", Math.max(0, range.start - 1)) + 1;
   const to = source.indexOf("\n", range.end);

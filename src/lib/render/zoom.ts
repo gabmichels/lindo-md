@@ -15,17 +15,13 @@ const OVERLAY_ID = "lindo-md-zoom";
 
 export function enableDiagramZoom(root: HTMLElement): () => void {
   const onClick = (event: MouseEvent) => {
-    const figure = (event.target as Element | null)?.closest(
-      "figure.mermaid:not(.mermaid-error)",
-    );
+    const figure = (event.target as Element | null)?.closest("figure.mermaid:not(.mermaid-error)");
     if (figure) open(figure as HTMLElement);
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== "Enter" && event.key !== " ") return;
-    const figure = (event.target as Element | null)?.closest(
-      "figure.mermaid:not(.mermaid-error)",
-    );
+    const figure = (event.target as Element | null)?.closest("figure.mermaid:not(.mermaid-error)");
     if (!figure) return;
     event.preventDefault();
     open(figure as HTMLElement);

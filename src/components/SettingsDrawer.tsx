@@ -13,12 +13,7 @@ import {
   Switch,
   type SelectOption,
 } from "@/components/ui/controls";
-import {
-  readThemeFile,
-  writeThemeFile,
-  type AppConfig,
-  type AppearanceMode,
-} from "@/lib/ipc";
+import { readThemeFile, writeThemeFile, type AppConfig, type AppearanceMode } from "@/lib/ipc";
 import { PRESETS } from "@/lib/theme/presets";
 import { forkTheme, parseThemeFile, serializeTheme } from "@/lib/theme/io";
 import type { Theme, ThemeColors, ThemeTypography } from "@/lib/theme/schema";
@@ -68,7 +63,7 @@ const MONO_FONTS: SelectOption[] = [
   { value: "ui-monospace, monospace", label: "System Monospace" },
 ].map((option) => ({ ...option, fontFamily: option.value }));
 
-const COLOR_FIELDS: Array<{ key: keyof Omit<ThemeColors, "alert">; label: string }> = [
+const COLOR_FIELDS: { key: keyof Omit<ThemeColors, "alert">; label: string }[] = [
   { key: "bg", label: "Page" },
   { key: "surface", label: "Raised surface" },
   { key: "text", label: "Body text" },
@@ -108,17 +103,19 @@ export function SettingsDrawer({
     });
   };
 
-  const editType = (patch: Partial<ThemeTypography>) =>
+  const editType = (patch: Partial<ThemeTypography>) => {
     edit((current) => ({
       ...current,
       typography: { ...current.typography, ...patch },
     }));
+  };
 
-  const editColor = (key: keyof Omit<ThemeColors, "alert">, value: string) =>
+  const editColor = (key: keyof Omit<ThemeColors, "alert">, value: string) => {
     edit((current) => ({
       ...current,
       colors: { ...current.colors, [key]: value },
     }));
+  };
 
   const type = theme.typography;
 
@@ -140,9 +137,7 @@ export function SettingsDrawer({
           )}
         >
           <div className="flex h-[var(--ui-titlebar-h)] shrink-0 items-center justify-between px-4">
-            <Dialog.Title className="text-[13px] text-ui-text-strong">
-              Appearance
-            </Dialog.Title>
+            <Dialog.Title className="text-[13px] text-ui-text-strong">Appearance</Dialog.Title>
             <Dialog.Close
               aria-label="Close appearance settings"
               className="grid size-7 place-items-center rounded-ui-sm text-ui-text-muted hover:bg-ui-plane-1 hover:text-ui-text-strong"
@@ -151,15 +146,17 @@ export function SettingsDrawer({
             </Dialog.Close>
           </div>
           <Dialog.Description className="sr-only">
-            Choose a theme and adjust the fonts, sizes, spacing and colors the
-            document is rendered with.
+            Choose a theme and adjust the fonts, sizes, spacing and colors the document is rendered
+            with.
           </Dialog.Description>
 
           <div className="ui-scroller min-h-0 flex-1 overflow-y-auto pb-6">
             <Section title="Theme">
               <ThemeGallery
                 activeId={config.themeId}
-                onPick={(id) => onUpdateConfig({ themeId: id })}
+                onPick={(id) => {
+                  onUpdateConfig({ themeId: id });
+                }}
               />
             </Section>
 
@@ -169,7 +166,9 @@ export function SettingsDrawer({
                   <button
                     key={mode}
                     type="button"
-                    onClick={() => onUpdateConfig({ appearance: mode })}
+                    onClick={() => {
+                      onUpdateConfig({ appearance: mode });
+                    }}
                     className={cn(
                       "flex-1 rounded-ui-md py-1.5 text-[12px] capitalize",
                       "transition-colors duration-[var(--ui-dur)]",
@@ -190,7 +189,9 @@ export function SettingsDrawer({
                   label="Body font"
                   value={type.bodyFont}
                   options={BODY_FONTS}
-                  onChange={(bodyFont) => editType({ bodyFont })}
+                  onChange={(bodyFont) => {
+                    editType({ bodyFont });
+                  }}
                 />
               </Field>
               <Field label="Headings">
@@ -198,7 +199,9 @@ export function SettingsDrawer({
                   label="Heading font"
                   value={type.headingFont}
                   options={BODY_FONTS}
-                  onChange={(headingFont) => editType({ headingFont })}
+                  onChange={(headingFont) => {
+                    editType({ headingFont });
+                  }}
                 />
               </Field>
               <Field label="Code">
@@ -206,7 +209,9 @@ export function SettingsDrawer({
                   label="Monospace font"
                   value={type.monoFont}
                   options={MONO_FONTS}
-                  onChange={(monoFont) => editType({ monoFont })}
+                  onChange={(monoFont) => {
+                    editType({ monoFont });
+                  }}
                 />
               </Field>
               <Field label="Size" value={`${type.baseSize.toFixed(1)}px`}>
@@ -216,7 +221,9 @@ export function SettingsDrawer({
                   min={13}
                   max={28}
                   step={0.5}
-                  onChange={(baseSize) => editType({ baseSize })}
+                  onChange={(baseSize) => {
+                    editType({ baseSize });
+                  }}
                 />
               </Field>
               <Field label="Heading scale" value={type.scale.toFixed(2)}>
@@ -226,7 +233,9 @@ export function SettingsDrawer({
                   min={1}
                   max={1.5}
                   step={0.01}
-                  onChange={(scale) => editType({ scale })}
+                  onChange={(scale) => {
+                    editType({ scale });
+                  }}
                 />
               </Field>
               <Field label="Heading weight" value={String(type.headingWeight)}>
@@ -236,7 +245,9 @@ export function SettingsDrawer({
                   min={300}
                   max={900}
                   step={50}
-                  onChange={(headingWeight) => editType({ headingWeight })}
+                  onChange={(headingWeight) => {
+                    editType({ headingWeight });
+                  }}
                 />
               </Field>
             </Section>
@@ -249,7 +260,9 @@ export function SettingsDrawer({
                   min={1.2}
                   max={2.2}
                   step={0.01}
-                  onChange={(lineHeight) => editType({ lineHeight })}
+                  onChange={(lineHeight) => {
+                    editType({ lineHeight });
+                  }}
                 />
               </Field>
               <Field label="Measure" value={`${Math.round(type.measure)} ch`}>
@@ -259,7 +272,9 @@ export function SettingsDrawer({
                   min={40}
                   max={120}
                   step={1}
-                  onChange={(measure) => editType({ measure })}
+                  onChange={(measure) => {
+                    editType({ measure });
+                  }}
                 />
               </Field>
               <Field label="Paragraph spacing" value={`${type.paragraphSpacing.toFixed(2)} em`}>
@@ -269,7 +284,9 @@ export function SettingsDrawer({
                   min={0}
                   max={3}
                   step={0.05}
-                  onChange={(paragraphSpacing) => editType({ paragraphSpacing })}
+                  onChange={(paragraphSpacing) => {
+                    editType({ paragraphSpacing });
+                  }}
                 />
               </Field>
               <Field label="Letter spacing" value={`${type.letterSpacing.toFixed(3)} em`}>
@@ -279,14 +296,18 @@ export function SettingsDrawer({
                   min={-0.05}
                   max={0.15}
                   step={0.005}
-                  onChange={(letterSpacing) => editType({ letterSpacing })}
+                  onChange={(letterSpacing) => {
+                    editType({ letterSpacing });
+                  }}
                 />
               </Field>
               <Row label="Justify text">
                 <Switch
                   label="Justify text"
                   checked={type.justify}
-                  onChange={(justify) => editType({ justify })}
+                  onChange={(justify) => {
+                    editType({ justify });
+                  }}
                 />
               </Row>
             </Section>
@@ -296,12 +317,12 @@ export function SettingsDrawer({
                 <Switch
                   label="Show line numbers"
                   checked={theme.code.lineNumbers}
-                  onChange={(lineNumbers) =>
+                  onChange={(lineNumbers) => {
                     edit((current) => ({
                       ...current,
                       code: { ...current.code, lineNumbers },
-                    }))
-                  }
+                    }));
+                  }}
                 />
               </Row>
             </Section>
@@ -312,7 +333,9 @@ export function SettingsDrawer({
                   key={key}
                   label={label}
                   value={theme.colors[key]}
-                  onChange={(value) => editColor(key, value)}
+                  onChange={(value) => {
+                    editColor(key, value);
+                  }}
                 />
               ))}
             </Section>
@@ -327,14 +350,10 @@ export function SettingsDrawer({
                 <PanelButton
                   icon={Upload}
                   label="Import"
-                  onClick={() =>
-                    void importTheme(config, onUpdateConfig, setStatus)
-                  }
+                  onClick={() => void importTheme(config, onUpdateConfig, setStatus)}
                 />
               </div>
-              {status && (
-                <p className="pt-2 text-[11.5px] text-ui-text-faint">{status}</p>
-              )}
+              {status && <p className="pt-2 text-[11.5px] text-ui-text-faint">{status}</p>}
             </Section>
           </div>
         </Dialog.Content>
@@ -345,13 +364,7 @@ export function SettingsDrawer({
 
 /** Swatch cards rather than a dropdown: a theme is a look, and a list of names
  *  makes the reader open each one to find out what it is. */
-function ThemeGallery({
-  activeId,
-  onPick,
-}: {
-  activeId: string;
-  onPick: (id: string) => void;
-}) {
+function ThemeGallery({ activeId, onPick }: { activeId: string; onPick: (id: string) => void }) {
   return (
     <div className="grid grid-cols-2 gap-1.5 pt-1">
       {PRESETS.map((preset) => {
@@ -360,7 +373,9 @@ function ThemeGallery({
           <button
             key={preset.id}
             type="button"
-            onClick={() => onPick(preset.id)}
+            onClick={() => {
+              onPick(preset.id);
+            }}
             title={preset.note}
             className={cn(
               "overflow-hidden rounded-ui-md text-left transition-colors duration-[var(--ui-dur)]",

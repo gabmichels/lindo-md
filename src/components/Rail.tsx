@@ -61,21 +61,9 @@ export function Rail(props: RailProps) {
           onClick={props.onToggleCollapsed}
         />
         <div className="flex-1" />
-        <RailIconButton
-          label="Appearance"
-          icon={Palette}
-          onClick={props.onOpenAppearance}
-        />
-        <RailIconButton
-          label="Settings"
-          icon={Settings}
-          onClick={props.onOpenSettings}
-        />
-        <RailIconButton
-          label="Export as HTML"
-          icon={Share}
-          onClick={props.onExport}
-        />
+        <RailIconButton label="Appearance" icon={Palette} onClick={props.onOpenAppearance} />
+        <RailIconButton label="Settings" icon={Settings} onClick={props.onOpenSettings} />
+        <RailIconButton label="Export as HTML" icon={Share} onClick={props.onExport} />
         <RailIconButton label="About lindo-md" icon={Info} onClick={props.onOpenAbout} />
       </nav>
     );
@@ -110,9 +98,7 @@ export function Rail(props: RailProps) {
 
         {props.toc.length > 0 && (
           <>
-            {props.tree.length > 0 && (
-              <div className="my-2 h-px bg-ui-hairline" aria-hidden />
-            )}
+            {props.tree.length > 0 && <div className="my-2 h-px bg-ui-hairline" aria-hidden />}
             <Outline
               toc={props.toc}
               activeId={props.activeHeadingId}
@@ -124,34 +110,16 @@ export function Rail(props: RailProps) {
       </div>
 
       <div className="flex items-center gap-1 px-[var(--ui-pad)] pb-2">
-        <RailIconButton
-          label="Appearance"
-          icon={Palette}
-          onClick={props.onOpenAppearance}
-        />
-        <RailIconButton
-          label="Settings"
-          icon={Settings}
-          onClick={props.onOpenSettings}
-        />
-        <RailIconButton
-          label="Export as HTML"
-          icon={Share}
-          onClick={props.onExport}
-        />
+        <RailIconButton label="Appearance" icon={Palette} onClick={props.onOpenAppearance} />
+        <RailIconButton label="Settings" icon={Settings} onClick={props.onOpenSettings} />
+        <RailIconButton label="Export as HTML" icon={Share} onClick={props.onExport} />
         <RailIconButton label="About lindo-md" icon={Info} onClick={props.onOpenAbout} />
       </div>
     </nav>
   );
 }
 
-function FolderChip({
-  folder,
-  onPick,
-}: {
-  folder: string | null;
-  onPick: () => void;
-}) {
+function FolderChip({ folder, onPick }: { folder: string | null; onPick: () => void }) {
   return (
     <button
       type="button"
@@ -164,9 +132,7 @@ function FolderChip({
       )}
     >
       <FolderOpen size={15} strokeWidth={1.5} className="shrink-0" aria-hidden />
-      <span className="truncate">
-        {folder ? basename(folder) : "Open a folder"}
-      </span>
+      <span className="truncate">{folder ? basename(folder) : "Open a folder"}</span>
     </button>
   );
 }
@@ -209,16 +175,18 @@ function FileTree({
     });
   }, [activePath, nodes]);
 
-  const toggle = (path: string) =>
+  const toggle = (path: string) => {
     setExpanded((current) => {
       const next = new Set(current);
       if (!next.delete(path)) next.add(path);
       return next;
     });
+  };
 
   return (
     <div className="pt-1">
       <p className="rail-label px-1.5 py-1">Documents</p>
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role -- ul/li carrying tree roles is the W3C APG pattern */}
       <ul role="tree">
         {nodes.map((node) => (
           <TreeItem
@@ -259,17 +227,20 @@ function TreeItem({
   const hasTab = !node.isDir && openPaths.has(node.path);
 
   return (
-    <li role="treeitem" aria-expanded={node.isDir ? isOpen : undefined}>
+    // `aria-selected` is required on `treeitem` and was missing: a screen reader
+    // announced the tree but never which file was open. `ul`/`li` carrying the tree
+    // roles is the W3C APG pattern, which is what the disabled rule objects to.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role -- ul/li is the APG tree pattern
+    <li role="treeitem" aria-expanded={node.isDir ? isOpen : undefined} aria-selected={isActive}>
       <button
         type="button"
         // A single click previews — it reuses one tab, so browsing a folder does
         // not leave a trail behind. Double-click, Ctrl+click and middle-click all
         // mean "keep this one", which is the gesture set a file tree teaches.
-        onClick={(event) =>
-          node.isDir
-            ? onToggle(node.path)
-            : onOpen(node.path, event.ctrlKey || event.metaKey)
-        }
+        onClick={(event) => {
+          if (node.isDir) onToggle(node.path);
+          else onOpen(node.path, event.ctrlKey || event.metaKey);
+        }}
         onDoubleClick={() => {
           if (!node.isDir) onOpen(node.path, true);
         }}
@@ -315,10 +286,7 @@ function TreeItem({
         {/* Open, but not the tab you are looking at. A dot rather than the Ember
             wash: only one file at a time is actually being read. */}
         {hasTab && !isActive && (
-          <span
-            aria-hidden
-            className="ml-auto size-1.5 shrink-0 rounded-full bg-ui-text-faint"
-          />
+          <span aria-hidden className="ml-auto size-1.5 shrink-0 rounded-full bg-ui-text-faint" />
         )}
       </button>
 
@@ -355,10 +323,7 @@ function Outline({
 }) {
   // Headings are indented relative to the shallowest one in the document, so a
   // file whose top level is h2 does not sit needlessly indented.
-  const baseLevel = useMemo(
-    () => Math.min(...toc.map((heading) => heading.level)),
-    [toc],
-  );
+  const baseLevel = useMemo(() => Math.min(...toc.map((heading) => heading.level)), [toc]);
 
   return (
     <div className="relative pt-1">
@@ -380,14 +345,14 @@ function Outline({
             <li key={heading.id}>
               <button
                 type="button"
-                onClick={() => onJumpTo(heading.id)}
+                onClick={() => {
+                  onJumpTo(heading.id);
+                }}
                 title={heading.text}
                 className={cn(
                   "w-full truncate rounded-ui-md px-1.5 py-1 text-left text-[12.5px]",
                   "transition-colors duration-[var(--ui-dur)]",
-                  isActive
-                    ? "text-ui-text-strong"
-                    : "text-ui-text-muted hover:text-ui-text",
+                  isActive ? "text-ui-text-strong" : "text-ui-text-muted hover:text-ui-text",
                 )}
                 style={{
                   paddingLeft: `${6 + (heading.level - baseLevel) * 10}px`,
