@@ -27,7 +27,7 @@ pnpm install
 pnpm tauri dev
 ```
 
-Requires Node ≥ 22, pnpm 10, a stable Rust toolchain, and (on Windows) WebView2, which ships with
+Requires Node ≥ 22.13, pnpm 11, a stable Rust toolchain, and (on Windows) WebView2, which ships with
 Windows 11.
 
 ## Commands

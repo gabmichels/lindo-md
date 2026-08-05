@@ -1,0 +1,13 @@
+# pnpm settings. Not a workspace definition — pnpm 11 stopped reading the `pnpm` field in
+# package.json and reads non-auth settings only from here, so this file exists even though
+# lindo-md is a single package. `.npmrc` is registry/auth only now.
+
+# Which dependencies may run install scripts. Everything else is blocked, which is the single
+# most valuable supply-chain control available: a compromised transitive package cannot execute
+# anything at install time unless it is named here. esbuild is listed because it downloads its
+# platform binary in a postinstall.
+#
+# `allowBuilds` replaces pnpm 10's `onlyBuiltDependencies`; the shape changed from an array to a
+# map, so a mechanical copy of the old value silently allows nothing.
+allowBuilds:
+  esbuild: true

@@ -5,9 +5,9 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.20.0",
+  "packageManager": "pnpm@11.20.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   },
   "scripts": {
     "dev": "vite",
@@ -19,11 +19,6 @@
     "bump": "node scripts/bump.mjs",
     "release": "node scripts/release.mjs",
     "tauri": "tauri"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
   },
   "dependencies": {
     "@fontsource-variable/eb-garamond": "^5.2.5",
