@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   basename,
   dirname,
+  dragRegion,
   isExternal,
   isMarkdownPath,
   resolveRelative,
@@ -94,5 +95,22 @@ describe("basename / dirname", () => {
 
   it("returns the input when there is no directory part", () => {
     expect(basename("c.md")).toBe("c.md");
+  });
+});
+
+describe("dragRegion", () => {
+  // The macOS bug this helper exists to prevent was the CSS class without the
+  // attribute: draggable on Windows, dead on macOS. Neither half is optional.
+  it("emits the Chromium class and the WKWebView attribute together", () => {
+    expect(dragRegion()).toEqual({
+      className: "drag-region",
+      "data-tauri-drag-region": true,
+    });
+  });
+
+  it("keeps the class when the caller adds their own", () => {
+    const { className, ...rest } = dragRegion("flex-1");
+    expect(className.split(" ").sort()).toEqual(["drag-region", "flex-1"]);
+    expect(rest).toEqual({ "data-tauri-drag-region": true });
   });
 });

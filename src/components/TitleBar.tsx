@@ -3,13 +3,13 @@ import { Minus, Square, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useHostPlatform } from "@/hooks/useHostPlatform";
-import { cn } from "@/lib/utils";
+import { cn, dragRegion } from "@/lib/utils";
 
 /**
  * The frameless window's own titlebar, which is also where the tabs live.
  *
  * Every per-platform difference in the window chrome lives here and nowhere
- * else: macOS keeps its real traffic lights (the rail insets to clear them),
+ * else: macOS keeps its real traffic lights (the chrome insets to clear them),
  * while Windows and Linux get controls we draw, in each platform's own order —
  * close last on Windows, close first on Linux's GNOME convention.
  *
@@ -18,11 +18,44 @@ import { cn } from "@/lib/utils";
  * the strip must.
  */
 
-export function TitleBar({ children }: { children: ReactNode }) {
+/**
+ * How much room the macOS traffic lights need, measured from the window's left
+ * edge.
+ *
+ * Paired with `trafficLightPosition` in `tauri.macos.conf.json` and has to move
+ * whenever that does. Measured from the running app rather than derived, because
+ * AppKit picks the button size and spacing itself and only the origin is ours:
+ * at `x: 15` the buttons land at 14, 37 and 60, each 16pt wide, so the last one
+ * ends at 76. The remainder is breathing room before the first tab.
+ */
+const TRAFFIC_LIGHTS_W = "80px";
+
+export function TitleBar({
+  children,
+  railCollapsed,
+}: {
+  children: ReactNode;
+  /** The rail already clears the traffic lights when it is open — at 264px it is
+   *  far wider than they are. Collapsed it is only 52px, so the shortfall has to
+   *  come out of the titlebar or the lights land on the first tab. */
+  railCollapsed: boolean;
+}) {
   const host = useHostPlatform();
+  const railWidth = railCollapsed
+    ? "var(--ui-rail-collapsed-w)"
+    : "var(--ui-rail-w)";
 
   return (
-    <header className="drag-region flex h-[var(--ui-titlebar-h)] shrink-0 items-stretch">
+    <header
+      {...dragRegion("flex h-[var(--ui-titlebar-h)] shrink-0 items-stretch")}
+    >
+      {host === "macos" && (
+        <div
+          {...dragRegion("shrink-0")}
+          style={{ width: `max(0px, calc(${TRAFFIC_LIGHTS_W} - ${railWidth}))` }}
+          aria-hidden
+        />
+      )}
       {children}
       {host !== "macos" && <WindowControls host={host} />}
     </header>

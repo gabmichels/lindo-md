@@ -335,7 +335,7 @@ function Shell() {
         ref={setCanvas}
         className="canvas-edge relative flex min-w-0 flex-1 flex-col bg-doc-bg"
       >
-        <TitleBar>
+        <TitleBar railCollapsed={config.railCollapsed}>
           <TabStrip
             session={session}
             onActivate={tabs.activate}
