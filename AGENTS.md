@@ -177,6 +177,13 @@ Two smaller decisions:
   write back a config it failed to read, because the in-memory value is then the fallback rather
   than the reader's settings. Persisting it would destroy the very file someone needs in order to
   repair it. Any future opaque-JSON field in `config.json` needs the same two properties.
+- **A contract test now catches three of those five.** `test/fixtures/config-default.json` is what
+  `AppConfig::default()` actually serializes to; `config.rs` pins Rust against it and
+  `src/lib/ipc.test.ts` pins the zod schema and `FALLBACK` against it. A field added on one side
+  and forgotten on another fails a test naming the file to edit, rather than surfacing as
+  `undefined` in a component. Note that `AppConfig` omits `None` options from the JSON entirely
+  (`skip_serializing_if`), so an absent key and a null key are both valid on the wire — the test
+  lists which fields those are, and adding another is a deliberate edit.
 - **New setting?** It has to land in five places: the Rust struct in `config.rs`, the zod schema and
   TS type in `src/lib/ipc.ts` / `src/lib/types.ts`, the `FALLBACK` in `hooks/useConfig.tsx`, and the
   settings UI. Themes and the tab session are the deliberate exceptions — Rust stores both as opaque

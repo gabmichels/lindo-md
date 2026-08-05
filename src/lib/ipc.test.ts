@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
+import { FALLBACK } from "../hooks/useConfig";
 import { AppConfigSchema, StoredCustomThemesSchema } from "./ipc";
 import { PRESETS } from "./theme/presets";
 import { EMPTY_SESSION } from "./tabs/model";
@@ -89,5 +92,87 @@ describe("AppConfigSchema", () => {
     const missingRequired = config([good]) as Record<string, unknown>;
     delete missingRequired.zoom;
     expect(AppConfigSchema.safeParse(missingRequired).success).toBe(false);
+  });
+});
+
+describe("the config contract with Rust", () => {
+  /**
+   * `test/fixtures/config-default.json` is what `AppConfig::default()` actually
+   * serializes to — pinned on the Rust side by `config.rs`'s own test. Reading it here
+   * makes the shape one thing both sides are compared against instead of three
+   * hand-maintained copies.
+   *
+   * AGENTS.md says a new setting has to land in five places. Nothing checked that it
+   * had, so a field added in Rust and forgotten in the schema was a runtime surprise
+   * for whoever opened the app next, and a field missing from `FALLBACK` was a
+   * `undefined` reaching a component only when the config failed to load.
+   */
+  // Read from the project root, as `version.test.mjs` does — under jsdom
+  // `import.meta.url` is not a file URL and `new URL(...)` throws.
+  const fixture = JSON.parse(readFileSync("test/fixtures/config-default.json", "utf8")) as Record<
+    string,
+    unknown
+  >;
+
+  it("the zod schema parses exactly what Rust sends", () => {
+    const result = AppConfigSchema.safeParse(fixture);
+    expect(result.success, result.success ? "" : JSON.stringify(result.error.issues)).toBe(true);
+  });
+
+  it("the schema keeps every field Rust sends", () => {
+    // `safeParse` succeeding is not enough: zod strips unknown keys by default, so a
+    // field the schema has never heard of parses cleanly and then silently is not there.
+    const parsed = AppConfigSchema.parse(fixture) as Record<string, unknown>;
+    const missing = Object.keys(fixture).filter((key) => !(key in parsed));
+    expect(
+      missing,
+      `AppConfigSchema drops ${missing.join(", ")} — add them to src/lib/ipc.ts`,
+    ).toEqual([]);
+  });
+
+  /**
+   * Fields Rust may leave out of the JSON entirely rather than sending as null —
+   * `#[serde(skip_serializing_if = "Option::is_none")]` in `config.rs`.
+   *
+   * Listed rather than inferred, so adding another one is a deliberate edit here. This
+   * test's first run failed on `lastFolder` and the contract, not the code, turned out
+   * to be what I had wrong: an absent key and a null key are different things on the
+   * wire, and the schema has to accept both.
+   */
+  const OMITTED_WHEN_NONE = ["lastFolder"];
+
+  it("FALLBACK has exactly the fields Rust can send", () => {
+    const expected = [...Object.keys(fixture), ...OMITTED_WHEN_NONE].sort();
+    const fallbackKeys = Object.keys(FALLBACK).sort();
+    expect(fallbackKeys, "FALLBACK in hooks/useConfig.tsx has drifted from AppConfig").toEqual(
+      expected,
+    );
+  });
+
+  it("the schema accepts a config with the optional fields absent", () => {
+    // Which is what Rust actually sends on a fresh install — the fixture is exactly
+    // that, and `lastFolder` is simply not in it.
+    for (const key of OMITTED_WHEN_NONE) {
+      expect(key in fixture, `${key} should be absent from a default config`).toBe(false);
+    }
+    expect(AppConfigSchema.safeParse(fixture).success).toBe(true);
+  });
+
+  it("the schema also accepts them sent explicitly as null", () => {
+    const withNulls = {
+      ...fixture,
+      ...Object.fromEntries(OMITTED_WHEN_NONE.map((k) => [k, null])),
+    };
+    const parsed = AppConfigSchema.safeParse(withNulls);
+    expect(parsed.success, parsed.success ? "" : JSON.stringify(parsed.error.issues)).toBe(true);
+  });
+
+  it("FALLBACK agrees with Rust on the scalar defaults", () => {
+    // Not every value: `session` is normalized on the way through and the arrays are
+    // empty either way. The scalars are the ones a reader notices being wrong — a
+    // different default zoom or theme after a failed load looks like the app broke.
+    for (const key of ["themeId", "appearance", "railWidth", "zoom", "blockRemoteImages"]) {
+      expect(FALLBACK[key as keyof typeof FALLBACK], key).toEqual(fixture[key]);
+    }
   });
 });
