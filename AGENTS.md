@@ -45,6 +45,7 @@ Windows 11.
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm lint` | ESLint, type-aware — warnings fail |
 | `pnpm lint:fix` | ESLint with `--fix` |
+| `pnpm knip` | Dead code, and dependencies nothing imports |
 | `pnpm format` | Prettier, write |
 | `pnpm format:check` | Prettier, check only — this is the CI gate |
 | `pnpm test` | vitest, once |
@@ -98,6 +99,13 @@ the response with a zod schema, and attaches the command name to any parse failu
 are called with `camelCase` keys.
 
 ## TypeScript
+
+`pnpm knip` finds what nothing imports. Two settings in `knip.json` are load-bearing and both
+suppress *false* positives rather than real ones: `ignoreExportsUsedInFile`, because most exports
+here exist so the colocated test can reach them, and `tailwindcss`/`tw-animate-css` in
+`ignoreDependencies`, because they are pulled in from `styles.css` and knip does not follow CSS
+imports. Noise is how a check stops being read.
+
 
 Prettier owns formatting and ESLint owns correctness; the two never overlap, so there is nothing
 to argue about in review. `pnpm format` before `pnpm lint`.

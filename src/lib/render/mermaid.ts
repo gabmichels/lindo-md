@@ -277,10 +277,3 @@ function firstLine(message: string): string {
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- "" must fall back
   return message.split("\n")[0]?.trim() || "unknown error";
 }
-
-/** Resets the memoized Mermaid instance. Tests only. */
-export function resetMermaid(): void {
-  mermaidPromise = null;
-  appliedThemeId = null;
-  counter = 0;
-}

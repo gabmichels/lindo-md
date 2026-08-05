@@ -94,12 +94,3 @@ export async function highlightBlock(block: HTMLElement, theme: string): Promise
 export function isHighlighted(block: HTMLElement, theme: string): boolean {
   return block.dataset.highlighted === theme;
 }
-
-/** Drops the cached highlighter. Only used by tests — the app keeps one for its
- *  lifetime, since loading grammars twice is pure cost. */
-export function resetHighlighter(): void {
-  highlighterPromise = null;
-  loadedThemes.clear();
-  loadedLanguages.clear();
-  unknownLanguages.clear();
-}

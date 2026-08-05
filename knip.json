@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": ["scripts/check-commit-msg.mjs"],
+  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.mjs"],
+  "ignoreDependencies": [
+    "@fontsource-variable/.*",
+    "@fontsource/.*",
+    "tailwindcss",
+    "tw-animate-css"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "rules": {
+    "types": "off"
+  }
+}
