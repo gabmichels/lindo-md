@@ -171,6 +171,46 @@ jobs:
           cat "$out"
           gh release upload "${{ github.ref_name }}" "$out" --clobber
 
+      # Generated on the Linux runner only. The dependency tree is the same on every
+      # platform — the lockfiles are — so doing it three times would produce three
+      # identical files racing each other onto the release.
+      #
+      # `cdxgen` rather than the per-ecosystem tools: `@cyclonedx/cyclonedx-npm` shells
+      # out to `npm ls`, which fails outright in a pnpm project, and using one tool for
+      # both trees means one thing to pin rather than two. Verified by running it on
+      # this repo — 725 components from the pnpm side, 556 from the cargo side.
+      #
+      # CycloneDX rather than SPDX because both `osv-scanner` and `grype` read it
+      # directly. The point is that somebody who downloads a binary can ask what is
+      # inside it without taking this repo's word for it.
+      - name: Build a CycloneDX SBOM
+        if: matrix.os == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Pinned, and run through `dlx` rather than added to package.json: a tool only
+          # the release uses is still a dependency in everyone's lockfile if it goes there.
+          pnpm dlx @cyclonedx/cdxgen@11.11.0 -t pnpm -o sbom-frontend.cdx.json --spec-version 1.5
+          (cd src-tauri && pnpm dlx @cyclonedx/cdxgen@11.11.0 -t rust -o ../sbom-rust.cdx.json --spec-version 1.5)
+
+          for f in sbom-frontend.cdx.json sbom-rust.cdx.json; do
+            components=$(jq '.components | length' "$f")
+            echo "$f: $components components"
+            # An SBOM listing nothing is worse than no SBOM: it answers the question
+            # wrongly rather than declining to answer it.
+            [ "$components" -gt 0 ] || { echo "::error::$f lists no components"; exit 1; }
+          done
+
+      - name: Publish the SBOM
+        if: matrix.os == 'ubuntu-22.04'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release upload "${{ github.ref_name }}"             sbom-frontend.cdx.json sbom-rust.cdx.json --clobber
+
       - name: Attest build provenance
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
