@@ -536,6 +536,10 @@ existing group's run does still join it, and that is ordinary reordering with a 
 
 ## Driving the running app
 
+`pnpm test:e2e` is the formalised version of what follows — six checks over CDP against a real
+window, run locally before a release rather than in CI (`test/e2e/README.md` says why). The raw
+recipe below is still worth knowing, because when a check fails this is how you look at it.
+
 The window is a WebView2 with no automation surface, and `SendKeys` does not reach it. Launch with
 remote debugging and drive it over CDP instead — this is how the rendering was verified:
 
