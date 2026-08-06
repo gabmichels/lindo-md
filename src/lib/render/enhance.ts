@@ -98,6 +98,10 @@ function asDiagramSource(element: HTMLElement): HTMLElement {
   pre.className = "mermaid-src";
   pre.dataset.source = element.dataset.source ?? "";
   pre.textContent = element.dataset.source ?? "";
+  // Carried both ways, so a theme change does not cost the block its position.
+  // See `renderDiagram`, and `lib/render/mirror.ts` for what reads it.
+  const sourcepos = element.getAttribute("data-sourcepos");
+  if (sourcepos !== null) pre.setAttribute("data-sourcepos", sourcepos);
   element.replaceWith(pre);
   return pre;
 }

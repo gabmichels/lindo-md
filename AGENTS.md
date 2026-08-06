@@ -85,7 +85,8 @@ src/
     ipc.ts       the ONLY place `invoke` is called; every response zod-parsed
     tabs/        the tab session: model.ts (order + groups), layout.ts (widths),
                  drag.ts (the gesture), schema.ts (what gets persisted)
-    render/      post-render enhancement passes (shiki, mermaid, katex, links, images)
+    render/      mirror.ts puts a re-render on screen; the rest are post-render
+                 enhancement passes (shiki, mermaid, katex, links, images)
     theme/       Theme schema, presets, applyTheme, import/export
     export/      standalone HTML + print
 src-tauri/src/
@@ -504,6 +505,25 @@ existing group's run does still join it, and that is ordinary reordering with a 
 - **`DocumentDeck`** keeps background tabs mounted and hidden rather than unmounting them. This is
   the whole performance story: `enhance()` records what it has already done on the DOM nodes, so
   keeping them alive makes switching back nearly free.
+- **An edit re-renders the whole document, and `render/mirror.ts` is what stops that being felt.**
+  Every keystroke sends the whole file to Rust and gets the whole document back, which used to land
+  as `article.innerHTML = doc.html`. One line, correct, and it discarded every node the enhancement
+  passes had decorated — so deleting one word re-ran Shiki over every visible fence, re-ran Mermaid
+  over every visible diagram, and re-requested every image. `mirror` diffs the new HTML against the
+  *previous HTML string* and replaces only the top-level blocks that changed. Measured over CDP on a
+  diagram-heavy document: **223 ms and 63 blocks replaced, down to 30 ms and one.**
+  - Two things it depends on, both of which will silently un-optimise it if broken. **An
+    enhancement pass must not add or remove a top-level node** — the remembered list is positional,
+    and `mirror` detects the drift and falls back to a full rebuild rather than mis-pair anything.
+    And **an edit that changes the number of lines shifts every `data-sourcepos` below it**, so
+    those blocks are matched with the positions stripped and re-stamped in place. `restamp` refuses
+    unless it can pair every attribute one-to-one *and* the tags agree, because `data-sourcepos`
+    decides which run of the file a keystroke rewrites: a mis-paired one does not misdraw
+    something, it redirects an edit onto text it does not own.
+  - `renderDiagram` therefore forwards `data-sourcepos` onto the `figure` it puts in place of the
+    `pre`, and `asDiagramSource` carries it back. That is the only element swap any pass performs,
+    it is named explicitly in `fills`, and without it every line-shifting edit re-renders every
+    diagram on screen.
 
 ## Gotchas
 
