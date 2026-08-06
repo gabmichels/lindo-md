@@ -50,6 +50,7 @@ Windows 11.
 | `pnpm format:check` | Prettier, check only — this is the CI gate |
 | `pnpm test` | vitest, once |
 | `pnpm test:watch` | vitest, watching |
+| `pnpm test:e2e` | Smoke checks against the running app — needs a launched binary, see [`test/e2e/README.md`](test/e2e/README.md) |
 | `cargo test` | Rust unit tests (run from `src-tauri/`) |
 | `cargo clippy --all-targets -- -D warnings` | Lint — CI treats warnings as errors |
 | `cargo fmt --check` | Format check |
@@ -74,14 +75,21 @@ src/
     tabs/        the tab session: model.ts (order + groups), layout.ts (widths),
                  drag.ts (the gesture), schema.ts (what gets persisted)
     render/      post-render enhancement passes (shiki, mermaid, katex, links, images)
+    edit/        the rendered view is editable: selection.ts maps a caret back to
+                 the file through `data-sourcepos`, format.ts applies a command,
+                 input.ts drives typing, tasks.ts toggles a checkbox
     theme/       Theme schema, presets, applyTheme, import/export
     export/      standalone HTML + print
 src-tauri/src/
   lib.rs         builder wiring only; main.rs is 6 lines
   commands.rs    thin adapters — no logic
   markdown.rs    comrak + ammonia + TOC
+  srcmap.rs      byte ranges per block, so an edit lands on the right run of source
   files.rs       open/read/scan/watch
   config.rs      settings persistence
+  export.rs      reading and writing the files a dialog picked — see its module doc
+                 for what the extension check is and is not
+  assoc.rs       documents the OS hands over, by every route it uses
   defaults.rs    which app owns .md (read-only — Windows blocks writing it)
   error.rs       LindoError, serialized to the frontend as a plain string
 ```
@@ -192,9 +200,11 @@ Two smaller decisions:
   `undefined` in a component. Note that `AppConfig` omits `None` options from the JSON entirely
   (`skip_serializing_if`), so an absent key and a null key are both valid on the wire — the test
   lists which fields those are, and adding another is a deliberate edit.
-- **New setting?** It has to land in five places: the Rust struct in `config.rs`, the zod schema and
-  TS type in `src/lib/ipc.ts` / `src/lib/types.ts`, the `FALLBACK` in `hooks/useConfig.tsx`, and the
-  settings UI. Themes and the tab session are the deliberate exceptions — Rust stores both as opaque
+- **New setting?** It has to land in four places: the Rust struct in `config.rs`, the zod schema in
+  `src/lib/ipc.ts` — the TS type comes free from `z.infer`, there is no separate `types.ts` — the
+  `FALLBACK` in `hooks/useConfig.tsx`, and the settings UI. The first three are checked against each
+  other by the contract test above; the fourth is not, because no test can tell whether a control
+  exists that a reader would look for. Themes and the tab session are the deliberate exceptions — Rust stores both as opaque
   JSON so each schema lives in one place, the frontend. Reach for that exception only when the same
   three things hold as for themes: the shape is nested, the frontend already validates it, and Rust
   never reads inside it.
