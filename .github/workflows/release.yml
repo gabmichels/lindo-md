@@ -145,19 +145,39 @@ jobs:
           out="checksums-${{ matrix.os }}.txt"
           : > "$out"
           while IFS= read -r p; do
-            # tauri-action reports native Windows paths; Git Bash's `test -f` rejects some
-            # backslash forms that the Win32 API itself accepts, which silently dropped the
-            # .msi from v1.0.0's checksums. Forward slashes are understood on both platforms,
-            # and this is a no-op on Linux's already-forward paths.
+            # Strip a trailing CR before anything else looks at the value.
             #
-            # `tr` rather than `${p//\\//}`: that expansion is a silent no-op in the MSYS bash
-            # these runners use. '\134' is octal for the backslash, which avoids tr's
-            # "unescaped backslash at end of string" warning.
-            p=$(printf '%s' "$p" | tr '\134' '/')
+            # This is what actually broke v1.0.0 and v1.1.0, and it is worth naming precisely
+            # because the symptom is so misleading: a path carrying a CR *prints* correctly —
+            # the carriage return just returns the cursor — so the error said "not found" next
+            # to a path that was plainly right, and the previous fix went looking for a
+            # backslash problem that was never there. `test -f` was being handed a filename
+            # ending in a control character, and no such file exists.
+            #
+            # Only Windows is affected: the CR rides in on the action's output plumbing, so the
+            # same expression is a no-op on Linux — which is why Linux checksums were always
+            # complete and the Windows .msi silently vanished from v1.0.0's.
+            p=${p%$'\r'}
+            # tauri-action reports native Windows paths, so they need translating for a shell
+            # that thinks in POSIX ones. `cygpath` is the translation MSYS uses on itself,
+            # which beats substituting separators by hand and guessing at the drive syntax.
+            # Absent on Linux, where the paths already are POSIX and need nothing done to them.
+            if command -v cygpath >/dev/null 2>&1; then
+              p=$(cygpath -u "$p")
+            fi
             # A reported artifact that cannot be hashed is a broken release, not something to
             # skip: the file still reaches the release page, just with no checksum to check it
             # against, and that is indistinguishable from success unless it fails here.
-            [ -f "$p" ] || { echo "::error::artifact reported but not found: $p"; exit 1; }
+            #
+            # The listing is printed because this failure has now been diagnosed wrongly once.
+            # Whatever the next cause turns out to be, the log should answer "then what *is*
+            # in that directory?" without needing a second release to find out.
+            [ -f "$p" ] || {
+              echo "::error::artifact reported but not found: $p"
+              echo "contents of $(dirname "$p"):"
+              ls -la "$(dirname "$p")" || echo "  (directory does not exist)"
+              exit 1
+            }
             # Bare filenames, so `sha256sum -c` works from the directory of the downloads.
             (cd "$(dirname "$p")" && sha256sum "$(basename "$p")") >> "$GITHUB_WORKSPACE/$out"
           done <<< "$paths"
