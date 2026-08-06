@@ -1,17 +1,20 @@
 /**
  * Builds the `latest.json` the in-app updater reads.
  *
- * `tauri-action` can write this file itself, and for a single-runner release it should.
- * This repo builds on two runners, and the action writes the manifest from the artifacts
- * of *its own* job — so Windows publishes a `latest.json` describing only Windows, Linux
- * publishes one describing only Linux, and whichever finishes last overwrites the other.
- * Half the users then check for updates and are told, by a well-formed manifest served
- * from the right URL, that their platform has no release. Nothing errors. It is the same
- * shape of failure the checksum step downstairs already documents: a step that appears to
- * have succeeded while silently dropping an artifact.
+ * `tauri-action` can write this file itself, and it writes a correct one: each runner
+ * merges its own platforms into whatever is already on the release, so a two-runner matrix
+ * ends up with both. This script exists for the case the action has no way to see.
  *
- * So both jobs are told not to write it (`uploadUpdaterJson: false`) and a third job runs
- * this over the finished release instead, where every platform's artifacts exist at once.
+ * If one leg of the matrix dies before uploading, the other still publishes a manifest —
+ * a valid, well-formed one that simply has no key for the missing platform. Every install
+ * on that platform then checks for updates, is told there is nothing for it, and reports
+ * this to nobody. Nothing errors, and the release page looks fine. It is the same shape of
+ * failure the checksum step in `release.yml` already documents: a step that appears to have
+ * succeeded while silently dropping an artifact.
+ *
+ * So both jobs are told not to write it (`includeUpdaterJson: false`) and a third job runs
+ * this over the finished release instead, where every platform's artifacts exist at once —
+ * and where their *absence* is something that can be checked and refused.
  *
  *   node scripts/updater-manifest.mjs --dir <assets> --version 1.2.0 --tag v1.2.0 \
  *     --repo owner/name [--notes "..."] [--pub-date 2026-08-06T00:00:00Z]

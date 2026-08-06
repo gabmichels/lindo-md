@@ -158,14 +158,24 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
-          # The action writes `latest.json` from the artifacts of its own job, and this is a
-          # two-runner matrix — so Windows would publish a manifest describing only Windows,
-          # Linux one describing only Linux, and the second to finish would overwrite the
-          # first. The losing platform's users then get a well-formed manifest, served from
-          # the right URL, that says their platform has no release. The `Publish the updater
-          # manifest` job below builds it once, from the finished release, where both
-          # platforms' artifacts exist together.
-          uploadUpdaterJson: false
+          # `includeUpdaterJson`, not `uploadUpdaterJson`. The rename exists — it is in the
+          # action's own changelog — but not in the version pinned above, which still takes the
+          # older name. v1.2.0 shipped with the newer one and Actions answered with
+          # `##[warning]Unexpected input(s) 'uploadUpdaterJson'` and then carried on with the
+          # default of `true`, because an unrecognised input is a warning and not an error. If
+          # you ever change this line, read the inputs of the SHA that is actually pinned rather
+          # than the docs for whatever is current.
+          #
+          # Off because the `Publish the updater manifest` job below writes the manifest
+          # instead. The action's own is not wrong — v1.2.0's was complete and correct, since
+          # it merges each runner's platforms into whatever is already on the release rather
+          # than replacing it. What it cannot do is notice what is *absent*: if the Windows leg
+          # dies before uploading, the Linux leg still publishes a manifest, and it is a valid
+          # one that simply has no `windows-x86_64` key. Every Windows install then checks for
+          # updates, is told there is nothing for its platform, and says so to nobody. The job
+          # below refuses to write a manifest that is missing a platform, which is the only
+          # part of this the action cannot do for us.
+          includeUpdaterJson: false
 
       # Neither of the next two steps depends on a paid certificate, which is the point: they are
       # the trust signals available to an unsigned project. Checksums let anyone confirm the file
@@ -281,12 +291,15 @@ jobs:
 
   # What every installed copy of lindo-md reads to decide whether to update, and what to
   # download when it does. It runs after both bundles exist, for the reason spelled out at
-  # `uploadUpdaterJson: false` above: a per-runner manifest describes one platform and
-  # overwrites the other's.
+  # `includeUpdaterJson: false` above: the action's own manifest is accurate about the
+  # artifacts it can see and silent about the ones that were never built.
   #
   # `needs` without `if: success()` is deliberate — a matrix leg that failed means one
   # platform has no bundle, and `scripts/updater-manifest.mjs` refuses to write a manifest
   # with a platform missing rather than publishing one that silently strands those users.
+  # This job being skipped is the correct outcome of a half-finished release: the previous
+  # version's manifest stays in place, and everyone keeps being offered a release that
+  # exists, until a human looks at why the build failed.
   #
   # The manifest itself is not signed, and does not need to be for the property that matters:
   # every URL in it points at an artifact whose minisign signature the client verifies before

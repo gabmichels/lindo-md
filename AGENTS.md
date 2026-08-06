@@ -450,11 +450,18 @@ wrong is silent in its own direction: the `updater:default` grant in `capabiliti
 the `pubkey`, and `bundle.createUpdaterArtifacts`.
 
 `latest.json` is built by `scripts/updater-manifest.mjs` in its own job rather than by
-`tauri-action`, and the reason is the whole point of that script's doc comment: the action writes
-the manifest from the artifacts of its own job, and this is a two-runner matrix, so each platform
-would publish a manifest describing only itself and the second to finish would overwrite the first.
-Half the users would then be told, by a valid manifest at the right URL, that their platform has no
-release.
+`tauri-action`. The action's own manifest is not wrong — it merges each runner's platforms into
+whatever is already on the release, so a two-runner matrix ends up with both. What it cannot do is
+notice what is *absent*: if one leg dies before uploading, the other still publishes a manifest,
+and it is a valid one that simply has no key for the missing platform. Every install on that
+platform then checks for updates, is told there is nothing for it, and reports this to nobody. The
+script refuses to write a manifest with a platform missing, and that refusal is the entire reason
+the job exists.
+
+Set `includeUpdaterJson`, **not** `uploadUpdaterJson`. The rename is real but is not in the pinned
+SHA, and an unrecognised input is a warning rather than an error — so v1.2.0 shipped with the wrong
+name, the action carried on with its default of `true`, and nobody would have noticed from the job
+status. Read the inputs of the SHA that is pinned, not the docs for whatever is current.
 
 **Windows is NSIS only.** The `.msi` is not built. A manifest carries one installer per platform
 and Tauri cannot tell which one a user originally ran; MSI and NSIS install to different locations
