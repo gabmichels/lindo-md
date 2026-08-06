@@ -4,11 +4,16 @@ The parts of this project's security that do not live in the repository. Written
 settings applied through a web UI are invisible in review, drift silently, and are the first thing
 lost if the repo is ever recreated or transferred.
 
+**All of this is applied.** It was applied on 2026-08-06 via the API, and the tables below are a
+record of what is set and why rather than a list of things to do. Two exceptions are called out
+where they arise. Re-read it when something surprises you — a setting you cannot find in the UI is
+usually one of these.
+
 Shaped for what this actually is: **one maintainer, a public repo, shipping signed-by-nobody
 binaries that people download and run.** Rules that assume a review team are called out as such
 rather than recommended and quietly ignored.
 
-## Before anything else: the CI trap
+## The trap that shapes the required checks
 
 **Do not require a status check from a workflow that can be skipped.** A skipped workflow reports
 *nothing*, not success — so a required check waits forever for a report that never arrives, and the
@@ -78,13 +83,25 @@ Settings → Code security.
 | Dependabot security updates | ❌ | Renovate already does this; two bots would open duplicate PRs |
 | CodeQL default setup | ❌ | `codeql.yml` is the advanced setup — enabling both analyses everything twice |
 
+Two of these **could not be set through the API** and stayed `disabled` across several attempts,
+which most likely means they are UI-only or need a plan this repo does not have:
+`secret_scanning_non_provider_patterns` and `secret_scanning_validity_checks`. Both are
+nice-to-have rather than load-bearing — core secret scanning and push protection are on — but if
+you want them they are at
+[Settings → Code security](https://github.com/gabmichels/lindo-md/settings/security_analysis).
+
+Worth knowing that **private vulnerability reporting was off** until it was switched on here, which
+meant the link `SECURITY.md` points at had been returning 404 for as long as that file has
+existed.
+
 ## Actions
 
 Settings → Actions → General.
 
 | Setting | Value | Why |
 |---|---|---|
-| Actions permissions | Allow *selected* actions | Every `uses:` here is already SHA-pinned; this makes adding an unvetted one a settings change rather than a quiet commit |
+| Require actions to be pinned to a SHA | **on** | Enforces what the repo already did. Every `uses:` was already a commit SHA, so switching it on changed nothing that day and rejects an unpinned one later |
+| Actions permissions | Allow *selected* actions — **not applied**; left at `all`, since restricting it makes adding any action a settings change first | Every `uses:` here is already SHA-pinned; this makes adding an unvetted one a settings change rather than a quiet commit |
 | Fork PR approval | Require for **all outside collaborators** | A fork PR can edit the workflow it runs under |
 | Workflow permissions | **Read repository contents** | This is the default `ci.yml` had been silently inheriting when it had no `permissions:` block. Set it read-only and the blast radius of a bad action shrinks everywhere at once |
 | Allow GitHub Actions to create and approve PRs | ❌ | Renovate uses its own app token |
@@ -102,7 +119,7 @@ and verified creators"* — weaker, since `tauri-action` and `osv-scanner` are n
 - **Allow auto-merge** ✅ — this is what makes Renovate's `automerge` for devDependency patches
   actually land without a human.
 
-## Applying it
+## Re-applying, or checking for drift
 
 Most of this is UI-only. The two rulesets are API-addressable, and drafts are in
 [`.github/rulesets/`](../.github/rulesets/) — import them with:

@@ -68,7 +68,7 @@ For the AppImage: `chmod +x lindo-md_*.AppImage`
 > [!NOTE]
 > These builds are **unsigned**, so Windows SmartScreen will show "Windows protected your PC" the
 > first time — choose **More info → Run anyway**. Instead of a code-signing certificate, every
-> release publishes SHA256 checksums and signed [build provenance](https://docs.github.com/actions/security-guides/using-artifact-attestations),
+> release publishes SHA256 checksums, a CycloneDX SBOM, and signed [build provenance](https://docs.github.com/actions/security-guides/using-artifact-attestations),
 > which ties each binary to the exact commit and workflow run that produced it:
 >
 > ```sh
@@ -217,12 +217,20 @@ Node ≥ 22.13, pnpm 11, and a stable Rust toolchain. On Linux you also need
 ## Not yet
 
 Signed macOS builds, GitHub's geoJSON/topoJSON/ASCII-STL blocks, plugins, and sync are out of scope
-for now.
+for now. [docs/signing.md](./docs/signing.md) explains what unsigned costs you, what signing would
+cost, and why it has not been done — so it is a decision on the record rather than an omission.
 
 ## Contributing
 
+[CONTRIBUTING.md](./CONTRIBUTING.md) is the short version: setup, the gates to run before pushing,
+and the one thing most likely to catch you out — the commit subject decides the version number, so
+a behaviour fix labelled `chore:` ships to nobody.
+
 [AGENTS.md](./AGENTS.md) covers the architecture, commands and conventions; [DESIGN.md](./DESIGN.md)
 covers the visual rules. Both are short, and both are worth reading before a first PR.
+
+Found a security problem? Please don't open an issue — [SECURITY.md](./SECURITY.md) explains what
+counts and how to report it privately.
 
 ## License
 

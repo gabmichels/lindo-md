@@ -323,12 +323,15 @@ pull request — and CI runs on pull requests *or* on a push to `main`, so the c
 the code did. A failure then breaks trunk instead of blocking a PR. Whatever created the branch, land
 it with `gh pr create`.
 
-Run the six gates locally before pushing — see [Commands](#commands). CI runs the same six on Linux,
-macOS and Windows plus a bundle build on each, but it never *launches* the app: a green tick means a
-change compiles and packages on all three, not that it behaves on all three. Anything touching window
-chrome, a platform API or the installer still wants a human on the platform in question. Prose-only
-changes (`*.md`, `docs/**`, `LICENSE`) are skipped by `paths-ignore`, so a docs PR showing no checks
-at all is working as intended.
+Run the gates locally before pushing — see [Commands](#commands). CI runs the same set, with the
+platform-independent ones once on Linux and the Rust suite plus a bundle build on all three. What it
+never does is *launch* the app: a green tick means a change compiles and packages everywhere, not
+that it behaves everywhere. Anything touching window chrome, a platform API or the installer still
+wants a human on the platform in question, and `pnpm test:e2e` is the closest automated substitute.
+
+Prose-only changes skip the expensive jobs, but the workflow still runs — a `changes` job decides,
+and the `ci` job reports either way. A docs PR shows a short green run rather than no checks at all,
+which is what makes `CI` safe to require in branch protection.
 
 **Pull requests are squash-merged.** That is what keeps `main` linear and one commit per change, and
 it has two consequences worth knowing:
