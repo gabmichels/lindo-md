@@ -38,7 +38,11 @@ interface ConfigContextValue {
 
 /** Used until the real config arrives, and if loading fails. Kept in step with
  *  `AppConfig::default()` in `src-tauri/src/config.rs`. */
-const FALLBACK: AppConfig = {
+// Exported for the contract test, which compares its field set against the JSON Rust
+// actually produces. Three copies of one shape (this, `AppConfigSchema`, and `AppConfig`
+// in `config.rs`) is the arrangement AGENTS.md warns about; the test is what makes the
+// drift loud instead of a runtime surprise.
+export const FALLBACK: AppConfig = {
   version: 1,
   themeId: "house",
   appearance: "system",

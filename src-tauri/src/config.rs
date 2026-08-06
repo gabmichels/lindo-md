@@ -211,6 +211,39 @@ pub fn save(app: &AppHandle, config: &AppConfig) -> LindoResult<()> {
 
 #[cfg(test)]
 mod tests {
+    /// The default config, as JSON, pinned against `test/fixtures/config-default.json`.
+    ///
+    /// That file is the contract between this struct and the frontend. `AppConfig` here,
+    /// `AppConfigSchema` in `src/lib/ipc.ts` and `FALLBACK` in `hooks/useConfig.tsx` are
+    /// three hand-maintained copies of one shape — AGENTS.md says a new setting has to
+    /// land in five places, and nothing checked that it had. A field added here and
+    /// forgotten there was a runtime surprise for whoever opened the app next.
+    ///
+    /// The fixture makes the shape a thing both sides can be compared against: this test
+    /// fails if Rust drifts from it, and `src/lib/ipc.test.ts` fails if either the zod
+    /// schema or the fallback does.
+    #[test]
+    fn the_default_config_matches_the_shared_fixture() {
+        let actual = serde_json::to_value(AppConfig::default()).expect("AppConfig serializes");
+        let expected: serde_json::Value =
+            serde_json::from_str(include_str!("../../test/fixtures/config-default.json"))
+                .expect("the fixture is valid JSON");
+
+        assert_eq!(
+            actual,
+            expected,
+            "
+
+AppConfig::default() no longer matches test/fixtures/config-default.json.
+             If the change is intended, write this into the fixture and update the zod schema
+             in src/lib/ipc.ts and FALLBACK in src/hooks/useConfig.tsx to match:
+
+{}
+",
+            serde_json::to_string_pretty(&actual).unwrap_or_default()
+        );
+    }
+
     use super::*;
 
     #[test]
