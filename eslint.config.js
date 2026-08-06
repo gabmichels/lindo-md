@@ -188,11 +188,11 @@ export default tseslint.config(
   // so spreading it into the same object literal replaces the `globals` set beside it —
   // which silently drops the Node globals and reports `process` as undefined.
   {
-    files: ["scripts/**/*.mjs", "vite.config.ts"],
+    files: ["scripts/**/*.mjs", "test/e2e/**/*.mjs", "vite.config.ts"],
     ...tseslint.configs.disableTypeChecked,
   },
   {
-    files: ["scripts/**/*.mjs", "vite.config.ts"],
+    files: ["scripts/**/*.mjs", "test/e2e/**/*.mjs", "vite.config.ts"],
     languageOptions: { globals: globals.node },
   },
 

@@ -20,7 +20,7 @@
 
 ---
 
-- [ ] The commit subject uses a type from the table in [AGENTS.md](../AGENTS.md#what-bumps-what).
+- [ ] The commit subject uses a type from the table in [CONTRIBUTING.md](../CONTRIBUTING.md).
       The version is derived from it, so `chore:` on a user-visible fix ships to nobody.
 - [ ] New pure functions have unit tests; a new Markdown construct has a case in
       `test/fixtures/kitchen-sink.md`; anything touching the sanitizer has a test proving
