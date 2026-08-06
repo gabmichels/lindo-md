@@ -43,6 +43,11 @@ jobs:
   # OSV covers both ecosystems from one database, which is why it is here rather than
   # `pnpm audit` + `cargo audit`: two tools, two output formats, two sets of excuses.
   #
+  # `--config=osv-scanner.toml` carries the suppressions and the reasoning for each. They
+  # are all the GTK 0.18 stack Tauri pulls in on Linux, all unreachable from this app, and
+  # none upgradeable until Tauri moves. Every one carries an `ignoreUntil` so the argument
+  # has to be made again rather than standing forever.
+  #
   # These are reusable *workflows*, not actions — osv-scanner's `action.yml` is a stub
   # with no `runs:` block, so `uses:` at step level silently does nothing.
   osv:
@@ -56,6 +61,7 @@ jobs:
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
     with:
       scan-args: |-
+        --config=osv-scanner.toml
         --lockfile=pnpm-lock.yaml
         --lockfile=src-tauri/Cargo.lock
 
@@ -72,6 +78,7 @@ jobs:
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
     with:
       scan-args: |-
+        --config=osv-scanner.toml
         --lockfile=pnpm-lock.yaml
         --lockfile=src-tauri/Cargo.lock
 

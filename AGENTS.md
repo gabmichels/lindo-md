@@ -238,7 +238,12 @@ run. There is no server to patch afterwards, so the tree is part of what ships.
 - **`cargo deny check`** covers the Rust half — RustSec advisories, a licence allow-list (we ship a
   binary; a copyleft crate appearing in it should be a decision), a ban on wildcard versions, and
   `sources`, which fails if anything resolves to somewhere other than crates.io.
-- **`osv-scanner`** reads both lockfiles against one database, daily and on dependency PRs. It
+- **`osv-scanner`** reads both lockfiles against one database, daily and on dependency PRs. Its
+  suppressions live in `osv-scanner.toml`, one entry per advisory with a reason and an
+  `ignoreUntil` date — all of them the GTK 0.18 stack Tauri needs on Linux, none upgradeable until
+  Tauri moves. Keep that file and `deny.toml`'s `unmaintained = "workspace"` in step: they encode
+  the same judgement, and the workflow went red on `main` while cargo-deny stayed green precisely
+  because only one of them had it. It
   earned its place on the first run, catching GHSA-rgw5-rvv9-x895 in `brace-expansion` — which
   had arrived transitively with ESLint in the very commit that added the scanner.
 

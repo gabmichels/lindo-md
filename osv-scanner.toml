@@ -1,0 +1,141 @@
+# What osv-scanner is told to stop reporting, and why.
+#
+# Every entry here is in the GTK 0.18 stack that Tauri pulls in for its Linux webview,
+# and every one is unreachable from this repository: the chain is
+# `glib <- atk <- gtk 0.18 <- muda <- tauri 2.11`. `cargo update -p glib` locks zero
+# packages, because gtk 0.18 requires glib ^0.18 — none of this moves until Tauri moves
+# to gtk 0.19, which is not a decision this project gets to make.
+#
+# This file exists because the workflow was red on `main` while `cargo-deny` was green
+# on the same tree, which is an inconsistency in *this repo's configuration*, not a
+# disagreement between the tools. `deny.toml` already sets `unmaintained = "workspace"`
+# with the reasoning written next to it — that unmaintained notices from deep in the
+# GTK stack are noise we can neither fix nor drop, and a check that is always red is a
+# check nobody reads. That reasoning was never applied to osv-scanner. It is now.
+#
+# `ignoreUntil` on every entry, deliberately. A suppression with no expiry is a decision
+# nobody revisits; these come back in six months and have to be argued for again. If
+# Tauri has moved by then, the fix is to delete the entry rather than extend the date.
+#
+# Nothing here is a judgement that the advisory is wrong. Adding an entry means: this is
+# real, it is unreachable from here, and we cannot act on it.
+
+# --- Unmaintained: the gtk-rs bindings ----------------------------------------
+#
+# RUSTSEC-2024-0411 through -0420 are one announcement split across the crates it
+# covers: the gtk3 bindings are no longer maintained. They are Linux-only, they are
+# Tauri's dependency rather than ours, and there is no successor to move to at 0.18.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0411"
+ignoreUntil = 2027-02-01
+reason = "gdkwayland-sys: gtk-rs bindings unmaintained; transitive via tauri, Linux only, no upgrade path at gtk 0.18"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0412"
+ignoreUntil = 2027-02-01
+reason = "gdk: as above"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0413"
+ignoreUntil = 2027-02-01
+reason = "atk: as above"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0414"
+ignoreUntil = 2027-02-01
+reason = "gdkx11-sys: as above"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0415"
+ignoreUntil = 2027-02-01
+reason = "gtk: as above"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0416"
+ignoreUntil = 2027-02-01
+reason = "atk-sys: as above"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0417"
+ignoreUntil = 2027-02-01
+reason = "gdkx11: as above"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0418"
+ignoreUntil = 2027-02-01
+reason = "gdk-sys: as above"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0419"
+ignoreUntil = 2027-02-01
+reason = "gtk3-macros: as above"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0420"
+ignoreUntil = 2027-02-01
+reason = "gtk-sys: as above"
+
+# --- Unmaintained: everything else --------------------------------------------
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0320"
+ignoreUntil = 2027-02-01
+reason = "yaml-rust unmaintained; transitive, and nothing in this app parses untrusted YAML through it"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0370"
+ignoreUntil = 2027-02-01
+reason = "proc-macro-error unmaintained; a build-time macro dependency, not present in the shipped binary"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0075"
+ignoreUntil = 2027-02-01
+reason = "unmaintained, transitive via the Tauri stack, no upgrade reachable"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0080"
+ignoreUntil = 2027-02-01
+reason = "unmaintained, transitive via the Tauri stack, no upgrade reachable"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0081"
+ignoreUntil = 2027-02-01
+reason = "unic-char-property unmaintained; transitive, no upgrade reachable"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0098"
+ignoreUntil = 2027-02-01
+reason = "unmaintained, transitive via the Tauri stack, no upgrade reachable"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0100"
+ignoreUntil = 2027-02-01
+reason = "unmaintained, transitive via the Tauri stack, no upgrade reachable"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0141"
+ignoreUntil = 2027-02-01
+reason = "bincode 1.3.3 unmaintained; transitive, and this app does not deserialize untrusted bincode"
+
+# --- The one with a score -----------------------------------------------------
+#
+# The only entry here that is not simply an unmaintained notice, so it gets its own
+# reasoning rather than a shared one.
+#
+# glib 0.18.5, CVSS 6.9. RustSec classifies it "INFO Unsound": `VariantStrIter` passed
+# an immutable reference to a pointer that the C function behind it mutates in place,
+# so iterating one could dereference null. Reaching it requires calling `next`,
+# `nth`, `last` and friends on a `VariantStrIter` — which this app never does, directly
+# or otherwise; it is internal to the GTK bindings.
+#
+# Fixed in glib 0.20.0, which gtk 0.18 cannot take. Revisit when Tauri moves.
+
+# Keyed by the GHSA id, not RUSTSEC-2024-0429: osv-scanner reports this finding under
+# the GitHub alias, and an entry for the RustSec id never matches. It says so —
+# "osv-scanner.toml has unused ignores" — which is worth listening to, because an ignore
+# that matches nothing looks like coverage and is not.
+[[IgnoredVulns]]
+id = "GHSA-wrw7-89jp-8q8g"
+ignoreUntil = 2027-02-01
+reason = "glib 0.18.5 VariantStrIter unsoundness (RUSTSEC-2024-0429); unreachable from this app, fixed only in glib 0.20 which gtk 0.18 cannot take"
