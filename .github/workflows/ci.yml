@@ -197,8 +197,28 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Updater artifacts are switched off here, and only here.
+      #
+      # `bundle.createUpdaterArtifacts` is on in `tauri.conf.json`, and it makes the bundler
+      # demand `TAURI_SIGNING_PRIVATE_KEY` — "a public key has been found, but no private key" —
+      # *after* it has already produced the installer. So this job would build everything it is
+      # meant to prove and then fail on the last step.
+      #
+      # Handing it the real key instead would be worse. This workflow runs on pull requests,
+      # including from forks, where secrets are not available at all — so the fix would work for
+      # us and break for the first outside contributor, which is the kind of asymmetry nobody
+      # discovers until someone is already discouraged. And a release-signing key has no business
+      # being reachable from a branch build.
+      #
+      # What this job exists to prove is that the app bundles on all three platforms. That is
+      # unchanged. Signing is exercised by `release.yml`, which is the only place it means
+      # anything, and `lib.rs` has a test that fails if `createUpdaterArtifacts` is ever flipped
+      # off in the committed config rather than overridden here.
       - name: Build the app
-        run: pnpm tauri build
+        # bash on all three runners: this passes inline JSON to a native command, and quoting
+        # that identically in PowerShell is a well-known way to lose the double quotes.
+        shell: bash
+        run: pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
       # Kept on pull requests, because downloading a branch build and actually running it
       # is worth more than the storage. Shortened from the 90-day default: these are
