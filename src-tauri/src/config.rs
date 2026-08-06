@@ -93,6 +93,15 @@ pub struct AppConfig {
     /// Turn quotes, dashes and ellipses into their typographic forms.
     #[serde(default)]
     pub smart_punctuation: bool,
+
+    /// How much of the window the page may use: "standard" | "wide" | "full".
+    ///
+    /// A view setting for the same reason as `zoom`: it belongs to the window
+    /// being read in, not to the paper, so it must not travel inside a shared
+    /// theme. Validated by the frontend (`ContentWidthSchema`); an unknown value
+    /// here is repaired on load rather than rejected.
+    #[serde(default = "default_content_width")]
+    pub content_width: String,
 }
 
 const MAX_RECENTS: usize = 20;
@@ -115,6 +124,13 @@ fn default_true() -> bool {
 fn default_zoom() -> f64 {
     1.0
 }
+fn default_content_width() -> String {
+    "standard".to_string()
+}
+
+/// The only values the frontend knows how to render. A config edited by hand
+/// must not be able to hand the stylesheet a width it has no rule for.
+const CONTENT_WIDTHS: [&str; 3] = ["standard", "wide", "full"];
 
 /// Bounds for `zoom`. Below the floor the measure collapses to a few words a
 /// line; above the ceiling a heading no longer fits the canvas.
@@ -138,6 +154,7 @@ impl Default for AppConfig {
             reopen_last_document: true,
             zoom: default_zoom(),
             smart_punctuation: false,
+            content_width: default_content_width(),
             session: serde_json::Value::Null,
         }
     }
@@ -157,6 +174,9 @@ impl AppConfig {
         } else {
             default_zoom()
         };
+        if !CONTENT_WIDTHS.contains(&self.content_width.as_str()) {
+            self.content_width = default_content_width();
+        }
         self
     }
 
@@ -308,6 +328,20 @@ AppConfig::default() no longer matches test/fixtures/config-default.json.
         assert_eq!(parsed.zoom, 1.0);
         assert!(parsed.reopen_last_document);
         assert!(!parsed.smart_punctuation);
+        assert_eq!(parsed.content_width, "standard");
+    }
+
+    #[test]
+    fn migrate_repairs_a_content_width_no_stylesheet_rule_matches() {
+        let parsed: AppConfig = serde_json::from_str(r#"{"contentWidth":"enormous"}"#)
+            .map(AppConfig::migrate)
+            .unwrap();
+        assert_eq!(parsed.content_width, "standard");
+
+        let kept: AppConfig = serde_json::from_str(r#"{"contentWidth":"full"}"#)
+            .map(AppConfig::migrate)
+            .unwrap();
+        assert_eq!(kept.content_width, "full");
     }
 
     #[test]

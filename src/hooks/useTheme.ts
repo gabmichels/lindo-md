@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { AppearanceMode } from "@/lib/ipc";
-import { applyTheme } from "@/lib/theme/apply";
+import { applyTheme, type DocView } from "@/lib/theme/apply";
 import { resolveTheme } from "@/lib/theme/presets";
 import type { Appearance, Theme } from "@/lib/theme/schema";
 
@@ -41,7 +41,7 @@ export function useTheme(
   mode: AppearanceMode,
   customThemes: Theme[],
   canvas: HTMLElement | null,
-  zoom: number,
+  view: DocView,
 ): Theme {
   const systemAppearance = useSystemAppearance();
   const appearance: Appearance = mode === "system" ? systemAppearance : mode;
@@ -51,9 +51,13 @@ export function useTheme(
     [themeId, appearance, customThemes],
   );
 
+  // Destructured so the effect depends on the view's values rather than on the
+  // identity of an object App.tsx rebuilds on every render.
+  const { zoom, contentWidth } = view;
+
   useEffect(() => {
-    if (canvas) applyTheme(theme, canvas, zoom);
-  }, [theme, canvas, zoom]);
+    if (canvas) applyTheme(theme, canvas, { zoom, contentWidth });
+  }, [theme, canvas, zoom, contentWidth]);
 
   return theme;
 }

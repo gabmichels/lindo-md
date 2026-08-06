@@ -134,9 +134,26 @@
   --doc-leading: 1.62;
   --doc-measure: 66ch;
   --doc-para-space: 1.15em;
+  --doc-indent: 0em;
   --doc-tracking: 0em;
   --doc-heading-weight: 600;
   --doc-align: start;
+  --doc-hyphens: auto;
+  --doc-link-underline: underline;
+  --doc-link-underline-hover: underline;
+
+  --doc-pad-inline: 2rem;
+  --doc-table-pad-block: 0.55em;
+  --doc-table-pad-inline: 0.9em;
+  --doc-table-rule: transparent;
+  --doc-table-pad-last: 0px;
+  --doc-table-stripe: transparent;
+  --doc-code-wrap: pre;
+
+  /* The reader's view, not the theme's (lib/theme/apply.ts, `viewTokens`).
+     Defaulted here so the first paint is a standard-width page before React has
+     read the setting. */
+  --doc-page: var(--doc-measure);
 }
 
 /* Expose the tokens as Tailwind utilities (bg-ui-base, text-doc-text, …) so

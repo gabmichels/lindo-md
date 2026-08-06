@@ -93,6 +93,21 @@ headings at `-0.02em`. Modular scale **1.22** — tighter than the usual 1.25, b
 viewer shows h1–h4 on one screen more often than a web page does. Heading margins follow an optical
 rhythm (space above a heading always exceeds space below it), not a uniform multiple.
 
+## The page
+
+`--doc-page` is how much of the window the document may occupy: the theme's measure at **Standard**,
+one and a half measures at **Wide**, the whole window at **Full**. `.doc` is the page, and everything
+inside follows it — a wide page means wide tables *and* wide prose. A document whose text stayed
+narrow while its tables grew reads as two pages pasted together, so the measure sets the *default*
+width rather than capping the text forever.
+
+Content width is a **view** setting, stored in config beside zoom, never in a theme. A theme is a
+file people share; it must not carry someone else's window.
+
+One thing to know before editing `document.css`: block rules use `margin-block`, not the
+`margin: x 0` shorthand. The shorthand also resets the inline margins, which is a side effect no
+rule here should have to reason about.
+
 ## Two settings surfaces, on purpose
 
 The **appearance drawer** is non-modal, has no scrim, and writes through on every change, because

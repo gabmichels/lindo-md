@@ -1,6 +1,7 @@
 {
   "appearance": "system",
   "blockRemoteImages": true,
+  "contentWidth": "standard",
   "customThemes": [],
   "railCollapsed": false,
   "railTreeCollapsed": false,

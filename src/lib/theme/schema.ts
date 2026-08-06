@@ -65,6 +65,21 @@ const color = cssValue("A colour");
 export const AppearanceSchema = z.enum(["light", "dark"]);
 export type Appearance = z.infer<typeof AppearanceSchema>;
 
+/**
+ * How much of the window the page may use.
+ *
+ * Deliberately *not* part of a theme, for the same reason zoom is not: it is a
+ * property of the window you are reading in, not of the paper. A theme shared
+ * with someone on a laptop should not force their page full width.
+ *
+ *  - `standard` — the page is the reading measure. What a viewer has always done.
+ *  - `wide`     — half again as wide, so a table has room without the prose
+ *                 losing its measure.
+ *  - `full`     — everything the window has, minus the gutters.
+ */
+export const ContentWidthSchema = z.enum(["standard", "wide", "full"]);
+export type ContentWidth = z.infer<typeof ContentWidthSchema>;
+
 export const ThemeColorsSchema = z.object({
   bg: color,
   surface: color,
@@ -110,8 +125,40 @@ export const ThemeTypographySchema = z.object({
   letterSpacing: z.number().min(-0.05).max(0.15),
   headingWeight: z.number().min(300).max(900),
   justify: z.boolean(),
+  /** Break long words at the end of a line. Justified text without hyphenation
+   *  opens rivers, so this defaults on — but it mangles identifiers in prose,
+   *  which is why it is a switch and not a constant. */
+  hyphenate: z.boolean().default(true),
+  /** How one paragraph is told from the next. `spaced` is the web's blank line;
+   *  `indented` is the book's first-line indent, and suppresses the space. */
+  paragraphStyle: z.enum(["spaced", "indented"]).default("spaced"),
+  /** Underline links always, only under the pointer, or never. */
+  linkUnderline: z.enum(["always", "hover", "never"]).default("always"),
 });
 export type ThemeTypography = z.infer<typeof ThemeTypographySchema>;
+
+/**
+ * How the page is built, as distinct from how the type is set: gutters, table
+ * shape, heading numbering. These change the structure of the page rather than
+ * its voice, which is why they are their own group.
+ */
+export const ThemeLayoutSchema = z.object({
+  /** The side gutter, in rem. It is what keeps a full-width table off the edge
+   *  of the window, so it earns a control of its own once the page can be wide. */
+  pagePadding: z.number().min(0).max(8).default(2),
+  /** Number h2–h4 as 1., 1.1, 1.1.1 — worth having for specs, wrong for prose. */
+  numberHeadings: z.boolean().default(false),
+  table: z
+    .object({
+      density: z.enum(["comfortable", "compact"]).default("comfortable"),
+      /** `hairline` rules rows only — the editorial default. `grid` adds the
+       *  vertical rules a wide data table needs to stay trackable. */
+      rules: z.enum(["hairline", "grid"]).default("hairline"),
+      zebra: z.boolean().default(false),
+    })
+    .default({ density: "comfortable", rules: "hairline", zebra: false }),
+});
+export type ThemeLayout = z.infer<typeof ThemeLayoutSchema>;
 
 export const ThemeCodeSchema = z.object({
   /** A Shiki theme id. `lindo-md-house-light` / `-dark` are ours, built from
@@ -119,6 +166,10 @@ export const ThemeCodeSchema = z.object({
    *  preset's authentic VS Code theme. */
   shikiTheme: z.string().min(1),
   lineNumbers: z.boolean(),
+  /** Wrap long lines instead of scrolling them. Scrolling keeps the code's own
+   *  line breaks honest; wrapping is what you want when reading rather than
+   *  copying. */
+  wrap: z.boolean().default(false),
 });
 export type ThemeCode = z.infer<typeof ThemeCodeSchema>;
 
@@ -128,6 +179,13 @@ export const ThemeSchema = z.object({
   appearance: AppearanceSchema,
   colors: ThemeColorsSchema,
   typography: ThemeTypographySchema,
+  /** Defaulted so a theme file exported before this group existed still imports,
+   *  and so a config written by an older build still loads. */
+  layout: ThemeLayoutSchema.default({
+    pagePadding: 2,
+    numberHeadings: false,
+    table: { density: "comfortable", rules: "hairline", zebra: false },
+  }),
   code: ThemeCodeSchema,
 });
 export type Theme = z.infer<typeof ThemeSchema>;

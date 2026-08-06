@@ -1,4 +1,11 @@
-import type { Appearance, Theme, ThemeColors, ThemePreset, ThemeTypography } from "./schema";
+import type {
+  Appearance,
+  Theme,
+  ThemeColors,
+  ThemeLayout,
+  ThemePreset,
+  ThemeTypography,
+} from "./schema";
 
 /**
  * The built-in themes.
@@ -33,6 +40,17 @@ const EDITORIAL: ThemeTypography = {
   letterSpacing: 0,
   headingWeight: 600,
   justify: false,
+  hyphenate: true,
+  paragraphStyle: "spaced",
+  linkUnderline: "always",
+};
+
+/** Structure, not voice — so unlike typography this is one set shared by every
+ *  preset. A palette has no opinion about whether a table has vertical rules. */
+const LAYOUT: ThemeLayout = {
+  pagePadding: 2,
+  numberHeadings: false,
+  table: { density: "comfortable", rules: "hairline", zebra: false },
 };
 
 /** For the themes people know from a screen full of UI rather than a page of
@@ -144,7 +162,8 @@ function theme(
     appearance,
     colors: colorsFrom(palette, appearance),
     typography,
-    code: { shikiTheme, lineNumbers: false },
+    layout: { ...LAYOUT, table: { ...LAYOUT.table } },
+    code: { shikiTheme, lineNumbers: false, wrap: false },
   };
 }
 
