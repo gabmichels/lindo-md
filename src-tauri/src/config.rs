@@ -42,6 +42,11 @@ pub struct AppConfig {
     #[serde(default)]
     pub rail_collapsed: bool,
 
+    /// Whether the rail's file tree is folded away, leaving the outline the
+    /// whole rail. Separate from `rail_collapsed`, which hides both.
+    #[serde(default)]
+    pub rail_tree_collapsed: bool,
+
     /// Most-recently-opened documents, newest first, capped at `MAX_RECENTS`.
     #[serde(default)]
     pub recent_files: Vec<String>,
@@ -124,6 +129,7 @@ impl Default for AppConfig {
             custom_themes: Vec::new(),
             rail_width: default_rail_width(),
             rail_collapsed: false,
+            rail_tree_collapsed: false,
             recent_files: Vec::new(),
             last_folder: None,
             block_remote_images: true,

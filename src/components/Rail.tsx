@@ -37,6 +37,9 @@ interface RailProps {
    *  they are all active. */
   openPaths: Set<string>;
   onOpen: (path: string, permanent: boolean) => void;
+  /** The file tree folded away, leaving the outline the whole rail. */
+  treeCollapsed: boolean;
+  onToggleTreeCollapsed: () => void;
   toc: Heading[];
   activeHeadingId: string | null;
   progress: number;
@@ -86,19 +89,27 @@ export function Rail(props: RailProps) {
         />
       </div>
 
-      <div className="ui-scroller min-h-0 flex-1 overflow-y-auto px-[var(--ui-pad)] pb-2">
+      {/* Two panes, not one scroller. The tree is the elastic one: it gives up
+          height first and scrolls inside itself, so the outline — which is about
+          the document you are actually reading — never gets pushed out of the
+          rail by a deep folder. */}
+      <div className="flex min-h-0 flex-1 flex-col px-[var(--ui-pad)] pb-2">
         {props.tree.length > 0 && (
           <FileTree
             nodes={props.tree}
             activePath={props.activePath}
             openPaths={props.openPaths}
             onOpen={props.onOpen}
+            collapsed={props.treeCollapsed}
+            onToggleCollapsed={props.onToggleTreeCollapsed}
           />
         )}
 
         {props.toc.length > 0 && (
           <>
-            {props.tree.length > 0 && <div className="my-2 h-px bg-ui-hairline" aria-hidden />}
+            {props.tree.length > 0 && (
+              <div className="my-2 h-px shrink-0 bg-ui-hairline" aria-hidden />
+            )}
             <Outline
               toc={props.toc}
               activeId={props.activeHeadingId}
@@ -154,11 +165,15 @@ function FileTree({
   activePath,
   openPaths,
   onOpen,
+  collapsed,
+  onToggleCollapsed,
 }: {
   nodes: TreeNode[];
   activePath: string | null;
   openPaths: Set<string>;
   onOpen: (path: string, permanent: boolean) => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -184,24 +199,61 @@ function FileTree({
   };
 
   return (
-    <div className="pt-1">
-      <p className="rail-label px-1.5 py-1">Documents</p>
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role -- ul/li carrying tree roles is the W3C APG pattern */}
-      <ul role="tree">
-        {nodes.map((node) => (
-          <TreeItem
-            key={node.path}
-            node={node}
-            depth={0}
-            expanded={expanded}
-            onToggle={toggle}
-            activePath={activePath}
-            openPaths={openPaths}
-            onOpen={onOpen}
-          />
-        ))}
-      </ul>
-    </div>
+    // `shrink` with no `flex-1`: the tree is sized by its content until the rail
+    // runs out of room, and then it — not the outline — is what gives way.
+    <section className="flex min-h-0 shrink flex-col pt-1">
+      <SectionLabel label="Documents" collapsed={collapsed} onToggle={onToggleCollapsed} />
+      {!collapsed && (
+        <div className="ui-scroller min-h-0 overflow-y-auto">
+          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role -- ul/li carrying tree roles is the W3C APG pattern */}
+          <ul role="tree">
+            {nodes.map((node) => (
+              <TreeItem
+                key={node.path}
+                node={node}
+                depth={0}
+                expanded={expanded}
+                onToggle={toggle}
+                activePath={activePath}
+                openPaths={openPaths}
+                onOpen={onOpen}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** A rail section header that folds its section away. */
+function SectionLabel({
+  label,
+  collapsed,
+  onToggle,
+}: {
+  label: string;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={!collapsed}
+      title={collapsed ? `Show ${label.toLowerCase()}` : `Hide ${label.toLowerCase()}`}
+      className={cn(
+        "rail-label flex w-full shrink-0 items-center gap-1 rounded-ui-sm px-1.5 py-1",
+        "text-left transition-colors duration-[var(--ui-dur)] hover:text-ui-text",
+      )}
+    >
+      {collapsed ? (
+        <ChevronRight size={12} strokeWidth={2} aria-hidden />
+      ) : (
+        <ChevronDown size={12} strokeWidth={2} aria-hidden />
+      )}
+      {label}
+    </button>
   );
 }
 
@@ -326,45 +378,50 @@ function Outline({
   const baseLevel = useMemo(() => Math.min(...toc.map((heading) => heading.level)), [toc]);
 
   return (
-    <div className="relative pt-1">
-      <p className="rail-label px-1.5 py-1">On this page</p>
+    // `shrink-0`, so the outline holds its content height while the tree gives
+    // way — but never past 60% of the rail, which is the tree's floor.
+    <section className="flex max-h-[60%] min-h-0 shrink-0 flex-col pt-1">
+      <p className="rail-label shrink-0 px-1.5 py-1">On this page</p>
 
-      {/* The reading-progress hairline: the one place Ember appears next to the
-          document rather than in the tool. */}
-      <div className="absolute top-8 bottom-0 left-[3px] w-px bg-ui-hairline" aria-hidden>
-        <div
-          className="w-px bg-ui-ember transition-[height] duration-[var(--ui-dur)] ease-[var(--ui-ease)]"
-          style={{ height: `${Math.round(progress * 100)}%` }}
-        />
+      <div className="ui-scroller relative min-h-0 overflow-y-auto">
+        {/* The reading-progress hairline: the one place Ember appears next to the
+            document rather than in the tool. It spans the list, so it scrolls
+            with the headings it measures. */}
+        <div className="absolute inset-y-0 left-[3px] w-px bg-ui-hairline" aria-hidden>
+          <div
+            className="w-px bg-ui-ember transition-[height] duration-[var(--ui-dur)] ease-[var(--ui-ease)]"
+            style={{ height: `${Math.round(progress * 100)}%` }}
+          />
+        </div>
+
+        <ul className="pl-2">
+          {toc.map((heading) => {
+            const isActive = heading.id === activeId;
+            return (
+              <li key={heading.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onJumpTo(heading.id);
+                  }}
+                  title={heading.text}
+                  className={cn(
+                    "w-full truncate rounded-ui-md px-1.5 py-1 text-left text-[12.5px]",
+                    "transition-colors duration-[var(--ui-dur)]",
+                    isActive ? "text-ui-text-strong" : "text-ui-text-muted hover:text-ui-text",
+                  )}
+                  style={{
+                    paddingLeft: `${6 + (heading.level - baseLevel) * 10}px`,
+                  }}
+                >
+                  {heading.text}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       </div>
-
-      <ul className="pl-2">
-        {toc.map((heading) => {
-          const isActive = heading.id === activeId;
-          return (
-            <li key={heading.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  onJumpTo(heading.id);
-                }}
-                title={heading.text}
-                className={cn(
-                  "w-full truncate rounded-ui-md px-1.5 py-1 text-left text-[12.5px]",
-                  "transition-colors duration-[var(--ui-dur)]",
-                  isActive ? "text-ui-text-strong" : "text-ui-text-muted hover:text-ui-text",
-                )}
-                style={{
-                  paddingLeft: `${6 + (heading.level - baseLevel) * 10}px`,
-                }}
-              >
-                {heading.text}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+    </section>
   );
 }
 

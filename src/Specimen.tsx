@@ -75,6 +75,7 @@ const SPECIMEN_CONFIG: AppConfig = {
   customThemes: [],
   railWidth: 264,
   railCollapsed: false,
+  railTreeCollapsed: false,
   recentFiles: [],
   lastFolder: null,
   blockRemoteImages: true,
@@ -89,6 +90,7 @@ const SPECIMEN_CONFIG: AppConfig = {
 export default function Specimen() {
   const [appearance, setAppearance] = useState<Appearance>("light");
   const [collapsed, setCollapsed] = useState(false);
+  const [treeCollapsed, setTreeCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
@@ -104,6 +106,10 @@ export default function Specimen() {
         activePath="/docs/guides/theming.md"
         openPaths={new Set(["/docs/README.md", "/docs/guides/theming.md"])}
         onOpen={() => undefined}
+        treeCollapsed={treeCollapsed}
+        onToggleTreeCollapsed={() => {
+          setTreeCollapsed((c) => !c);
+        }}
         toc={TOC}
         activeHeadingId="installing"
         progress={0.42}
