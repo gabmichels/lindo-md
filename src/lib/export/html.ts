@@ -1,4 +1,4 @@
-import { docTokens } from "../theme/apply";
+import { DEFAULT_VIEW, docTokens, viewTokens, type DocView } from "../theme/apply";
 import { isSafeCssValue, type Theme } from "../theme/schema";
 
 /**
@@ -22,10 +22,15 @@ export interface ExportOptions {
   article: HTMLElement;
   /** The document's own stylesheet, inlined verbatim. */
   documentCss: string;
+  /** The reader's view. Only the width half of it is carried into the file: an
+   *  export should be as wide as the page you were looking at, but zoom belongs
+   *  to this window and has no meaning in someone else's browser. */
+  view?: Partial<DocView>;
 }
 
 export function buildStandaloneHtml(options: ExportOptions): string {
   const { title, theme, article, documentCss } = options;
+  const view = { ...DEFAULT_VIEW, ...options.view, zoom: 1 };
 
   // `ThemeSchema` already refuses these characters, so nothing that has been through
   // `parseThemeFile` can trip this. It is here because this is the one place a theme
@@ -33,13 +38,13 @@ export function buildStandaloneHtml(options: ExportOptions): string {
   // token value would end the element and start running markup. A token that cannot
   // be written safely is dropped rather than escaped: the value has no legitimate
   // meaning, and a half-escaped colour is not worth reconstructing.
-  const tokens = Object.entries(docTokens(theme))
+  const tokens = Object.entries({ ...docTokens(theme), ...viewTokens(view) })
     .filter(([, value]) => isSafeCssValue(value))
     .map(([property, value]) => `      ${property}: ${value};`)
     .join("\n");
 
   return `<!doctype html>
-<html lang="en" data-appearance="${theme.appearance}" data-line-numbers="${theme.code.lineNumbers}">
+<html lang="en" data-appearance="${theme.appearance}" data-line-numbers="${theme.code.lineNumbers}" data-heading-numbers="${theme.layout.numberHeadings}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />

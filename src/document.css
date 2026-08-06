@@ -76,9 +76,9 @@
 .doc-source {
   display: block;
   width: 100%;
-  max-width: var(--doc-measure);
+  max-width: var(--doc-page);
   margin-inline: auto;
-  padding: 3.5rem 2rem 8rem;
+  padding: 3.5rem var(--doc-pad-inline) 8rem;
   border: 0;
   outline: none;
   resize: none;
@@ -98,10 +98,21 @@
   background: var(--doc-selection);
 }
 
+/* --- the page --------------------------------------------------------------
+   `--doc-page` is how much of the window the document may use: the theme's
+   measure at Standard, half again at Wide, the whole window at Full. Everything
+   inside follows it — a wide page means wide tables *and* wide prose, because a
+   document whose text stayed narrow while its tables grew would read as two
+   pages that had been pasted together.
+
+   Block rules below set `margin-block` rather than the `margin: x 0` shorthand.
+   The shorthand also resets the inline margins, which is a side effect nothing
+   here wants to depend on. */
+
 .doc {
-  max-width: var(--doc-measure);
+  max-width: var(--doc-page);
   margin-inline: auto;
-  padding: 3.5rem 2rem 8rem;
+  padding: 3.5rem var(--doc-pad-inline) 8rem;
   color: var(--doc-text);
   background: var(--doc-bg);
   font-family: var(--doc-font-body);
@@ -109,8 +120,9 @@
   line-height: var(--doc-leading);
   letter-spacing: var(--doc-tracking);
   text-align: var(--doc-align);
-  /* Justified text without hyphenation opens rivers; with it, it reads. */
-  hyphens: auto;
+  /* Justified text without hyphenation opens rivers; with it, it reads — which
+     is why the switch defaults on rather than off. */
+  hyphens: var(--doc-hyphens);
   font-variant-numeric: oldstyle-nums proportional-nums;
 }
 
@@ -132,31 +144,73 @@
 
 .doc h1 {
   font-size: var(--doc-h1);
-  margin: 0 0 0.8em;
+  margin-block: 0 0.8em;
   letter-spacing: -0.028em;
 }
 .doc h2 {
   font-size: var(--doc-h2);
-  margin: 1.9em 0 0.55em;
+  margin-block: 1.9em 0.55em;
 }
 .doc h3 {
   font-size: var(--doc-h3);
-  margin: 1.7em 0 0.5em;
+  margin-block: 1.7em 0.5em;
 }
 .doc h4 {
   font-size: var(--doc-h4);
-  margin: 1.6em 0 0.45em;
+  margin-block: 1.6em 0.45em;
 }
 .doc h5 {
   font-size: var(--doc-h5);
-  margin: 1.5em 0 0.4em;
+  margin-block: 1.5em 0.4em;
 }
 .doc h6 {
   font-size: var(--doc-h6);
-  margin: 1.5em 0 0.4em;
+  margin-block: 1.5em 0.4em;
   color: var(--doc-text-muted);
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+/* Numbered headings, when the theme asks for them.
+   CSS counters rather than a token, because a counter is the one setting here
+   that cannot be expressed as a value. h1 is the document's title and h5–h6 are
+   below the level anyone cites, so the numbering runs h2–h4. Footnote headings
+   are comrak's own furniture and stay out of it. */
+
+[data-heading-numbers="true"] .doc {
+  counter-reset: doc-h2 doc-h3 doc-h4;
+}
+
+[data-heading-numbers="true"] .doc h2:not(section[data-footnotes] h2) {
+  counter-increment: doc-h2;
+  counter-reset: doc-h3 doc-h4;
+}
+
+[data-heading-numbers="true"] .doc h3 {
+  counter-increment: doc-h3;
+  counter-reset: doc-h4;
+}
+
+[data-heading-numbers="true"] .doc h4 {
+  counter-increment: doc-h4;
+}
+
+[data-heading-numbers="true"] .doc h2:not(section[data-footnotes] h2)::before {
+  content: counter(doc-h2) ".\00a0\00a0";
+}
+
+[data-heading-numbers="true"] .doc h3::before {
+  content: counter(doc-h2) "." counter(doc-h3) "\00a0\00a0";
+}
+
+[data-heading-numbers="true"] .doc h4::before {
+  content: counter(doc-h2) "." counter(doc-h3) "." counter(doc-h4) "\00a0\00a0";
+}
+
+[data-heading-numbers="true"] .doc :is(h2, h3, h4)::before {
+  /* Lighter than the heading it labels: an index, not part of the title. */
+  color: color-mix(in oklab, currentColor 55%, transparent);
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 /* comrak puts the id on an empty anchor inside the heading. It is a scroll
@@ -171,7 +225,16 @@
 /* --- flow ------------------------------------------------------------------ */
 
 .doc p {
-  margin: 0 0 var(--doc-para-space);
+  margin-block: 0 var(--doc-para-space);
+  text-indent: var(--doc-indent);
+}
+
+/* The first paragraph of a section is not indented — there is nothing above it
+   to be told apart from. */
+.doc :is(h1, h2, h3, h4, h5, h6) + p,
+.doc blockquote > p:first-child,
+.doc li > p:first-child {
+  text-indent: 0;
 }
 
 .doc :is(h1, h2, h3, h4, h5, h6) + p {
@@ -181,7 +244,7 @@
 
 .doc a {
   color: var(--doc-link);
-  text-decoration: underline;
+  text-decoration: var(--doc-link-underline);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.08em;
   text-decoration-color: color-mix(in oklab, var(--doc-link) 45%, transparent);
@@ -190,6 +253,9 @@
 
 .doc a:hover {
   color: var(--doc-link-hover);
+  /* On the "hover" setting this is where the underline appears; on "never" the
+     token holds it off here too, so the colour change carries the affordance. */
+  text-decoration: var(--doc-link-underline-hover);
   text-decoration-thickness: 2px;
   text-decoration-color: currentColor;
 }
@@ -203,11 +269,11 @@
   border: 0;
   height: 1px;
   background: var(--doc-border);
-  margin: 3em 0;
+  margin-block: 3em;
 }
 
 .doc :is(ul, ol) {
-  margin: 0 0 var(--doc-para-space);
+  margin-block: 0 var(--doc-para-space);
   padding-left: 1.4em;
 }
 
@@ -251,7 +317,7 @@
    A rule and an optical hang into the margin, not a grey box. */
 
 .doc blockquote {
-  margin: 1.6em 0;
+  margin-block: 1.6em;
   padding-left: 1.1em;
   border-left: 2px solid var(--doc-quote-bar);
   color: var(--doc-text-muted);
@@ -265,7 +331,7 @@
 /* --- GitHub alerts --------------------------------------------------------- */
 
 .doc .markdown-alert {
-  margin: 1.6em 0;
+  margin-block: 1.6em;
   padding: 0.9em 1.1em;
   border-left: 3px solid var(--alert-color);
   border-radius: 0 6px 6px 0;
@@ -321,7 +387,7 @@
 
 .doc pre.code-block {
   position: relative;
-  margin: 1.6em 0;
+  margin-block: 1.6em;
   padding: 1em 1.1em;
   border-radius: 8px;
   background: var(--doc-code-bg);
@@ -338,7 +404,12 @@
   padding: 0;
   background: none;
   box-shadow: none;
-  white-space: pre;
+  /* `pre` scrolls, `pre-wrap` wraps. Shiki emits one `.line` span per source
+     line either way, so line numbers stay correct under both. */
+  white-space: var(--doc-code-wrap);
+  /* A wrapped line has to break somewhere, and a long path or URL in a comment
+     would otherwise still force the block to scroll. */
+  overflow-wrap: anywhere;
 }
 
 /* A fence that named a file gets a header, so a snippet says where it belongs. */
@@ -401,17 +472,23 @@
 }
 
 /* --- tables ---------------------------------------------------------------
-   Hairline rules, no full grid — a grid draws more attention to the container
-   than to the data in it. */
+   Hairline rules by default, no full grid — a grid draws more attention to the
+   container than to the data in it. Past a certain width that stops being true,
+   which is why the vertical rules and the stripe are a setting rather than a
+   decision: a twelve-column table is scanned, not read. */
 
 .doc table {
   width: 100%;
-  margin: 1.8em 0;
+  margin-block: 1.8em;
   border-collapse: collapse;
   font-size: 0.92em;
   font-variant-numeric: tabular-nums lining-nums;
   display: block;
   overflow-x: auto;
+  /* Never justified or hyphenated, whatever the prose setting is — a cell is a
+     value, not a sentence. */
+  text-align: start;
+  hyphens: none;
 }
 
 .doc th {
@@ -422,17 +499,33 @@
   text-transform: uppercase;
   color: var(--doc-text-muted);
   text-align: start;
-  padding: 0.5em 0.9em 0.5em 0;
+  padding: var(--doc-table-pad-block) var(--doc-table-pad-inline) var(--doc-table-pad-block) 0;
   border-bottom: 1px solid var(--doc-border);
+  border-right: 1px solid var(--doc-table-rule);
 }
 
 .doc td {
-  padding: 0.55em 0.9em 0.55em 0;
+  padding: var(--doc-table-pad-block) var(--doc-table-pad-inline) var(--doc-table-pad-block) 0;
   border-bottom: 1px solid color-mix(in oklab, var(--doc-border) 55%, transparent);
+  border-right: 1px solid var(--doc-table-rule);
 }
 
+/* With hairline rules the last column hangs flush to the text edge, which is
+   what makes the table read as part of the page. A grid has a rule there, so
+   the padding comes back. */
 .doc :is(th, td):last-child {
-  padding-right: 0;
+  padding-right: var(--doc-table-pad-last);
+  border-right: 0;
+}
+
+/* A grid needs the vertical rules to reach the header, and the first column to
+   be inset from the edge the same as every other cell. */
+.doc :is(th, td):first-child {
+  padding-left: var(--doc-table-pad-last);
+}
+
+.doc tbody tr:nth-child(even) {
+  background: var(--doc-table-stripe);
 }
 
 .doc tr:last-child td {
@@ -461,7 +554,7 @@
 }
 
 .doc figure {
-  margin: 1.8em 0;
+  margin-block: 1.8em;
   text-align: center;
 }
 
@@ -504,7 +597,7 @@
 /* --- details, kbd, footnotes ----------------------------------------------- */
 
 .doc details {
-  margin: 1.4em 0;
+  margin-block: 1.4em;
   padding: 0.8em 1.1em;
   border-radius: 8px;
   background: var(--doc-surface);
@@ -561,7 +654,7 @@
 }
 
 .doc .katex-display {
-  margin: 1.6em 0;
+  margin-block: 1.6em;
   overflow-x: auto;
   overflow-y: hidden;
 }

@@ -212,6 +212,13 @@ Two smaller decisions:
   reached browsers years after this app was written. Alongside it,
   `the_allowlist_is_what_we_think_it_is` pins the allowlist, so widening `sanitizer()` stays a
   deliberate edit with a reason in the diff.
+- **Theme setting or view setting?** If it describes the paper, it goes in the `Theme` schema and
+  travels inside an exported theme file. If it describes the window you happen to be reading in —
+  zoom, content width — it goes in `AppConfig` and is written by `viewTokens`, not `docTokens`.
+  `theme.test.ts` fails if a view token leaks into the theme's own tokens.
+- **A new field on `Theme` needs a zod default.** Themes are an export format: a file someone shared
+  before the field existed still has to import, and a `config.json` written by an older build still
+  has to load.
 - **Tests are part of the change, not a follow-up.** Every new pure function gets a unit test; every
   new Markdown construct gets a case in `test/fixtures/kitchen-sink.md` and a Rust snapshot test;
   every sanitizer-relevant change gets a test proving the hostile input is neutralized.

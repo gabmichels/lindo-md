@@ -84,6 +84,7 @@ const SPECIMEN_CONFIG: AppConfig = {
   reopenLastDocument: true,
   zoom: 1,
   smartPunctuation: false,
+  contentWidth: "standard",
   session: EMPTY_SESSION,
 };
 

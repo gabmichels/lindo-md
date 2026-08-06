@@ -4,7 +4,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { z } from "zod";
 
 import { StoredSessionSchema } from "./tabs/schema";
-import { ThemeSchema, type Theme } from "./theme/schema";
+import { ContentWidthSchema, ThemeSchema, type Theme } from "./theme/schema";
 
 /**
  * The only place `invoke` is called.
@@ -189,6 +189,9 @@ export const AppConfigSchema = z.object({
   reopenLastDocument: z.boolean(),
   zoom: z.number(),
   smartPunctuation: z.boolean(),
+  /** Defaulted so a config written before these settings existed still loads —
+   *  Rust supplies them too, but an older `config.json` reaches zod first. */
+  contentWidth: ContentWidthSchema.default("standard"),
   session: StoredSessionSchema,
 });
 export type AppConfig = z.infer<typeof AppConfigSchema>;

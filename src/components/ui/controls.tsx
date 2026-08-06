@@ -122,6 +122,51 @@ export function Switch({
   );
 }
 
+/**
+ * A short, closed set of choices, all visible at once.
+ *
+ * Preferred over a `Select` wherever there are two or three options and the
+ * point is to compare them: the drawer writes through on every change, so a
+ * setting you can reach in one click is a setting you can actually judge
+ * against the document behind the panel.
+ */
+export function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+  label,
+}: {
+  value: T;
+  options: readonly { value: T; label: string; title?: string }[];
+  onChange: (value: T) => void;
+  label: string;
+}) {
+  return (
+    <div role="group" aria-label={label} className="flex gap-1">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          title={option.title}
+          aria-pressed={value === option.value}
+          onClick={() => {
+            onChange(option.value);
+          }}
+          className={cn(
+            "flex-1 rounded-ui-md py-1.5 text-[12px]",
+            "transition-colors duration-[var(--ui-dur)]",
+            value === option.value
+              ? "bg-ui-ember-wash text-ui-text-strong"
+              : "bg-ui-plane-1 text-ui-text-muted hover:text-ui-text",
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex items-center justify-between gap-3 py-1.5 text-[12.5px] text-ui-text">

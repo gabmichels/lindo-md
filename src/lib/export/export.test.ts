@@ -26,6 +26,32 @@ describe("buildStandaloneHtml", () => {
     expect(html).toContain("<p>Hello</p>");
   });
 
+  it("carries the page width but never the zoom", () => {
+    // The file should be as wide as the page you were looking at. Zoom is a
+    // property of this window and means nothing in someone else's browser.
+    const html = buildStandaloneHtml({
+      title: "Guide",
+      theme,
+      article: article("<table><tr><td>wide</td></tr></table>"),
+      documentCss: "",
+      view: { contentWidth: "full", zoom: 2 },
+    });
+
+    expect(html).toContain("--doc-page: 100%;");
+    expect(html).toContain(`--doc-size: ${theme.typography.baseSize}px;`);
+  });
+
+  it("defaults to a standard-width page when no view is given", () => {
+    const html = buildStandaloneHtml({
+      title: "Guide",
+      theme,
+      article: article("<p>Hello</p>"),
+      documentCss: "",
+    });
+
+    expect(html).toContain("--doc-page: var(--doc-measure);");
+  });
+
   it("references no external resource", () => {
     const html = buildStandaloneHtml({
       title: "Guide",

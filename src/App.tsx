@@ -62,13 +62,10 @@ function Shell() {
     });
   }, []);
 
-  const theme = useTheme(
-    config.themeId,
-    config.appearance,
-    config.customThemes,
-    canvas,
-    config.zoom,
-  );
+  const theme = useTheme(config.themeId, config.appearance, config.customThemes, canvas, {
+    zoom: config.zoom,
+    contentWidth: config.contentWidth,
+  });
   const { tree } = useFileTree(folder, config.respectGitignore, config.showHiddenFiles);
 
   const tabs = useTabs();
@@ -187,9 +184,10 @@ function Shell() {
         theme,
         article,
         documentCss,
+        view: { contentWidth: config.contentWidth },
       }),
     );
-  }, [document, scroller, theme]);
+  }, [config.contentWidth, document, scroller, theme]);
 
   /**
    * Following a link inside a tab.

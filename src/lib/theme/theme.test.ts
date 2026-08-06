@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { applyTheme, docTokens, mermaidThemeVariables } from "./apply";
+import { applyTheme, docTokens, mermaidThemeVariables, viewTokens, type DocView } from "./apply";
 import { toHex } from "./color";
 import { DEFAULT_PRESET_ID, PRESETS, findPreset, resolveTheme } from "./presets";
 import { ThemeFileSchema, ThemeSchema, type Theme } from "./schema";
@@ -153,6 +153,118 @@ describe("docTokens", () => {
   });
 });
 
+describe("the page and the measure", () => {
+  const view = (patch: Partial<DocView> = {}): DocView => ({
+    zoom: 1,
+    contentWidth: "standard",
+    ...patch,
+  });
+
+  it("gives the page the measure at standard, and more at wide and full", () => {
+    expect(viewTokens(view())["--doc-page"]).toBe("var(--doc-measure)");
+    expect(viewTokens(view({ contentWidth: "wide" }))["--doc-page"]).toBe(
+      "calc(var(--doc-measure) * 1.5)",
+    );
+    expect(viewTokens(view({ contentWidth: "full" }))["--doc-page"]).toBe("100%");
+  });
+
+  it("gives each setting its own width, so all three are distinguishable", () => {
+    const widths = (["standard", "wide", "full"] as const).map(
+      (contentWidth) => viewTokens(view({ contentWidth }))["--doc-page"],
+    );
+    expect(new Set(widths).size).toBe(widths.length);
+  });
+
+  it("keeps the view out of the theme's own tokens", () => {
+    // A theme file must not be able to carry someone else's window width, for
+    // the same reason it cannot carry their zoom.
+    const tokens = docTokens(house.light);
+    for (const property of Object.keys(viewTokens(view()))) {
+      expect(tokens, property).not.toHaveProperty(property);
+    }
+  });
+});
+
+describe("structural tokens", () => {
+  const withType = (patch: Partial<Theme["typography"]>) =>
+    docTokens({
+      ...house.light,
+      typography: { ...house.light.typography, ...patch },
+    });
+
+  const withLayout = (patch: Partial<Theme["layout"]>) =>
+    docTokens({ ...house.light, layout: { ...house.light.layout, ...patch } });
+
+  it("lets an indent replace the blank line rather than adding to it", () => {
+    const spaced = withType({ paragraphStyle: "spaced" });
+    expect(spaced["--doc-indent"]).toBe("0em");
+    expect(parseFloat(spaced["--doc-para-space"]!)).toBeGreaterThan(0);
+
+    const indented = withType({ paragraphStyle: "indented" });
+    expect(parseFloat(indented["--doc-indent"]!)).toBeGreaterThan(0);
+    expect(parseFloat(indented["--doc-para-space"]!)).toBe(0);
+  });
+
+  it("maps the three link-underline settings onto rest and hover", () => {
+    const at = (linkUnderline: Theme["typography"]["linkUnderline"]) => {
+      const tokens = withType({ linkUnderline });
+      return [tokens["--doc-link-underline"], tokens["--doc-link-underline-hover"]];
+    };
+    expect(at("always")).toEqual(["underline", "underline"]);
+    expect(at("hover")).toEqual(["none", "underline"]);
+    expect(at("never")).toEqual(["none", "none"]);
+  });
+
+  it("tightens table padding on the compact density", () => {
+    const table = house.light.layout.table;
+    const comfortable = withLayout({ table: { ...table, density: "comfortable" } });
+    const compact = withLayout({ table: { ...table, density: "compact" } });
+
+    expect(parseFloat(compact["--doc-table-pad-block"]!)).toBeLessThan(
+      parseFloat(comfortable["--doc-table-pad-block"]!),
+    );
+    expect(parseFloat(compact["--doc-table-pad-inline"]!)).toBeLessThan(
+      parseFloat(comfortable["--doc-table-pad-inline"]!),
+    );
+  });
+
+  it("draws vertical rules only for a grid, and pads the last column with them", () => {
+    const table = house.light.layout.table;
+    const hairline = withLayout({ table: { ...table, rules: "hairline" } });
+    expect(hairline["--doc-table-rule"]).toBe("transparent");
+    // Flush to the text edge, which is what makes a hairline table read as part
+    // of the page rather than as a box on it.
+    expect(hairline["--doc-table-pad-last"]).toBe("0px");
+
+    const grid = withLayout({ table: { ...table, rules: "grid" } });
+    expect(grid["--doc-table-rule"]).not.toBe("transparent");
+    expect(grid["--doc-table-pad-last"]).not.toBe("0px");
+  });
+
+  it("resolves the stripe to transparent when it is off, never to nothing", () => {
+    // An empty value would make the row inherit whatever came before it.
+    const table = house.light.layout.table;
+    expect(withLayout({ table: { ...table, zebra: false } })["--doc-table-stripe"]).toBe(
+      "transparent",
+    );
+    expect(withLayout({ table: { ...table, zebra: true } })["--doc-table-stripe"]).not.toBe(
+      "transparent",
+    );
+  });
+
+  it("maps hyphenation and code wrapping onto their CSS values", () => {
+    expect(withType({ hyphenate: true })["--doc-hyphens"]).toBe("auto");
+    expect(withType({ hyphenate: false })["--doc-hyphens"]).toBe("manual");
+
+    const wrapped = docTokens({
+      ...house.light,
+      code: { ...house.light.code, wrap: true },
+    });
+    expect(docTokens(house.light)["--doc-code-wrap"]).toBe("pre");
+    expect(wrapped["--doc-code-wrap"]).toBe("pre-wrap");
+  });
+});
+
 describe("applyTheme", () => {
   it("writes every token onto the target element", () => {
     const element = document.createElement("div");
@@ -180,7 +292,7 @@ describe("applyTheme", () => {
 
   it("scales the base size by the reader's zoom", () => {
     const element = document.createElement("div");
-    applyTheme(house.light, element, 1.5);
+    applyTheme(house.light, element, { zoom: 1.5 });
     expect(element.style.getPropertyValue("--doc-size")).toBe(
       `${house.light.typography.baseSize * 1.5}px`,
     );
@@ -190,12 +302,37 @@ describe("applyTheme", () => {
     // Zoom is a property of the reader's view, not of the theme. A document
     // exported while zoomed in must not carry that zoom into the file.
     const element = document.createElement("div");
-    applyTheme(house.light, element, 2);
+    applyTheme(house.light, element, { zoom: 2 });
 
     expect(docTokens(house.light)["--doc-size"]).toBe(`${house.light.typography.baseSize}px`);
     expect(element.style.getPropertyValue("--doc-size")).not.toBe(
       docTokens(house.light)["--doc-size"],
     );
+  });
+
+  it("writes the reader's width onto the element without touching the theme", () => {
+    const element = document.createElement("div");
+    applyTheme(house.light, element, { contentWidth: "full" });
+    expect(element.style.getPropertyValue("--doc-page")).toBe("100%");
+    expect(house.light.typography.measure).toBe(66);
+  });
+
+  it("defaults to a standard-width page when no view is given", () => {
+    const element = document.createElement("div");
+    applyTheme(house.light, element);
+    expect(element.style.getPropertyValue("--doc-page")).toBe("var(--doc-measure)");
+  });
+
+  it("records heading numbering, which counters cannot express as a token", () => {
+    const element = document.createElement("div");
+    applyTheme(house.light, element);
+    expect(element.dataset.headingNumbers).toBe("false");
+
+    applyTheme(
+      { ...house.light, layout: { ...house.light.layout, numberHeadings: true } },
+      element,
+    );
+    expect(element.dataset.headingNumbers).toBe("true");
   });
 
   it("never writes a --ui-* property", () => {
@@ -247,6 +384,25 @@ describe("theme files", () => {
     expect(ThemeSchema.safeParse(broken).success).toBe(false);
   });
 
+  it("imports a file exported before the structural settings existed", () => {
+    // The promise the version field makes: a theme someone shared last year
+    // still opens, with the new settings at their defaults.
+    const old = JSON.parse(JSON.stringify(house.light));
+    delete old.layout;
+    delete old.code.wrap;
+    delete old.typography.hyphenate;
+    delete old.typography.paragraphStyle;
+    delete old.typography.linkUnderline;
+
+    const parsed = ThemeSchema.parse(old);
+    expect(parsed.layout.table.rules).toBe("hairline");
+    expect(parsed.layout.numberHeadings).toBe(false);
+    expect(parsed.code.wrap).toBe(false);
+    expect(parsed.typography.hyphenate).toBe(true);
+    expect(parsed.typography.paragraphStyle).toBe("spaced");
+    expect(parsed.typography.linkUnderline).toBe("always");
+  });
+
   it("rejects typography outside the readable range", () => {
     const tooSmall = {
       ...house.light,
@@ -271,7 +427,11 @@ describe("the two token namespaces stay apart", () => {
   it("gives styles.css a House default for every token applyTheme writes", () => {
     // Otherwise a token would fall back to nothing before React mounts, and the
     // first paint would be subtly wrong in a way that is hard to spot.
-    for (const property of Object.keys(docTokens(house.light))) {
+    const written = {
+      ...docTokens(house.light),
+      ...viewTokens({ zoom: 1, contentWidth: "standard" }),
+    };
+    for (const property of Object.keys(written)) {
       // Heading sizes are computed per theme, not defaulted in CSS.
       if (/^--doc-h\d$/.test(property)) continue;
       expect(css, `${property} has no default in styles.css`).toContain(`${property}:`);

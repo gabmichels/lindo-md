@@ -8,6 +8,7 @@ import {
   Field,
   Row,
   Section,
+  Segmented,
   Select,
   Slider,
   Switch,
@@ -16,7 +17,13 @@ import {
 import { readThemeFile, writeThemeFile, type AppConfig, type AppearanceMode } from "@/lib/ipc";
 import { PRESETS } from "@/lib/theme/presets";
 import { forkTheme, parseThemeFile, serializeTheme } from "@/lib/theme/io";
-import type { Theme, ThemeColors, ThemeTypography } from "@/lib/theme/schema";
+import type {
+  ContentWidth,
+  Theme,
+  ThemeColors,
+  ThemeLayout,
+  ThemeTypography,
+} from "@/lib/theme/schema";
 import { cn } from "@/lib/utils";
 
 /**
@@ -79,6 +86,45 @@ const COLOR_FIELDS: { key: keyof Omit<ThemeColors, "alert">; label: string }[] =
   { key: "selection", label: "Selection" },
 ];
 
+const WIDTHS: readonly { value: ContentWidth; label: string; title: string }[] = [
+  { value: "standard", label: "Standard", title: "The page is the reading measure" },
+  { value: "wide", label: "Wide", title: "Half again as wide — room for a table" },
+  { value: "full", label: "Full", title: "Everything the window has" },
+];
+
+/**
+ * The three sliders that decide how tightly the page is set, moved together.
+ *
+ * A preset here is not a stored setting — it writes the same values the sliders
+ * below it write. One source of truth, and no way for the preset and the
+ * sliders to disagree about what "compact" currently means.
+ */
+const DENSITIES: readonly {
+  value: string;
+  label: string;
+  typography: Pick<ThemeTypography, "lineHeight" | "paragraphSpacing">;
+  table: ThemeLayout["table"]["density"];
+}[] = [
+  {
+    value: "compact",
+    label: "Compact",
+    typography: { lineHeight: 1.45, paragraphSpacing: 0.8 },
+    table: "compact",
+  },
+  {
+    value: "comfortable",
+    label: "Comfortable",
+    typography: { lineHeight: 1.62, paragraphSpacing: 1.15 },
+    table: "comfortable",
+  },
+  {
+    value: "spacious",
+    label: "Spacious",
+    typography: { lineHeight: 1.8, paragraphSpacing: 1.5 },
+    table: "comfortable",
+  },
+];
+
 export function SettingsDrawer({
   open,
   onOpenChange,
@@ -110,6 +156,23 @@ export function SettingsDrawer({
     }));
   };
 
+  const editLayout = (patch: Partial<ThemeLayout>) => {
+    edit((current) => ({
+      ...current,
+      layout: { ...current.layout, ...patch },
+    }));
+  };
+
+  const editTable = (patch: Partial<ThemeLayout["table"]>) => {
+    edit((current) => ({
+      ...current,
+      layout: {
+        ...current.layout,
+        table: { ...current.layout.table, ...patch },
+      },
+    }));
+  };
+
   const editColor = (key: keyof Omit<ThemeColors, "alert">, value: string) => {
     edit((current) => ({
       ...current,
@@ -117,7 +180,27 @@ export function SettingsDrawer({
     }));
   };
 
+  /** One fork, both groups — otherwise the second edit would fork the first's
+   *  result and leave a stray custom theme behind. */
+  const applyDensity = (preset: (typeof DENSITIES)[number]) => {
+    edit((current) => ({
+      ...current,
+      typography: { ...current.typography, ...preset.typography },
+      layout: {
+        ...current.layout,
+        table: { ...current.layout.table, density: preset.table },
+      },
+    }));
+  };
+
   const type = theme.typography;
+  const layout = theme.layout;
+  const density = DENSITIES.find(
+    (preset) =>
+      preset.typography.lineHeight === type.lineHeight &&
+      preset.typography.paragraphSpacing === type.paragraphSpacing &&
+      preset.table === layout.table.density,
+  );
 
   return (
     // Deliberately not modal, and with no dimming overlay: the document behind
@@ -161,26 +244,33 @@ export function SettingsDrawer({
             </Section>
 
             <Section title="Appearance">
-              <div className="flex gap-1">
-                {(["light", "dark", "system"] as AppearanceMode[]).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => {
-                      onUpdateConfig({ appearance: mode });
-                    }}
-                    className={cn(
-                      "flex-1 rounded-ui-md py-1.5 text-[12px] capitalize",
-                      "transition-colors duration-[var(--ui-dur)]",
-                      config.appearance === mode
-                        ? "bg-ui-ember-wash text-ui-text-strong"
-                        : "bg-ui-plane-1 text-ui-text-muted hover:text-ui-text",
-                    )}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
+              <Segmented<AppearanceMode>
+                label="Appearance"
+                value={config.appearance}
+                onChange={(appearance) => {
+                  onUpdateConfig({ appearance });
+                }}
+                options={[
+                  { value: "light", label: "Light" },
+                  { value: "dark", label: "Dark" },
+                  { value: "system", label: "System" },
+                ]}
+              />
+            </Section>
+
+            {/* Width is a setting of the window, not of the theme — like zoom,
+                and unlike everything below it. It writes to config rather than
+                forking the theme, so a theme shared with someone reading on a
+                laptop does not arrive full width. */}
+            <Section title="Width">
+              <Segmented<ContentWidth>
+                label="Content width"
+                value={config.contentWidth}
+                onChange={(contentWidth) => {
+                  onUpdateConfig({ contentWidth });
+                }}
+                options={WIDTHS}
+              />
             </Section>
 
             <Section title="Type">
@@ -253,6 +343,17 @@ export function SettingsDrawer({
             </Section>
 
             <Section title="Layout">
+              <Field label="Density">
+                <Segmented
+                  label="Density"
+                  value={density?.value ?? ""}
+                  onChange={(value) => {
+                    const preset = DENSITIES.find((d) => d.value === value);
+                    if (preset) applyDensity(preset);
+                  }}
+                  options={DENSITIES.map(({ value, label }) => ({ value, label }))}
+                />
+              </Field>
               <Field label="Line height" value={type.lineHeight.toFixed(2)}>
                 <Slider
                   label="Line height"
@@ -277,18 +378,56 @@ export function SettingsDrawer({
                   }}
                 />
               </Field>
-              <Field label="Paragraph spacing" value={`${type.paragraphSpacing.toFixed(2)} em`}>
+              <Field label="Page margins" value={`${layout.pagePadding.toFixed(1)} rem`}>
                 <Slider
-                  label="Paragraph spacing"
-                  value={type.paragraphSpacing}
+                  label="Page margins"
+                  value={layout.pagePadding}
                   min={0}
-                  max={3}
-                  step={0.05}
-                  onChange={(paragraphSpacing) => {
-                    editType({ paragraphSpacing });
+                  max={8}
+                  step={0.5}
+                  onChange={(pagePadding) => {
+                    editLayout({ pagePadding });
                   }}
                 />
               </Field>
+              <Field label="Paragraphs">
+                <Segmented<ThemeTypography["paragraphStyle"]>
+                  label="Paragraph style"
+                  value={type.paragraphStyle}
+                  onChange={(paragraphStyle) => {
+                    editType({ paragraphStyle });
+                  }}
+                  options={[
+                    { value: "spaced", label: "Spaced", title: "A blank line between paragraphs" },
+                    {
+                      value: "indented",
+                      label: "Indented",
+                      title: "A first-line indent, as in a book",
+                    },
+                  ]}
+                />
+              </Field>
+              {type.paragraphStyle === "spaced" ? (
+                <Field label="Paragraph spacing" value={`${type.paragraphSpacing.toFixed(2)} em`}>
+                  <Slider
+                    label="Paragraph spacing"
+                    value={type.paragraphSpacing}
+                    min={0}
+                    max={3}
+                    step={0.05}
+                    onChange={(paragraphSpacing) => {
+                      editType({ paragraphSpacing });
+                    }}
+                  />
+                </Field>
+              ) : (
+                // The indent is what separates one paragraph from the next, so a
+                // blank line as well would say it twice. Saying so beats leaving
+                // a slider that visibly does nothing.
+                <p className="py-1.5 text-[11.5px] leading-snug text-ui-text-faint">
+                  An indent separates the paragraphs, so there is no space between them to set.
+                </p>
+              )}
               <Field label="Letter spacing" value={`${type.letterSpacing.toFixed(3)} em`}>
                 <Slider
                   label="Letter spacing"
@@ -310,6 +449,84 @@ export function SettingsDrawer({
                   }}
                 />
               </Row>
+              <Row label="Hyphenate">
+                <Switch
+                  label="Hyphenate"
+                  checked={type.hyphenate}
+                  onChange={(hyphenate) => {
+                    editType({ hyphenate });
+                  }}
+                />
+              </Row>
+              <Row label="Number headings">
+                <Switch
+                  label="Number headings"
+                  checked={layout.numberHeadings}
+                  onChange={(numberHeadings) => {
+                    editLayout({ numberHeadings });
+                  }}
+                />
+              </Row>
+              <Field label="Link underlines">
+                <Segmented<ThemeTypography["linkUnderline"]>
+                  label="Link underlines"
+                  value={type.linkUnderline}
+                  onChange={(linkUnderline) => {
+                    editType({ linkUnderline });
+                  }}
+                  options={[
+                    { value: "always", label: "Always" },
+                    { value: "hover", label: "On hover" },
+                    { value: "never", label: "Never" },
+                  ]}
+                />
+              </Field>
+            </Section>
+
+            <Section title="Tables">
+              <Field label="Density">
+                <Segmented<ThemeLayout["table"]["density"]>
+                  label="Table density"
+                  value={layout.table.density}
+                  onChange={(density) => {
+                    editTable({ density });
+                  }}
+                  options={[
+                    { value: "comfortable", label: "Comfortable" },
+                    { value: "compact", label: "Compact" },
+                  ]}
+                />
+              </Field>
+              <Field label="Rules">
+                <Segmented<ThemeLayout["table"]["rules"]>
+                  label="Table rules"
+                  value={layout.table.rules}
+                  onChange={(rules) => {
+                    editTable({ rules });
+                  }}
+                  options={[
+                    {
+                      value: "hairline",
+                      label: "Hairline",
+                      title: "Rows only — the editorial default",
+                    },
+                    {
+                      value: "grid",
+                      label: "Grid",
+                      title: "Vertical rules too, for wide data tables",
+                    },
+                  ]}
+                />
+              </Field>
+              <Row label="Striped rows">
+                <Switch
+                  label="Striped rows"
+                  checked={layout.table.zebra}
+                  onChange={(zebra) => {
+                    editTable({ zebra });
+                  }}
+                />
+              </Row>
             </Section>
 
             <Section title="Code">
@@ -321,6 +538,18 @@ export function SettingsDrawer({
                     edit((current) => ({
                       ...current,
                       code: { ...current.code, lineNumbers },
+                    }));
+                  }}
+                />
+              </Row>
+              <Row label="Wrap long lines">
+                <Switch
+                  label="Wrap long lines"
+                  checked={theme.code.wrap}
+                  onChange={(wrap) => {
+                    edit((current) => ({
+                      ...current,
+                      code: { ...current.code, wrap },
                     }));
                   }}
                 />
