@@ -17,6 +17,18 @@ name: Release
 # Windows and Linux bundles are still unsigned, so the release notes below carry the steps to
 # open them. They live here rather than in the README: someone downloading a binary is reading
 # the release page, not the repo.
+#
+# Two kinds of signature are in play here and they are not the same thing. There is no *code*
+# signing certificate — that is the paid Authenticode/Developer ID kind, and its absence is what
+# SmartScreen complains about. There is an *update* signing key: a minisign keypair whose public
+# half sits in `tauri.conf.json` and whose private half exists only as the two secrets below.
+# It costs nothing, and it is what makes an in-app updater safe for an unsigned project — a
+# compromised release, a hijacked DNS answer or a proxy rewriting the manifest all produce an
+# artifact this key did not sign, and `tauri-plugin-updater` refuses it in Rust before it runs.
+#
+# TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD are repository secrets. If they
+# ever go missing the build does not fail quietly: `createUpdaterArtifacts` makes the bundler
+# demand them.
 on:
   push:
     tags: ["v*"]
@@ -36,9 +48,18 @@ jobs:
       matrix:
         include:
           - os: ubuntu-22.04
-            args: ""
+            args: "--bundles deb,rpm,appimage"
+          # NSIS only — the `.msi` is deliberately no longer built.
+          #
+          # `latest.json` carries one installer per platform, and Tauri cannot tell which one a
+          # given user originally ran. MSI and NSIS install to different locations under
+          # different registry identities, so an MSI-installed copy updated from the NSIS
+          # artifact becomes two copies of lindo-md rather than one upgraded one. NSIS is also
+          # the one that can update without a UAC prompt every time (it installs per-user, into
+          # %LOCALAPPDATA%), the one `installerHooks` below applies to, and the only one the
+          # release notes have ever pointed at.
           - os: windows-latest
-            args: ""
+            args: "--bundles nsis"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -72,12 +93,15 @@ jobs:
         id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "lindo-md ${{ github.ref_name }}"
           releaseBody: |
             A Markdown viewer with editorial typography, full GitHub-flavored rendering
-            (including Mermaid diagrams) and deeply customizable themes. Works entirely offline.
+            (including Mermaid diagrams) and deeply customizable themes. Every document it
+            renders is read from your own disk.
 
             ### Windows and Linux
 
@@ -86,6 +110,15 @@ jobs:
             - **Windows** — SmartScreen shows "Windows protected your PC". Choose
               **More info → Run anyway**.
             - **Linux** — mark the AppImage executable: `chmod +x lindo-md_*.AppImage`
+
+            This is the last download you should need. From here lindo-md offers new versions
+            itself and installs them in place — Settings → General has the switch if you would
+            rather it did not ask, in which case the app makes no network requests at all.
+
+            **If you installed the `.msi`**, uninstall it and use `lindo-md_*_x64-setup.exe`
+            once. The MSI is no longer published: only one installer per platform can be
+            offered as an update, and the two install to different places, so an MSI kept
+            updating from the `.exe` would end up as two copies of the app.
 
             ### Verifying what you downloaded
 
@@ -125,6 +158,14 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+          # The action writes `latest.json` from the artifacts of its own job, and this is a
+          # two-runner matrix — so Windows would publish a manifest describing only Windows,
+          # Linux one describing only Linux, and the second to finish would overwrite the
+          # first. The losing platform's users then get a well-formed manifest, served from
+          # the right URL, that says their platform has no release. The `Publish the updater
+          # manifest` job below builds it once, from the finished release, where both
+          # platforms' artifacts exist together.
+          uploadUpdaterJson: false
 
       # Neither of the next two steps depends on a paid certificate, which is the point: they are
       # the trust signals available to an unsigned project. Checksums let anyone confirm the file
@@ -237,3 +278,73 @@ jobs:
           # subject-path takes a comma- or newline-separated list; a GitHub Actions expression
           # cannot emit a literal newline, so comma it is.
           subject-path: ${{ join(fromJSON(steps.tauri.outputs.artifactPaths), ',') }}
+
+  # What every installed copy of lindo-md reads to decide whether to update, and what to
+  # download when it does. It runs after both bundles exist, for the reason spelled out at
+  # `uploadUpdaterJson: false` above: a per-runner manifest describes one platform and
+  # overwrites the other's.
+  #
+  # `needs` without `if: success()` is deliberate — a matrix leg that failed means one
+  # platform has no bundle, and `scripts/updater-manifest.mjs` refuses to write a manifest
+  # with a platform missing rather than publishing one that silently strands those users.
+  #
+  # The manifest itself is not signed, and does not need to be for the property that matters:
+  # every URL in it points at an artifact whose minisign signature the client verifies before
+  # running it, so a rewritten manifest cannot deliver code this repo did not build. What it
+  # could do is name an *older* release — a downgrade — which is a real if narrow attack, and
+  # the honest mitigation today is that the file is served by GitHub over TLS from a release
+  # only this workflow's token can write.
+  updater-manifest:
+    name: Publish the updater manifest
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Build latest.json from the release artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # The installers and the minisign signature written beside each one. Drafts are
+          # reachable by tag through the API, which is the whole reason this can run before
+          # the release is published — the manifest has to be in place the moment it is.
+          mkdir -p updater-assets
+          gh release download "$TAG" --dir updater-assets \
+            --pattern '*-setup.exe' --pattern '*-setup.exe.sig' \
+            --pattern '*.AppImage' --pattern '*.AppImage.sig'
+
+          ls -la updater-assets
+
+          # The version without the `v`, which is what the updater compares against
+          # `getVersion()` — a manifest saying "v1.2.0" never matches "1.2.0" and every
+          # client concludes it is already current.
+          version="${TAG#v}"
+
+          # The tagged commit's own date rather than the clock: a re-run of this job must
+          # produce the same bytes as the first, or the published manifest changes under
+          # clients for no reason. `HEAD` rather than "$TAG" because a tag-triggered
+          # checkout is shallow and the tag object itself may not have been fetched — HEAD
+          # is the commit the tag points at either way.
+          pub_date=$(git log -1 --format=%cI HEAD)
+
+          node scripts/updater-manifest.mjs \
+            --dir updater-assets \
+            --version "$version" \
+            --tag "$TAG" \
+            --repo "${{ github.repository }}" \
+            --notes "lindo-md $version" \
+            --pub-date "$pub_date" > latest.json
+
+          cat latest.json
+
+          gh release upload "$TAG" latest.json --clobber

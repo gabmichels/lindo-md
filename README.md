@@ -31,8 +31,9 @@ panel. lindo-md renders them the way a well-set page should look — editorial t
 measure, considered rhythm — with the full GitHub feature set behind it, and lets you edit the page
 you are reading without switching into a source view first.
 
-It is a small native desktop app (Rust + Tauri), not an Electron shell, and it works entirely
-offline. Nothing you open leaves your machine.
+It is a small native desktop app (Rust + Tauri), not an Electron shell. Nothing you open leaves
+your machine: the only request it ever makes is a version check on launch, which you can turn off
+in Settings → General, and with it off the app opens no connections at all.
 
 ## Download
 
@@ -120,10 +121,11 @@ adjustable, and the result exports to JSON.
 </td>
 <td valign="top">
 
-### Genuinely offline
+### One request, and it is optional
 
 Remote images are blocked by default, so opening a document cannot report that you did. Shiki,
-KaTeX and Mermaid are bundled, not fetched.
+KaTeX and Mermaid are bundled, not fetched. The launch version check is the only thing that
+reaches the network, and it has a switch.
 
 </td>
 <td valign="top">

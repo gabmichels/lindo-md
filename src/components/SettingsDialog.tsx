@@ -3,8 +3,10 @@ import * as Tabs from "@radix-ui/react-tabs";
 import { Check, Minus, Palette, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { UpdatesSection } from "@/components/Updates";
 import { Row, Section, Switch } from "@/components/ui/controls";
 import type { ConfigPatch } from "@/hooks/useConfig";
+import type { Updater } from "@/hooks/useUpdater";
 import { ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, stepZoom } from "@/lib/zoom";
 import {
   getDefaultAppStatus,
@@ -33,6 +35,9 @@ interface SettingsDialogProps {
   /** Hands off to the appearance drawer, so the dialog can point at it rather
    *  than duplicating a theme picker. */
   onOpenAppearance: () => void;
+  /** Shared with the launch prompt rather than owned here — see `useUpdater`
+   *  for why one check and one download state serve both surfaces. */
+  updater: Updater;
 }
 
 export function SettingsDialog({
@@ -41,6 +46,7 @@ export function SettingsDialog({
   config,
   onUpdateConfig,
   onOpenAppearance,
+  updater,
 }: SettingsDialogProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -98,6 +104,14 @@ export function SettingsDialog({
                     them rather than instead of them.
                   </Note>
                 </Section>
+
+                <UpdatesSection
+                  updater={updater}
+                  checkForUpdates={config.checkForUpdates}
+                  onChangeCheckForUpdates={(checkForUpdates) => {
+                    onUpdateConfig({ checkForUpdates });
+                  }}
+                />
               </Tabs.Content>
 
               <Tabs.Content value="reading" className="outline-none">

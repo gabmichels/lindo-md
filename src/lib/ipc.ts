@@ -192,6 +192,7 @@ export const AppConfigSchema = z.object({
   /** Defaulted so a config written before these settings existed still loads —
    *  Rust supplies them too, but an older `config.json` reaches zod first. */
   contentWidth: ContentWidthSchema.default("standard"),
+  checkForUpdates: z.boolean().default(true),
   session: StoredSessionSchema,
 });
 export type AppConfig = z.infer<typeof AppConfigSchema>;
