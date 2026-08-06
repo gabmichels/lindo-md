@@ -61,7 +61,13 @@ Each of these exists because of something that actually happened here, not as a 
 
 ## Verifying a download
 
-Every release has a `checksums-*.txt` and a provenance attestation.
+Every release has a `checksums-*.txt`, a provenance attestation, and a CycloneDX SBOM
+(`sbom-frontend.cdx.json`, `sbom-rust.cdx.json`) listing everything compiled into it — so you can
+scan what you downloaded rather than taking this repo's word for what is in it:
+
+```bash
+osv-scanner scan source --sbom sbom-rust.cdx.json
+```
 
 ```bash
 sha256sum -c checksums-windows-latest.txt
