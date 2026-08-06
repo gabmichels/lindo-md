@@ -134,6 +134,12 @@ const REMOTE_URL = /url\(\s*['"]?\s*(?!#|data:)[^)]*\)/gi;
 export async function renderDiagram(block: HTMLElement, theme: Theme): Promise<void> {
   const source = block.dataset.source ?? block.textContent;
   block.dataset.source = source;
+  // Carried onto the figure below. A rendered diagram is never edited — it is in
+  // `ATOM_SELECTOR`, so no caret goes inside it and no block map entry resolves
+  // to it — but `lib/render/mirror.ts` pairs the live document against a fresh
+  // render by these attributes, and a diagram that has lost its own is a diagram
+  // that gets re-rendered from scratch every time an edit above it moves a line.
+  const sourcepos = block.getAttribute("data-sourcepos");
 
   try {
     const mermaid = await getMermaid(theme);
@@ -153,6 +159,7 @@ export async function renderDiagram(block: HTMLElement, theme: Theme): Promise<v
     stripRemoteRefs(figure);
     figure.dataset.source = source;
     figure.dataset.rendered = theme.id;
+    if (sourcepos !== null) figure.setAttribute("data-sourcepos", sourcepos);
     // Diagrams are frequently wider than the measure; the overlay in
     // `DiagramViewer` opens on click, and the figure scrolls in the meantime.
     figure.tabIndex = 0;
@@ -168,6 +175,7 @@ export async function renderDiagram(block: HTMLElement, theme: Theme): Promise<v
     failed.className = "mermaid mermaid-error";
     failed.dataset.source = source;
     failed.dataset.rendered = theme.id;
+    if (sourcepos !== null) failed.setAttribute("data-sourcepos", sourcepos);
 
     const caption = document.createElement("figcaption");
     caption.textContent = `Diagram could not be rendered — ${firstLine(message)}`;

@@ -98,6 +98,25 @@ pub fn read(
         source,
     })?;
 
+    let content_hash = hash(&source);
+    Ok(render(app, path, source, content_hash, render_options))
+}
+
+/// Builds the document from Markdown already in hand.
+///
+/// Split out of `read` for `save`, which has just written this exact string and
+/// knows its hash: re-reading the file to render it meant a third trip to the
+/// disk per keystroke-batch, and a second SHA-256 of the whole document, for a
+/// string already sitting in memory. It also meant the render could, in
+/// principle, describe a *different* file — one something else rewrote in the
+/// gap between the write and the read back.
+fn render(
+    app: &AppHandle,
+    path: &Path,
+    source: String,
+    content_hash: String,
+    render_options: markdown::RenderOptions,
+) -> Document {
     let dir = path
         .parent()
         .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
@@ -115,7 +134,7 @@ pub fn read(
     let rendered = markdown::render_with(&source, render_options);
     let title = rendered.title.clone().unwrap_or_else(|| name.clone());
 
-    Ok(Document {
+    Document {
         path: path.display().to_string(),
         dir: dir.display().to_string(),
         name,
@@ -123,10 +142,10 @@ pub fn read(
         toc: rendered.toc,
         frontmatter: rendered.frontmatter,
         title,
-        content_hash: hash(&source),
+        content_hash,
         blocks: srcmap::for_webview(&source, render_options),
         source,
-    })
+    }
 }
 
 /// A content fingerprint. Used to decide whether a file changed, never to
@@ -176,16 +195,26 @@ pub fn save(
 
     ensure_unchanged(path, expected_hash)?;
 
+    let content_hash = hash(source);
+
     // Recorded *before* the write, so the event this write is about to cause
     // cannot arrive before the watcher knows to ignore it.
-    state.expect_write(path, &hash(source));
+    state.expect_write(path, &content_hash);
 
     std::fs::write(path, source).map_err(|source| LindoError::WriteFile {
         path: path.display().to_string(),
         source,
     })?;
 
-    read(app, path, render_options)
+    // Rendered from what was written rather than from a fresh read of the file.
+    // See `render`.
+    Ok(render(
+        app,
+        path,
+        source.to_owned(),
+        content_hash,
+        render_options,
+    ))
 }
 
 /// What the reader has chosen to see in the rail. A struct rather than two bool

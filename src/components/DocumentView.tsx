@@ -9,6 +9,7 @@ import { restoreSelection, selectionRange, type SourceRange } from "@/lib/edit/s
 import { taskClickHandler } from "@/lib/edit/tasks";
 import { enhance } from "@/lib/render/enhance";
 import { hasBlockedImages, loadBlockedImages } from "@/lib/render/images";
+import { mirror, type Mirrored } from "@/lib/render/mirror";
 import { linkClickHandler } from "@/lib/render/links";
 
 /** Keyed by `event.key` lowercased, so Ctrl+Shift+B never reaches them. */
@@ -22,9 +23,11 @@ const FORMAT_KEYS: Record<string, FormatCommand> = {
  * Renders the document and runs the enhancement passes over it.
  *
  * The HTML arrives already sanitized from Rust (`markdown.rs` runs comrak with
- * `unsafe_` on and then ammonia), which is what makes `innerHTML` acceptable
- * here. It is set imperatively rather than through `dangerouslySetInnerHTML` so
- * that React never re-creates the nodes the enhancement passes have decorated.
+ * `unsafe_` on and then ammonia), which is what makes writing it into the DOM
+ * acceptable here. It is done imperatively rather than through
+ * `dangerouslySetInnerHTML` so that React never re-creates the nodes the
+ * enhancement passes have decorated — and through `mirror`, which replaces only
+ * the blocks an edit actually changed, so those nodes survive a re-render too.
  */
 
 interface DocumentViewProps {
@@ -83,11 +86,15 @@ export function DocumentView({
   // same one is what an edit does, and jumping to the top after every tick of a
   // checkbox would make the document unusable.
   const shown = useRef<string | null>(null);
+  /** What the article was last built from, so an edit replaces only the blocks
+   *  it changed. Dropped on a document change, which is a full rebuild. */
+  const mirrored = useRef<Mirrored | null>(null);
   useLayoutEffect(() => {
     const article = articleRef.current;
     if (!article) return;
-    article.innerHTML = doc.html;
-    if (shown.current !== doc.path) {
+    const opening = shown.current !== doc.path;
+    mirrored.current = mirror(article, doc.html, opening ? null : mirrored.current);
+    if (opening) {
       shown.current = doc.path;
       scrollerRef.current?.scrollTo({ top: 0 });
     }

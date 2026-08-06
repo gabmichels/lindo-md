@@ -175,14 +175,29 @@ export function nodeAt(
   return last ? { node: last, offset: last.nodeValue?.length ?? 0 } : null;
 }
 
-/** The element a block map entry describes. Compared as an attribute value
- *  rather than built into a selector, which keeps a sourcepos out of the
- *  selector grammar entirely. */
-function elementFor(article: HTMLElement, sourcepos: string): HTMLElement | null {
+/**
+ * Every element the block map could name, keyed by its `data-sourcepos`.
+ *
+ * Built in one pass and handed to whoever needs several lookups. It used to be a
+ * `querySelectorAll` per block instead, inside a loop over the blocks — one full
+ * sweep of the document to find one element, repeated until the right block came
+ * up. That is quadratic in the size of the document, and restoring the caret ran
+ * it twice, so putting the caret back after an edit got measurably slower the
+ * longer the document was: at 800 blocks it was already the most expensive thing
+ * an edit did.
+ *
+ * A sourcepos is compared as an attribute value rather than built into a
+ * selector, which keeps it out of the selector grammar entirely.
+ */
+function indexBySourcepos(article: HTMLElement): Map<string, HTMLElement> {
+  const index = new Map<string, HTMLElement>();
   for (const element of article.querySelectorAll<HTMLElement>("[data-sourcepos]")) {
-    if (element.getAttribute("data-sourcepos") === sourcepos) return element;
+    const sourcepos = element.getAttribute("data-sourcepos");
+    // First wins: comrak nests blocks, and the outermost element carrying a
+    // given position is the one the map describes.
+    if (sourcepos !== null && !index.has(sourcepos)) index.set(sourcepos, element);
   }
-  return null;
+  return index;
 }
 
 /**
@@ -197,6 +212,9 @@ export function domPositionOf(
   article: HTMLElement,
   blocks: BlockMap[],
   sourceOffset: number,
+  /** Shared by a caller resolving more than one offset against the same
+   *  document — building it is a sweep of the whole article. */
+  index: Map<string, HTMLElement> = indexBySourcepos(article),
 ): { node: Node; offset: number } | null {
   let firstSeen: { element: HTMLElement; block: BlockMap } | null = null;
   let before: { element: HTMLElement; block: BlockMap } | null = null;
@@ -206,7 +224,7 @@ export function domPositionOf(
     const last = block.runs[block.runs.length - 1];
     if (!first || !last) continue;
 
-    const element = elementFor(article, block.sourcepos);
+    const element = index.get(block.sourcepos);
     if (!element) continue;
     firstSeen ??= { element, block };
 
@@ -245,8 +263,9 @@ export function restoreSelection(
   blocks: BlockMap[],
   range: SourceRange,
 ): boolean {
-  const start = domPositionOf(article, blocks, range.start);
-  const end = domPositionOf(article, blocks, range.end);
+  const index = indexBySourcepos(article);
+  const start = domPositionOf(article, blocks, range.start, index);
+  const end = domPositionOf(article, blocks, range.end, index);
   if (!start || !end) return false;
 
   const selection = article.ownerDocument.defaultView?.getSelection();

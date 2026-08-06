@@ -118,7 +118,11 @@ export function useDocumentTyping({ article, document: doc, onSave, restoring }:
     const root = article.current;
     if (!root) return;
     for (const atom of root.querySelectorAll<HTMLElement>(ATOM_SELECTOR)) {
-      atom.contentEditable = "false";
+      // Checked rather than assigned unconditionally: a re-render now reuses the
+      // nodes it did not change (`lib/render/mirror.ts`), so most of these are
+      // already marked, and writing `contentEditable` invalidates the editing
+      // state of the element whether or not the value differs.
+      if (atom.contentEditable !== "false") atom.contentEditable = "false";
     }
   }, [article, doc.html]);
 
