@@ -79,6 +79,15 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
+        // The only two plugins in this list that can reach the network or replace
+        // the binary on disk, and they are a pair: `updater` fetches and installs,
+        // `process` performs the relaunch afterwards. Neither does anything on its
+        // own initiative — the frontend decides when to check (see `update.ts`),
+        // and an installer the release key did not sign is rejected here, in Rust,
+        // before it is run. The public key that decides that lives in
+        // `tauri.conf.json`; the private half never leaves the release workflow.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(WatchState::default())
         // Reads argv now, so the launch argument is already queued before the
         // webview that collects it exists — see `OpenQueue::from_launch`.
@@ -129,6 +138,73 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    /// The updater has the same shape of trap the opener test below describes, with a worse
+    /// failure mode: `updater:default` enables `check()` from the webview, but what makes an
+    /// update *installable* is the minisign public key in `tauri.conf.json`, and what makes
+    /// one *exist* is `bundle.createUpdaterArtifacts`. The three are independent switches
+    /// that only work together.
+    ///
+    /// Each way of getting it wrong is silent in a different direction. No `pubkey` and every
+    /// check fails at runtime with a message no reader will see, because the settings panel
+    /// reports a failed check as "could not reach GitHub". No `createUpdaterArtifacts` and the
+    /// release builds cleanly, publishes installers with no signatures beside them, and the
+    /// manifest job is the first thing to notice — one release too late.
+    ///
+    /// Config invariants with no runtime representation, so they are asserted against the
+    /// manifest text, exactly as the opener one is.
+    #[test]
+    fn the_updater_grant_comes_with_a_key_and_artifacts_to_verify() {
+        let capability: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json"))
+                .expect("capabilities/default.json is valid JSON");
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json"))
+            .expect("tauri.conf.json is valid JSON");
+
+        let permissions: Vec<&str> = capability["permissions"]
+            .as_array()
+            .expect("the capability has a permissions array")
+            .iter()
+            .filter_map(|p| p.as_str())
+            .collect();
+
+        if !permissions.contains(&"updater:default") {
+            return;
+        }
+
+        let updater = &config["plugins"]["updater"];
+
+        assert!(
+            updater["pubkey"].as_str().is_some_and(|k| !k.is_empty()),
+            "updater:default is granted with no plugins.updater.pubkey, so every update \
+             check fails at runtime and the app reports it as being unable to reach GitHub."
+        );
+
+        assert_eq!(
+            config["bundle"]["createUpdaterArtifacts"],
+            serde_json::Value::Bool(true),
+            "the app can check for updates but the bundler produces none to find. Set \
+             bundle.createUpdaterArtifacts."
+        );
+
+        let endpoints = updater["endpoints"]
+            .as_array()
+            .expect("plugins.updater.endpoints is a list");
+        assert!(
+            !endpoints.is_empty(),
+            "updater:default is granted with no endpoint to ask."
+        );
+        // `dangerousInsecureTransportProtocol` is what it takes to use a plain-HTTP
+        // endpoint, and the signature check is not a reason to accept one: it stops a
+        // forged *update*, not someone watching which version every reader is running.
+        for endpoint in endpoints {
+            let url = endpoint.as_str().unwrap_or_default();
+            assert!(
+                url.starts_with("https://"),
+                "updater endpoint {url} is not https"
+            );
+        }
+    }
+
     /// The opener plugin splits the command grant from the URL scope: `allow-open-url`
     /// enables `open_url` *with no scope at all*, and the `http`/`https`/`mailto`/`tel`
     /// globs live only in `allow-default-urls`. Granting the first without the second

@@ -5,6 +5,7 @@ import { FormatMenu } from "@/components/FormatMenu";
 import { Rail } from "@/components/Rail";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { TabStrip } from "@/components/TabStrip";
+import { useUpdater } from "@/hooks/useUpdater";
 import {
   EMPTY_SESSION,
   activateTab,
@@ -82,6 +83,7 @@ const SPECIMEN_CONFIG: AppConfig = {
   respectGitignore: true,
   showHiddenFiles: false,
   reopenLastDocument: true,
+  checkForUpdates: true,
   zoom: 1,
   smartPunctuation: false,
   contentWidth: "standard",
@@ -93,6 +95,9 @@ export default function Specimen() {
   const [collapsed, setCollapsed] = useState(false);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Disabled on purpose: the specimen runs in a browser, where a launch check
+  // could only fail, and the state worth reviewing here is the resting one.
+  const updater = useUpdater(false);
 
   return (
     <div className="flex h-full">
@@ -176,6 +181,7 @@ export default function Specimen() {
         config={SPECIMEN_CONFIG}
         onUpdateConfig={() => undefined}
         onOpenAppearance={() => undefined}
+        updater={updater}
       />
     </div>
   );

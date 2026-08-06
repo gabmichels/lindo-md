@@ -36,10 +36,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "publisher": "Gabriel Michels",
     "category": "Productivity",
     "shortDescription": "A beautiful Markdown viewer",
-    "longDescription": "lindo-md renders local Markdown files with editorial typography and full GitHub-flavored support — tables, alerts, footnotes, math, syntax-highlighted code and Mermaid diagrams — with deeply customizable themes. Everything runs offline.",
+    "longDescription": "lindo-md renders local Markdown files with editorial typography and full GitHub-flavored support — tables, alerts, footnotes, math, syntax-highlighted code and Mermaid diagrams — with deeply customizable themes. Documents are read and rendered entirely on your own machine.",
     "windows": {
       "nsis": {
         "installerHooks": "./installer-hooks.nsh"
@@ -61,5 +62,14 @@
         "mimeType": "text/markdown"
       }
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg2MTk1QzExRjEyQ0VERTQKUldUazdTenhFVndaaGhoTWd2UDZQOWNoTCtFajl1YnQzdmpHYzdHZHUrVzhCNG9OT1YveHhxQXYK",
+      "endpoints": ["https://github.com/gabmichels/lindo-md/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

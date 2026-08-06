@@ -59,6 +59,7 @@ export const FALLBACK: AppConfig = {
   zoom: 1,
   smartPunctuation: false,
   contentWidth: "standard",
+  checkForUpdates: true,
   session: EMPTY_SESSION,
 };
 

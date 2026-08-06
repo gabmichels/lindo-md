@@ -14,6 +14,7 @@ import { TabGroupDialog } from "@/components/TabGroupDialog";
 import { TabStrip } from "@/components/TabStrip";
 import { TitleBar } from "@/components/TitleBar";
 import { Toolbar } from "@/components/Toolbar";
+import { UpdateDialog } from "@/components/Updates";
 import { ConfigProvider, useConfig } from "@/hooks/useConfig";
 import { useFileDrop } from "@/hooks/useFileDrop";
 import { useFileTree } from "@/hooks/useFileTree";
@@ -23,6 +24,7 @@ import { useOutline } from "@/hooks/useOutline";
 import { useTabDocuments } from "@/hooks/useTabDocuments";
 import { useTabs } from "@/hooks/useTabs";
 import { useTheme } from "@/hooks/useTheme";
+import { useUpdater } from "@/hooks/useUpdater";
 import { writeHtmlFile } from "@/lib/ipc";
 import { buildStandaloneHtml } from "@/lib/export/html";
 import { stepZoom } from "@/lib/zoom";
@@ -67,6 +69,11 @@ function Shell() {
     contentWidth: config.contentWidth,
   });
   const { tree } = useFileTree(folder, config.respectGitignore, config.showHiddenFiles);
+
+  // Gated on `loaded` so the launch check reflects the setting on disk rather
+  // than the fallback's `true` — someone who turned this off must not be
+  // checked on anyway for the moment before their config arrives.
+  const updater = useUpdater(loaded && config.checkForUpdates);
 
   const tabs = useTabs();
   const { session } = tabs;
@@ -468,6 +475,8 @@ function Shell() {
 
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
 
+      <UpdateDialog updater={updater} />
+
       <SettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
@@ -476,6 +485,7 @@ function Shell() {
         onOpenAppearance={() => {
           setAppearanceOpen(true);
         }}
+        updater={updater}
       />
 
       <SettingsDrawer

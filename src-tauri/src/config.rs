@@ -94,6 +94,20 @@ pub struct AppConfig {
     #[serde(default)]
     pub smart_punctuation: bool,
 
+    /// Ask GitHub on launch whether a newer release exists.
+    ///
+    /// The only outbound request lindo-md ever makes, and the only reason this
+    /// field exists: everything else — rendering, scanning, watching, exporting —
+    /// is local, so "does the app use the network" has exactly one answer and it
+    /// is this boolean. Defaulted on, because an update nobody hears about is an
+    /// unpatched document parser sitting on someone's disk, and off is one switch
+    /// away in Settings → General.
+    ///
+    /// Turning it off is total. Nothing else here calls out, so a `false` means
+    /// the process opens no sockets at all.
+    #[serde(default = "default_true")]
+    pub check_for_updates: bool,
+
     /// How much of the window the page may use: "standard" | "wide" | "full".
     ///
     /// A view setting for the same reason as `zoom`: it belongs to the window
@@ -154,6 +168,7 @@ impl Default for AppConfig {
             reopen_last_document: true,
             zoom: default_zoom(),
             smart_punctuation: false,
+            check_for_updates: true,
             content_width: default_content_width(),
             session: serde_json::Value::Null,
         }

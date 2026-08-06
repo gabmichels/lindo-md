@@ -31,6 +31,7 @@ function config(customThemes: unknown) {
     respectGitignore: true,
     showHiddenFiles: false,
     reopenLastDocument: true,
+    checkForUpdates: true,
     zoom: 1,
     smartPunctuation: false,
     session: EMPTY_SESSION,

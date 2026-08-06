@@ -1,7 +1,7 @@
 {
   "name": "lindo-md",
   "version": "1.1.0",
-  "description": "A beautiful, offline Markdown viewer \u2014 GitHub-flavored rendering with editorial typography, Mermaid diagrams and deeply customizable themes",
+  "description": "A beautiful, offline Markdown viewer — GitHub-flavored rendering with editorial typography, Mermaid diagrams and deeply customizable themes",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -52,6 +52,8 @@
     "@tauri-apps/plugin-dialog": "^2.4.0",
     "@tauri-apps/plugin-opener": "^2.5.0",
     "@tauri-apps/plugin-os": "^2.3.2",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "clsx": "^2.1.1",
     "katex": "^0.18.1",
     "lucide-react": "^0.545.0",

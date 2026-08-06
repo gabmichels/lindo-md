@@ -6,7 +6,19 @@ Working notes for anyone — human or agent — changing this repo.
 
 A desktop Markdown **viewer**. It renders local `.md` files with editorial typography and full
 GitHub-flavored support (tables, alerts, footnotes, math, highlighted code, Mermaid diagrams), and
-lets the reader retheme the page in depth. It never touches the network.
+lets the reader retheme the page in depth.
+
+It makes **exactly one** network request, and only if the reader leaves it on: a GET of
+`latest.json` on GitHub at launch, to see whether a newer version exists (`src/lib/update.ts`,
+`config.checkForUpdates`, Settings → General). Nothing else in the app opens a socket — remote
+images are blocked by default, and Shiki, KaTeX and Mermaid are bundled rather than fetched.
+
+That sentence used to read "it never touches the network", and it is worth naming why the
+distinction is kept sharp rather than softened to "essentially offline": the claim is load-bearing
+for the people who choose this app, and it is only true because there is a single code path to
+check. If you add a second one, this paragraph is wrong and the privacy copy in `README.md`, the
+About dialog and `tauri.conf.json`'s `longDescription` are wrong with it. Change them in the same
+commit.
 
 It **does** edit files — `src/lib/edit/`, `useDocumentTyping`, and an always-on `contentEditable`
 on the document canvas. This sentence used to say the opposite, and that mattered: the editing path
@@ -416,6 +428,46 @@ to hand to people is not — review the draft on GitHub and publish it yourself.
 `pnpm bump` writes both and `version.test.ts` fails the build if they ever drift. Edit neither by
 hand; `pnpm release` calls `pnpm bump` for you, and `pnpm bump <major|minor|patch>` on its own is
 only for the rare case where you want the bump without the tag.
+
+### The in-app updater
+
+Published Windows and Linux builds update themselves. The reader is offered the new version on
+launch, clicks once, and the app downloads it, installs it and restarts. `Later` closes the dialog
+until the next launch; Settings → General turns the whole thing off.
+
+**Two different signatures are involved and conflating them will waste a day.** There is no
+*code-signing* certificate — the paid Authenticode / Developer ID kind — which is why SmartScreen
+still objects to a fresh download. There *is* an *update-signing* key: a minisign keypair, free,
+whose public half is `plugins.updater.pubkey` in `tauri.conf.json` and whose private half exists
+only as the `TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` repository secrets.
+`tauri-plugin-updater` verifies it in Rust before anything is unpacked, so a forged release, a
+hijacked DNS answer or a rewritten manifest all fail identically and nothing runs. **Losing the
+private key means no existing install can ever be updated again** — a new key is a new pubkey, and
+every shipped copy only trusts the old one. It is backed up outside the repo.
+
+Three pieces have to agree, and `lib.rs` has a test that says so, because each way of getting it
+wrong is silent in its own direction: the `updater:default` grant in `capabilities/default.json`,
+the `pubkey`, and `bundle.createUpdaterArtifacts`.
+
+`latest.json` is built by `scripts/updater-manifest.mjs` in its own job rather than by
+`tauri-action`, and the reason is the whole point of that script's doc comment: the action writes
+the manifest from the artifacts of its own job, and this is a two-runner matrix, so each platform
+would publish a manifest describing only itself and the second to finish would overwrite the first.
+Half the users would then be told, by a valid manifest at the right URL, that their platform has no
+release.
+
+**Windows is NSIS only.** The `.msi` is not built. A manifest carries one installer per platform
+and Tauri cannot tell which one a user originally ran; MSI and NSIS install to different locations
+under different registry identities, so an MSI-installed copy updated from the `.exe` becomes two
+copies of the app. NSIS is also the one that installs per-user into `%LOCALAPPDATA%`, so an update
+needs no UAC prompt — an MSI-based updater would prompt for admin on every single update.
+
+macOS has no updater and cannot have one until a signed bundle is published: `release.yml` builds
+no darwin artifact, so `latest.json` has no darwin entry and `check()` has nothing to compare
+against. `updateChannel()` in `src/lib/update.ts` routes macOS to a `source` panel showing
+`git pull && pnpm install && pnpm tauri build` instead. That is not a consolation prize — a binary
+you compiled locally was never downloaded, so Gatekeeper never quarantined it, which is the same
+reason no macOS bundle is published in the first place.
 
 ## Tabs
 
