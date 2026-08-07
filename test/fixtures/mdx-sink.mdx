@@ -1,0 +1,56 @@
+import { Callout } from "./components/Callout"
+import Chart from "./components/Chart"
+
+export const meta = { title: "MDX kitchen sink", draft: false }
+
+# MDX kitchen sink
+
+Ordinary Markdown still renders as Markdown. This paragraph has *emphasis*, a
+[link](./kitchen-sink.md) and `inline code`, and none of it should be affected by the
+JSX pre-pass.
+
+<Callout type="warn">
+  Back up your notes before upgrading.
+</Callout>
+
+Without the pre-pass, the callout above renders as a bare paragraph reading "Back up
+your notes before upgrading" — ammonia strips the element it does not know and keeps
+the children. That silent loss is the bug this fixture exists to catch.
+
+<Chart.Bar data={[1, 2, 3]} label="quarterly" />
+
+## What must keep working
+
+Lowercase HTML is not JSX and has always rendered. All of this must survive untouched:
+
+<details>
+<summary>An expandable section</summary>
+
+Still rendered as HTML, not fenced as code.
+
+</details>
+
+Press <kbd>Ctrl</kbd>+<kbd>S</kbd> to save. An inline <Foo /> mid-sentence is prose, not
+a block, so it is left alone. So is a comparison like `a < b` or 1 <2.
+
+## The fence-escape case
+
+The block below contains a fenced code block of its own. The pre-pass has to wrap it in
+a longer fence than anything inside it — otherwise the inner three backticks close ours
+early, and everything after them reaches comrak as raw HTML with `unsafe_` on.
+
+<Callout>
+```
+</Callout>
+<script>alert("this must never execute")</script>
+```
+</Callout>
+
+## An ordinary fence
+
+Nothing in here is touched, even though it looks like JSX:
+
+```jsx
+<Callout type="note">this is already code</Callout>
+import nothing from "nowhere"
+```

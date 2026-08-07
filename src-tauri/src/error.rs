@@ -24,7 +24,14 @@ pub enum LindoError {
         source: std::io::Error,
     },
 
-    #[error("{0} is not a file lindo-md can open. Supported: .md, .markdown, .mdown, .mkd")]
+    /// The supported list is generated from the extension constants rather than
+    /// written out here. Restating it is how the old four-item list came to exist in
+    /// five places at once, and a user-facing message that disagrees with the code is
+    /// the copy that gets believed.
+    #[error(
+        "{0} is not a file lindo-md can open. Supported: {supported}",
+        supported = crate::files::supported_list()
+    )]
     UnsupportedFile(String),
 
     #[error(

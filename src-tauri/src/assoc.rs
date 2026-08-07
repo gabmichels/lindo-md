@@ -99,7 +99,14 @@ where
         // handles both callers. It also drops the `-psn_0_…` process serial
         // number macOS appends when Finder launches a bundle.
         .filter(|path: &PathBuf| !path.to_string_lossy().starts_with('-'))
-        .find(|path| files::is_markdown(path) && path.is_file())
+        // `is_openable`, which is wider than what the installer claims, and that is
+        // deliberate. The association list decides what the OS routes here unasked;
+        // this decides what we accept once a path has arrived. `lindo-md notes.txt`
+        // on the command line, and Explorer's "Open with → lindo-md" on a `.txt`,
+        // both reach this function without any association existing. Gating them on
+        // `is_markdown` would raise the window and open nothing — which reads as a
+        // broken app, exactly like the macOS hand-off bug in v1.0.0.
+        .find(|path| files::is_openable(path) && path.is_file())
 }
 
 /// Picks the documents out of an `openURLs:` hand-off.
@@ -122,9 +129,10 @@ where
 {
     urls.into_iter()
         // Anything that is not a local file — a custom scheme, an http URL — is
-        // not something a viewer of local Markdown can open.
+        // not something a viewer of local documents can open.
         .filter_map(|url| url.to_file_path().ok())
-        .filter(|path| files::is_markdown(path) && path.is_file())
+        // Wider than the association list on purpose; see `document_from_args`.
+        .filter(|path| files::is_openable(path) && path.is_file())
         .collect()
 }
 

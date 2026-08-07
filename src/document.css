@@ -98,6 +98,42 @@
   background: var(--doc-selection);
 }
 
+/* A plain-text document, shown as itself.
+   The same reasoning as `.doc-source` above, and for the same reason: a `.txt` or an
+   `.rst` is paper, not code, and setting it in mono would make the app feel like an
+   editor that happens to open text rather than a reader that respects it.
+   Deliberately *not* `.code-block` — that class is what `ATOM_SELECTOR` and the Shiki
+   pass both key off, so reusing it would drag the whole highlighting pipeline onto a
+   file with no language. */
+.doc pre.plain-text {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--doc-text);
+  font-family: var(--doc-font-body);
+  font-size: var(--doc-size);
+  line-height: var(--doc-leading);
+  letter-spacing: var(--doc-tracking);
+  /* Wrap rather than scroll: a log line is often far wider than the measure, and a
+     horizontal scrollbar on the whole document is worse than a soft wrap. */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  tab-size: 2;
+  /* A justified or hyphenated theme must not re-flow a file whose line breaks are
+     the content — `wants_mono` files especially, but it is wrong for all of them. */
+  hyphens: none;
+  text-align: start;
+}
+
+/* `.log` and friends: column alignment is the content, so it gets the mono face. */
+.doc pre.plain-text--mono {
+  font-family: var(--doc-font-mono);
+  font-size: calc(var(--doc-size) * 0.9);
+  line-height: calc(var(--doc-leading) * 0.92);
+  letter-spacing: normal;
+}
+
 /* --- the page --------------------------------------------------------------
    `--doc-page` is how much of the window the document may use: the theme's
    measure at Standard, half again at Wide, the whole window at Full. Everything

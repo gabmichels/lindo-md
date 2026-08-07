@@ -1,11 +1,16 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
+  DOCUMENT_EXTENSIONS,
+  TEXT_EXTENSIONS,
   basename,
   dirname,
   dragRegion,
   isExternal,
   isMarkdownPath,
+  isOpenablePath,
   resolveRelative,
   splitFragment,
 } from "./utils";
@@ -75,13 +80,91 @@ describe("splitFragment", () => {
 });
 
 describe("isMarkdownPath", () => {
-  it("matches the extensions the Rust side accepts", () => {
-    for (const path of ["a.md", "a.MARKDOWN", "x/y.mdown", "z.mkd"]) {
+  it("captures every Markdown dialect, and MDX", () => {
+    for (const path of ["a.md", "a.MARKDOWN", "x/y.mdown", "z.mkd", "a.mkdn", "a.qmd", "a.rmd"]) {
       expect(isMarkdownPath(path), path).toBe(true);
     }
-    for (const path of ["a.png", "a.mdx", "a"]) {
+    // MDX opens and renders, so a link to one belongs in a tab. That it is
+    // read-only once open is a separate question, answered by `doc.editable`.
+    expect(isMarkdownPath("a.mdx")).toBe(true);
+  });
+
+  it("leaves plain text to the reader's own editor", () => {
+    // The whole point of keeping this predicate narrower than `isOpenablePath`.
+    // lindo-md can display these; a link written inside someone's document should
+    // still open whatever they use for them.
+    for (const path of ["notes.txt", "build.log", "a.rst", "a.adoc"]) {
       expect(isMarkdownPath(path), path).toBe(false);
     }
+    for (const path of ["a.png", "a.rs", "a"]) {
+      expect(isMarkdownPath(path), path).toBe(false);
+    }
+  });
+});
+
+describe("isOpenablePath", () => {
+  it("accepts every dialect, MDX and plain text", () => {
+    for (const path of ["a.md", "a.qmd", "a.mdx", "notes.TXT", "build.log", "a.rst", "a.adoc"]) {
+      expect(isOpenablePath(path), path).toBe(true);
+    }
+  });
+
+  it("rejects what lindo-md cannot display", () => {
+    for (const path of ["a.png", "a.rs", "a.json", "a"]) {
+      expect(isOpenablePath(path), path).toBe(false);
+    }
+  });
+});
+
+/**
+ * The lists above exist in Rust too, and a comment claiming they agree is not a check.
+ * This reads the Rust arrays off disk and compares them, the same way `version.test.ts`
+ * pins `package.json` against `Cargo.toml`.
+ *
+ * It is worth the regex: the previous version of this file carried a hand-copied list
+ * and a comment saying it "matches the extensions the Rust side accepts", which nothing
+ * verified. Adding an extension on one side and forgetting the other would have shipped
+ * a file you can drop on the window but cannot open from the dialog.
+ */
+describe("the extension lists match the Rust side", () => {
+  const rust = readFileSync("src-tauri/src/files.rs", "utf8");
+
+  function rustArray(name: string): string[] {
+    const match = new RegExp(`${name}:\\s*\\[&str;\\s*\\d+\\]\\s*=\\s*\\[([^\\]]*)\\]`).exec(rust);
+    if (!match?.[1]) throw new Error(`no ${name} array found in src-tauri/src/files.rs`);
+    return [...match[1].matchAll(/"([^"]+)"/g)].map((m) => m[1] ?? "");
+  }
+
+  it("agrees on which extensions open at all", () => {
+    const openable = [
+      ...rustArray("MARKDOWN_EXTENSIONS"),
+      ...rustArray("MDX_EXTENSIONS"),
+      ...rustArray("PLAIN_TEXT_EXTENSIONS"),
+    ];
+    for (const extension of openable) {
+      expect(isOpenablePath(`a.${extension}`), extension).toBe(true);
+    }
+  });
+
+  it("agrees on which extensions a link may capture", () => {
+    for (const extension of [...rustArray("MARKDOWN_EXTENSIONS"), ...rustArray("MDX_EXTENSIONS")]) {
+      expect(isMarkdownPath(`a.${extension}`), extension).toBe(true);
+    }
+    for (const extension of rustArray("PLAIN_TEXT_EXTENSIONS")) {
+      expect(isMarkdownPath(`a.${extension}`), extension).toBe(false);
+    }
+  });
+
+  it("has no extension on the TS side that Rust would refuse to open", () => {
+    const rustOpenable = new Set([
+      ...rustArray("MARKDOWN_EXTENSIONS"),
+      ...rustArray("MDX_EXTENSIONS"),
+      ...rustArray("PLAIN_TEXT_EXTENSIONS"),
+    ]);
+    for (const extension of [...DOCUMENT_EXTENSIONS, ...TEXT_EXTENSIONS]) {
+      expect(rustOpenable.has(extension), extension).toBe(true);
+    }
+    expect(DOCUMENT_EXTENSIONS.length + TEXT_EXTENSIONS.length).toBe(rustOpenable.size);
   });
 });
 

@@ -22,6 +22,11 @@ An [internal link](./nested/second.md), an [anchor link](#tables), an
 [external link](https://example.com), an autolink <https://example.com>, and a
 [link with a title](https://example.com "Hover me").
 
+Link routing, which is deliberately narrower than what the app can open: these two
+open in a tab — [an MDX document](./mdx-sink.mdx) and [a dialect](./nested/second.md) —
+while [a text file](./plain.txt) and [a log](./sample.log) go to whatever the reader
+uses for them, even though lindo-md would happily display both.
+
 > A blockquote, which should read as a quotation rather than as a grey box.
 >
 > — with a second paragraph

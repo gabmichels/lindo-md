@@ -4,9 +4,26 @@ Working notes for anyone — human or agent — changing this repo.
 
 ## What lindo-md is
 
-A desktop Markdown **viewer**. It renders local `.md` files with editorial typography and full
+A desktop **viewer** for text documents, Markdown first. It renders the Markdown dialects — `.md`,
+`.markdown`, `.mdown`, `.mkd`, `.mkdn`, `.qmd`, `.rmd` — with editorial typography and full
 GitHub-flavored support (tables, alerts, footnotes, math, highlighted code, Mermaid diagrams), and
 lets the reader retheme the page in depth.
+
+It also opens two things that are not quite that, both **read-only**:
+
+- **`.mdx`**, which is Markdown with JSX in it. The JSX is never executed — a document is arbitrary
+  input and JSX is arbitrary JavaScript — so `mdx.rs` fences the components as `jsx` code blocks
+  before comrak sees them, and they render as visible source.
+- **Plain text** — `.txt`, `.text`, `.log`, `.rst`, `.adoc` — which never reaches comrak at all.
+  `plaintext.rs` escapes it and wraps it in one `<pre>`, so `# TODO` in a `.txt` shows a hash.
+
+**Openable, claimed and editable are three different sets, and conflating any two breaks something.**
+The installer claims only the Markdown dialects and `.mdx`, because putting lindo-md into the "Open
+with" list for every `.txt` on the machine is a fight with Notepad nobody asked for. Links *inside* a
+document capture only that same set, because `[notes](notes.txt)` has always opened the reader's own
+editor and quietly taking it over would be a regression wearing a feature's clothes. And only the
+dialects are editable — see below. `src-tauri/tests/extensions.rs` and `src/lib/utils.test.ts` pin
+all three against `files.rs`, which is the one place the lists live.
 
 It makes **exactly one** network request, and only if the reader leaves it on: a GET of
 `latest.json` on GitHub at launch, to see whether a newer version exists (`src/lib/update.ts`,
@@ -20,21 +37,36 @@ check. If you add a second one, this paragraph is wrong and the privacy copy in 
 About dialog and `tauri.conf.json`'s `longDescription` are wrong with it. Change them in the same
 commit.
 
-It **does** edit files — `src/lib/edit/`, `useDocumentTyping`, and an always-on `contentEditable`
-on the document canvas. This sentence used to say the opposite, and that mattered: the editing path
-trusts `data-sourcepos` to decide which run of the file a keystroke rewrites, and while this
-document claimed there was no editing, nobody re-examined that attribute as a trust boundary. A
-document could forge one and redirect an edit onto text it did not own. If you change what this
-app does, change this paragraph in the same commit.
+It **does** edit files — `src/lib/edit/`, `useDocumentTyping`, and a `contentEditable` on the
+document canvas that is on for every Markdown dialect. This sentence used to say the opposite, and
+that mattered: the editing path trusts `data-sourcepos` to decide which run of the file a keystroke
+rewrites, and while this document claimed there was no editing, nobody re-examined that attribute as
+a trust boundary. A document could forge one and redirect an edit onto text it did not own. If you
+change what this app does, change this paragraph in the same commit.
+
+**What is *not* editable follows from that same attribute, which is why it is stated here rather than
+filed under a feature.** `data-sourcepos` is only meaningful when the string comrak rendered is the
+string on disk. Plain text never goes through comrak, so there is no attribute at all. MDX does, but
+only after `mdx::prepass` has inserted fence lines — which moves every line number below them, while
+`Document::source` is still the file itself. Render the transformed string and an edit rewrites the
+wrong bytes; save it and the reader's `import` lines are gone. Editing MDX needs a line-delta map
+between the two, with its own trust boundary, and that is a separate change.
+
+So `files::save` refuses anything but a dialect, and it refuses *in Rust*: `Document.editable` exists
+only so the UI can stop offering a caret, a format menu and a source view. A document that is
+read-only only in React is not read-only.
 
 ## Two invariants
 
 Everything else in this document is derived from these.
 
-1. **The webview is untrusted.** Markdown is arbitrary input from arbitrary files. The frontend gets
-   no filesystem and no shell permission; reading, scanning, watching and exporting all happen behind
-   allowlisted `#[tauri::command]` functions. `comrak` renders with `unsafe_` on (so `<details>` and
-   `<kbd>` survive), which makes the `ammonia` pass afterwards **mandatory**, not optional.
+1. **The webview is untrusted.** Markdown, MDX and plain text are all arbitrary input from arbitrary
+   files. The frontend gets no filesystem and no shell permission; reading, scanning, watching and
+   exporting all happen behind allowlisted `#[tauri::command]` functions. `comrak` renders with
+   `unsafe_` on (so `<details>` and `<kbd>` survive), which makes the `ammonia` pass afterwards
+   **mandatory**, not optional. Plain text takes the other route entirely — `plaintext.rs` escapes
+   it and never parses it, so there is nothing for a sanitizer to undo. Both routes are held to the
+   same hostile corpus in tests, because "it cannot emit a tag" is a claim worth checking.
 2. **The tool and the paper are different materials.** `--ui-*` styles the tool and never changes;
    `--doc-*` styles the document and is rewritten on every theme switch. Neither side may read the
    other's tokens. See `DESIGN.md`.
@@ -93,7 +125,9 @@ src-tauri/src/
   lib.rs         builder wiring only; main.rs is 6 lines
   commands.rs    thin adapters — no logic
   markdown.rs    comrak + ammonia + TOC
-  files.rs       open/read/scan/watch
+  mdx.rs         fences JSX/ESM before comrak sees it — read-only, see above
+  plaintext.rs   escape + <pre>; never touches comrak
+  files.rs       open/read/scan/watch; the extension lists and what they each mean
   config.rs      settings persistence
   defaults.rs    which app owns .md (read-only — Windows blocks writing it)
   error.rs       LindoError, serialized to the frontend as a plain string

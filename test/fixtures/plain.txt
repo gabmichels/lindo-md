@@ -1,0 +1,39 @@
+Every line in this file is a thing lindo-md must NOT do something clever with.
+
+# This is not a heading
+## Nor is this
+
+*not emphasis*  _not emphasis either_  **not bold**  `not code`
+
+- [ ] not a task list
+- not a bullet
+
+1. not an ordered list
+
+> not a block quote
+
+| not | a | table |
+| --- | - | ----- |
+
+[not a link](https://example.com)  ![not an image](a.png)
+
+```
+not a fenced code block
+```
+
+--- not a horizontal rule, and not frontmatter either
+
+$$ not math $$
+
+[^1]: not a footnote
+
+<script>alert("not a script")</script>
+<b>not bold markup</b> & an ampersand < a less-than > a greater-than
+
+Whitespace below this line is load-bearing and must survive:
+	a leading tab
+    four leading spaces
+trailing spaces follow this arrow ->
+
+
+Two blank lines precede this one.

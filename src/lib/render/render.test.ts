@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { _stripDelimiters } from "./katex";
-import { markExternalLinks } from "./links";
+import { linkTarget, markExternalLinks } from "./links";
 import { hasBlockedImages, loadBlockedImages, resolveImages } from "./images";
 
 // `convertFileSrc` needs a Tauri host. The identity-ish stub keeps the resolved
@@ -48,6 +48,73 @@ describe("markExternalLinks", () => {
     const internal = element.querySelector<HTMLElement>('a[href$="guide.md"]')!;
     expect(internal.dataset.external).toBeUndefined();
     expect(internal.dataset.anchor).toBeUndefined();
+  });
+});
+
+describe("linkTarget", () => {
+  it("sends a link with a scheme out to the OS", () => {
+    expect(linkTarget("/docs", "https://example.com")).toEqual({
+      kind: "external",
+      url: "https://example.com",
+    });
+    expect(linkTarget("/docs", "mailto:a@b.c").kind).toBe("external");
+  });
+
+  /**
+   * Pinned as it is, not as it arguably should be. `isExternal` does not recognise a
+   * protocol-relative URL — AGENTS.md records the same quirk where `stripRemoteRefs`
+   * had to work around it — so this falls through to the OS hand-off, where the
+   * opener's scope rejects it and the click does nothing. That is pre-existing and
+   * unchanged by the predicate split; the test is here so it is a known shape rather
+   * than a surprise the next time someone reads this function.
+   */
+  it("does not recognise a protocol-relative URL as external", () => {
+    expect(linkTarget("/docs", "//host/path").kind).toBe("handoff");
+  });
+
+  it("keeps a fragment-only link inside the document", () => {
+    expect(linkTarget("/docs", "#install")).toEqual({ kind: "anchor", fragment: "install" });
+  });
+
+  it("opens every Markdown dialect, and MDX, in a tab", () => {
+    for (const href of ["./guide.md", "a.markdown", "b.qmd", "c.rmd", "d.mkdn", "e.mdx"]) {
+      expect(linkTarget("/docs", href).kind, href).toBe("document");
+    }
+  });
+
+  it("carries the fragment across to the document it opens", () => {
+    expect(linkTarget("/docs", "./guide.md#setup")).toEqual({
+      kind: "document",
+      path: "/docs/guide.md",
+      fragment: "setup",
+    });
+  });
+
+  /**
+   * The behaviour this whole predicate split exists to protect. lindo-md can display
+   * these — they appear in the tree, the dialog offers them, dropping one opens it —
+   * but a link written inside somebody's Markdown still goes to whatever they use for
+   * text files. Widening this to `isOpenablePath` would silently take over links that
+   * have opened Notepad or VS Code for as long as the document has existed.
+   */
+  it("hands plain text to the OS rather than capturing it", () => {
+    for (const href of ["notes.txt", "build.log", "readme.rst", "doc.adoc"]) {
+      expect(linkTarget("/docs", href).kind, href).toBe("handoff");
+    }
+  });
+
+  it("hands over anything it cannot render at all", () => {
+    for (const href of ["diagram.png", "paper.pdf", "main.rs"]) {
+      expect(linkTarget("/docs", href).kind, href).toBe("handoff");
+    }
+  });
+
+  it("percent-decodes a path before deciding", () => {
+    expect(linkTarget("/docs", "My%20Notes.md")).toEqual({
+      kind: "document",
+      path: "/docs/My Notes.md",
+      fragment: "",
+    });
   });
 });
 

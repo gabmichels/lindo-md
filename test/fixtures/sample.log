@@ -1,0 +1,10 @@
+2026-08-07T09:14:02.118Z  INFO   startup      window created in 41ms
+2026-08-07T09:14:02.204Z  INFO   config       loaded 14 keys from config.json
+2026-08-07T09:14:02.311Z  DEBUG  watcher      watching C:\Workspace\notes (recursive)
+2026-08-07T09:14:02.312Z  DEBUG  watcher      watching C:\Workspace (non-recursive, 1 document)
+2026-08-07T09:14:03.007Z  INFO   render       kitchen-sink.md  46.2 KB  340 blocks  7ms
+2026-08-07T09:14:03.009Z  WARN   render       *not emphasis* and # not a heading, shown as written
+2026-08-07T09:14:11.880Z  ERROR  save         refused: notes.txt is not editable
+2026-08-07T09:14:11.881Z  DEBUG  save         (the guard in files::save, not the UI)
+2026-08-07T09:14:19.442Z  INFO   shiki        highlighted 40 fences in 210ms
+2026-08-07T09:14:19.664Z  INFO   mermaid      3 diagrams laid out

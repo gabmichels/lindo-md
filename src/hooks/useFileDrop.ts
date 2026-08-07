@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 
 import { onFileDrag } from "@/lib/ipc";
-import { isMarkdownPath } from "@/lib/utils";
+import { isOpenablePath } from "@/lib/utils";
 
 /**
- * Markdown files dragged onto the window from outside the app.
+ * Documents dragged onto the window from outside the app.
  *
  * Returns whether a drop would land right now, so the window can say so. That
  * feedback is the whole reason this is a hook and not a one-line listener: a
  * drag this app will refuse looks exactly like a drag it will accept, and the
- * reader only finds out by letting go. A drag carrying no Markdown never lights
- * up, and dropping it does nothing.
+ * reader only finds out by letting go. A drag carrying nothing openable never
+ * lights up, and dropping it does nothing.
+ *
+ * `isOpenablePath`, not `isMarkdownPath`: what can be dropped should match what
+ * the tree lists and the dialog offers. The narrower predicate is for links
+ * *inside* a document, which is a different question — see `utils.ts`.
  */
 export function useFileDrop(onDrop: (paths: string[]) => void): boolean {
   const [receptive, setReceptive] = useState(false);
@@ -32,7 +36,7 @@ export function useFileDrop(onDrop: (paths: string[]) => void): boolean {
       // Filtered here rather than in Rust because it decides what the overlay
       // says, and asking Rust would put an await between the drag arriving and
       // the window reacting to it.
-      const paths = event.paths.filter(isMarkdownPath);
+      const paths = event.paths.filter(isOpenablePath);
 
       if (event.phase === "over") {
         setReceptive(paths.length > 0);

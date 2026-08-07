@@ -76,13 +76,63 @@ export function splitFragment(href: string): { path: string; fragment: string } 
   return { path: href.slice(0, index), fragment: href.slice(index + 1) };
 }
 
-const MARKDOWN_EXTENSIONS = ["md", "markdown", "mdown", "mkd"];
+/* The three extension classes, mirroring `src-tauri/src/files.rs`. Rust decides what
+ * a file *is* — these exist because the dialog, the drop target and the link router
+ * all have to answer before any IPC round trip. `utils.test.ts` reads the Rust arrays
+ * off disk and fails if these drift, the same trick `version.test.ts` uses to keep
+ * `package.json` and `Cargo.toml` in step. */
+const MARKDOWN_EXTENSIONS = ["md", "markdown", "mdown", "mkd", "mkdn", "qmd", "rmd"];
+const MDX_EXTENSIONS = ["mdx"];
+const PLAIN_TEXT_EXTENSIONS = ["txt", "text", "log", "rst", "adoc"];
 
-/** Whether a link points at another document we can open in-app, rather than at
- *  a file the OS should handle. */
+function extensionOf(path: string): string {
+  return path.split(".").pop()?.toLowerCase() ?? "";
+}
+
+/**
+ * Whether a link inside a document should be captured into a tab, rather than handed
+ * to whatever the reader has set as their own editor.
+ *
+ * Deliberately narrower than `isOpenablePath`, and the gap is the point: lindo-md can
+ * *display* a `.txt`, but a `[notes](notes.txt)` written inside someone's Markdown has
+ * always opened their editor, and quietly taking that over would be a regression
+ * dressed as a feature. "We can show this" and "we should intercept this" are
+ * different questions.
+ */
 export function isMarkdownPath(path: string): boolean {
-  const extension = path.split(".").pop()?.toLowerCase() ?? "";
-  return MARKDOWN_EXTENSIONS.includes(extension);
+  const extension = extensionOf(path);
+  return MARKDOWN_EXTENSIONS.includes(extension) || MDX_EXTENSIONS.includes(extension);
+}
+
+/** Every file lindo-md will open: what the tree lists, the dialog offers, and the
+ *  drop target accepts. Wider than `isMarkdownPath` — see above. */
+export function isOpenablePath(path: string): boolean {
+  const extension = extensionOf(path);
+  return (
+    MARKDOWN_EXTENSIONS.includes(extension) ||
+    MDX_EXTENSIONS.includes(extension) ||
+    PLAIN_TEXT_EXTENSIONS.includes(extension)
+  );
+}
+
+/** The open dialog shows two filters rather than one; these back them. */
+export const DOCUMENT_EXTENSIONS = [...MARKDOWN_EXTENSIONS, ...MDX_EXTENSIONS];
+export const TEXT_EXTENSIONS = [...PLAIN_TEXT_EXTENSIONS];
+
+/**
+ * Why a document cannot be edited, or null when it can be.
+ *
+ * Takes `editable` from the document rather than working it out from the path, so the
+ * badge can never contradict what Rust decided — but picks the *wording* from the
+ * extension, because "read-only" without a reason reads as a setting someone forgot to
+ * turn off. Both of these are properties of the file, and neither has a switch.
+ */
+export function readOnlyReason(doc: { editable: boolean; path: string }): string | null {
+  if (doc.editable) return null;
+  if (MDX_EXTENSIONS.includes(extensionOf(doc.path))) {
+    return "MDX components are shown as code. Editing would move the JSX out from under the positions an edit is applied with, so this file is read-only.";
+  }
+  return "Plain text is shown exactly as written, with no Markdown applied — so there is nothing here to edit as Markdown.";
 }
 
 export function basename(path: string): string {

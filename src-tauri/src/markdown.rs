@@ -367,7 +367,9 @@ fn title_from_info(info: &str) -> Option<String> {
     None
 }
 
-fn escape_html(input: &str) -> String {
+/// Shared with `plaintext`, which has no comrak pass to escape things for it and
+/// relies on this being the complete set: `&`, `<`, `>`, `"` and `'`.
+pub(crate) fn escape_html(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     for ch in input.chars() {
         match ch {
