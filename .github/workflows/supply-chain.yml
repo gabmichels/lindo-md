@@ -48,22 +48,70 @@ jobs:
   # none upgradeable until Tauri moves. Every one carries an `ignoreUntil` so the argument
   # has to be made again rather than standing forever.
   #
-  # These are reusable *workflows*, not actions — osv-scanner's `action.yml` is a stub
-  # with no `runs:` block, so `uses:` at step level silently does nothing.
+  # Assembled from steps here rather than by calling osv-scanner's reusable workflow,
+  # and that is not a style preference — the reusable one cannot run in this repo.
+  #
+  # `sha_pinning_required` is set on the repository, and GitHub enforces it *through*
+  # a reusable workflow into the actions that workflow calls. Every version of
+  # `osv-scanner-reusable.yml` up to and including v2.3.8 calls
+  # `actions/download-artifact` by tag, so the job is refused before it starts:
+  #
+  #   The action actions/download-artifact@v8 is not allowed in gabmichels/lindo-md
+  #   because all actions must be pinned to a full-length commit SHA.
+  #
+  # Which failed silently in the worst way — the PR variant has no such step, so PRs
+  # stayed green while every scheduled run failed, and the daily "is anything we
+  # depend on known-bad today" check was simply not running for two days.
+  #
+  # Upstream pinned it, but only in v2.5.0, released the same morning this was found.
+  # Taking a hours-old third-party release into a job holding `security-events: write`
+  # is exactly what `minimumReleaseAge` exists to refuse, so instead the scanner action
+  # is called directly: it is self-contained, it is the same v2.3.8 the reusable
+  # workflow was already running, and nothing here is younger than the age floor.
+  #
+  # The `osv-pr` job below still uses the reusable workflow, because that one *is*
+  # fully pinned. Keep it that way — if it ever grows an unpinned step it will fail
+  # the same way, and the fix is the same shape.
   osv:
     name: OSV scan
     if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       # Uploading SARIF to the Security tab. Free on public repos.
       security-events: write
-      actions: read
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
-    with:
-      scan-args: |-
-        --config=osv-scanner.toml
-        --lockfile=pnpm-lock.yaml
-        --lockfile=src-tauri/Cargo.lock
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # `continue-on-error` because osv-scanner exits non-zero when it *finds*
+      # something, and the SARIF still has to reach the Security tab when it does.
+      # The explicit failure step at the end is what makes the job red — without it
+      # this would report success on every vulnerability it found, which is the one
+      # failure mode a security check must not have.
+      - id: scan
+        continue-on-error: true
+        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        with:
+          scan-args: |-
+            --config=osv-scanner.toml
+            --format=sarif
+            --output=results.sarif
+            --lockfile=pnpm-lock.yaml
+            --lockfile=src-tauri/Cargo.lock
+
+      - uses: github/codeql-action/upload-sarif@18420e3271f74589575af831a523c833acda327f # codeql-bundle-v2.26.2
+        with:
+          sarif_file: results.sarif
+
+      # Covers both "found advisories" and "the scanner itself failed". A scan that
+      # could not run is not a pass.
+      - name: Fail if the scan did not come back clean
+        if: steps.scan.outcome == 'failure'
+        run: |
+          echo "osv-scanner reported findings or failed to run — see the step above" >&2
+          exit 1
 
   # The PR variant reports only what this PR *introduces*, rather than every
   # pre-existing advisory in the tree. A PR author can act on the first and not the
