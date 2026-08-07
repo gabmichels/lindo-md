@@ -203,8 +203,9 @@ export function SettingsDialog({
                     />
                   </Row>
                   <Note>
-                    The rail lists Markdown files only. Folders with none at any depth are left out,
-                    so opening a source repository shows its docs rather than its source layout.
+                    The rail lists what lindo-md can open — Markdown, MDX and text files. Folders
+                    with none at any depth are left out, so opening a source repository shows its
+                    docs rather than its source layout.
                   </Note>
                 </Section>
               </Tabs.Content>

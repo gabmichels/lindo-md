@@ -29,7 +29,13 @@ import { writeHtmlFile } from "@/lib/ipc";
 import { buildStandaloneHtml } from "@/lib/export/html";
 import { stepZoom } from "@/lib/zoom";
 import documentCss from "@/document.css?inline";
-import { basename, dirname } from "@/lib/utils";
+import {
+  DOCUMENT_EXTENSIONS,
+  TEXT_EXTENSIONS,
+  basename,
+  dirname,
+  readOnlyReason,
+} from "@/lib/utils";
 
 export default function App() {
   return (
@@ -157,7 +163,12 @@ function Shell() {
   const openFile = useCallback(async () => {
     const path = await openDialog({
       multiple: false,
-      filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdown", "mkd"] }],
+      // Two filters rather than one, so the default picker still leads with
+      // documents while a reader looking for a `.log` can find one.
+      filters: [
+        { name: "Documents", extensions: DOCUMENT_EXTENSIONS },
+        { name: "Text", extensions: TEXT_EXTENSIONS },
+      ],
     });
     if (typeof path !== "string") return;
     // Opening a loose file also gives the rail something to show, which is more
@@ -248,14 +259,18 @@ function Shell() {
     onCloseFind: () => {
       setFindOpen(false);
     },
+    // All three are gated on `editable` rather than left to the controls being
+    // hidden: a keyboard shortcut reaches past the toolbar, and the source view is
+    // a textarea that saves on blur — opening one over a file Rust will refuse to
+    // write is how a reader loses an edit they thought they had made.
     onToggleSource: () => {
-      if (active) toggleSource(active.id);
+      if (active && document?.editable) toggleSource(active.id);
     },
     onUndo: () => {
-      if (active) docs.undoEdit(active.id);
+      if (active && document?.editable) docs.undoEdit(active.id);
     },
     onRedo: () => {
-      if (active) docs.redoEdit(active.id);
+      if (active && document?.editable) docs.redoEdit(active.id);
     },
     onOpenFile: () => void openFile(),
     onOpenFolder: () => void openFolder(),
@@ -400,6 +415,7 @@ function Shell() {
               : null
           }
           path={document?.path ?? null}
+          readOnlyReason={document ? readOnlyReason(document) : null}
           sourceMode={active ? sourceTabs.has(active.id) : false}
           onToggleSource={() => {
             if (active) toggleSource(active.id);

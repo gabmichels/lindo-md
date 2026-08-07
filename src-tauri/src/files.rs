@@ -16,9 +16,34 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::error::{LindoError, LindoResult};
 use crate::markdown::{self, Heading};
-use crate::srcmap;
+use crate::{mdx, plaintext, srcmap};
 
-pub const MARKDOWN_EXTENSIONS: [&str; 4] = ["md", "markdown", "mdown", "mkd"];
+/// Rendered by comrak and editable: `data-sourcepos` addresses the file on disk
+/// byte for byte, which is what lets a keystroke in the rendered view rewrite the
+/// right run of the source.
+pub const MARKDOWN_EXTENSIONS: [&str; 7] = ["md", "markdown", "mdown", "mkd", "mkdn", "qmd", "rmd"];
+
+/// Rendered by comrak too, but **read-only**, and the reason is not squeamishness.
+///
+/// MDX is Markdown with JSX in it, and comrak runs with `unsafe_` on: a
+/// `<Callout>Body</Callout>` reaches ammonia as raw HTML, which strips the unknown
+/// element and keeps its children — so the document silently renders `Body` with no
+/// sign a component was ever there. `mdx::prepass` fences those blocks so they show
+/// as code instead, and that is exactly what costs the edit path: inserting fence
+/// lines shifts every `data-sourcepos` below them, while `Document::source` is still
+/// the file on disk. Render the transformed string and every edit rewrites the wrong
+/// bytes; save the transformed string and the reader's `import` lines are destroyed.
+/// Editing MDX needs a line-delta map between the two strings, which is its own
+/// change with its own trust boundary.
+pub const MDX_EXTENSIONS: [&str; 1] = ["mdx"];
+
+/// Shown verbatim and read-only. These never reach comrak — a `.txt` containing
+/// `# TODO` has to render those characters, not a heading.
+pub const PLAIN_TEXT_EXTENSIONS: [&str; 5] = ["txt", "text", "log", "rst", "adoc"];
+
+/// A `.log` is the one plain-text case that is usually column-aligned, so it is the
+/// one that wants a mono face. Everything else in `PLAIN_TEXT_EXTENSIONS` is prose.
+pub const MONO_EXTENSIONS: [&str; 1] = ["log"];
 
 /// How long to wait for a burst of filesystem events to settle. Editors save by
 /// writing a temp file and renaming it, which produces three or four events for
@@ -54,9 +79,14 @@ pub struct Document {
     /// First `#` heading, falling back to the file name so the titlebar always
     /// has something to show.
     pub title: String,
-    /// The Markdown this was rendered from. Editing applies to the source, never
-    /// to the rendered HTML, so the frontend needs it to make any change at all —
-    /// and for a `.md` file it costs nothing to send.
+    /// **The file on disk**, always — never a transformed version of it. Editing
+    /// applies to this string rather than to the rendered HTML, so the frontend needs
+    /// it to make any change at all, and for a text file it costs nothing to send.
+    ///
+    /// For MDX this is deliberately *not* what comrak was given: `mdx::prepass` runs
+    /// first, and the two disagree line for line. That is exactly why MDX is
+    /// read-only, and why nothing may quietly start storing the prepared string here
+    /// to make an edit path work.
     pub source: String,
     /// Fingerprint of `source`, handed back on save so a file that changed
     /// underneath the reader is refused rather than silently overwritten.
@@ -67,6 +97,16 @@ pub struct Document {
     /// `source` and this `html`, and a map that could be one version behind is
     /// worse than no map at all.
     pub blocks: Vec<srcmap::BlockMap>,
+    /// Whether an edit made in the rendered view can be written back.
+    ///
+    /// A mirror of `is_editable` for the UI to hang affordances off — it is not what
+    /// enforces anything. `save` refuses independently, because the webview is
+    /// untrusted and a read-only document that is only read-only in React is not
+    /// read-only at all.
+    ///
+    /// False for plain text, which has no Markdown to rewrite, and for MDX, whose
+    /// pre-pass moves every line number out from under `data-sourcepos`.
+    pub editable: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -78,10 +118,74 @@ pub struct TreeNode {
     pub children: Vec<TreeNode>,
 }
 
-pub fn is_markdown(path: &Path) -> bool {
+/// What a path is, and therefore how it renders and whether it can be written back.
+///
+/// Keeping the derived predicates distinct is the whole point: a file can be
+/// *openable* without being *editable*, and — separately, over in `links.ts` — without
+/// being something a link inside a document should capture into a tab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    Markdown,
+    Mdx,
+    PlainText,
+}
+
+/// The extension, lowercased once, or `None` for a path lindo-md will not open.
+pub fn kind_of(path: &Path) -> Option<Kind> {
+    let extension = path.extension().and_then(|e| e.to_str())?.to_lowercase();
+    let extension = extension.as_str();
+
+    if MARKDOWN_EXTENSIONS.contains(&extension) {
+        Some(Kind::Markdown)
+    } else if MDX_EXTENSIONS.contains(&extension) {
+        Some(Kind::Mdx)
+    } else if PLAIN_TEXT_EXTENSIONS.contains(&extension) {
+        Some(Kind::PlainText)
+    } else {
+        None
+    }
+}
+
+/// Anything lindo-md can display. The gate on reading, on what the tree lists, and
+/// on what the OS hand-off accepts.
+pub fn is_openable(path: &Path) -> bool {
+    kind_of(path).is_some()
+}
+
+// There is deliberately no `is_markdown` here. A third predicate does exist — "is this
+// a link a document should be allowed to capture into a tab, rather than hand to the
+// reader's own editor?" — but its only call site is `links.ts`, and a helper with no
+// caller on this side is dead code that `-D warnings` turns into a failed build. It
+// lives in `src/lib/utils.ts` as `isMarkdownPath`, beside the code that asks.
+
+/// Whether an edit made in the rendered view can be written back to this file.
+///
+/// Narrower than `is_openable` on purpose — MDX opens but does not save, and
+/// `MDX_EXTENSIONS` explains why. This is the predicate `save` enforces, and it is
+/// enforced *here* rather than in the webview because the webview is untrusted: a
+/// read-only document that is only read-only in React is not read-only.
+pub fn is_editable(path: &Path) -> bool {
+    matches!(kind_of(path), Some(Kind::Markdown))
+}
+
+/// Whether a plain-text document should be set in a mono face. See `MONO_EXTENSIONS`.
+fn wants_mono(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
-        .is_some_and(|e| MARKDOWN_EXTENSIONS.contains(&e.to_lowercase().as_str()))
+        .is_some_and(|e| MONO_EXTENSIONS.contains(&e.to_lowercase().as_str()))
+}
+
+/// The supported extensions as a reader would write them, for the one error message
+/// that has to name them. Generated rather than restated: a user-facing list that can
+/// disagree with the code is how the old four-item list drifted into four other files.
+pub fn supported_list() -> String {
+    MARKDOWN_EXTENSIONS
+        .iter()
+        .chain(MDX_EXTENSIONS.iter())
+        .chain(PLAIN_TEXT_EXTENSIONS.iter())
+        .map(|extension| format!(".{extension}"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 pub fn read(
@@ -89,9 +193,9 @@ pub fn read(
     path: &Path,
     render_options: markdown::RenderOptions,
 ) -> LindoResult<Document> {
-    if !is_markdown(path) {
+    let Some(kind) = kind_of(path) else {
         return Err(LindoError::UnsupportedFile(path.display().to_string()));
-    }
+    };
 
     let source = std::fs::read_to_string(path).map_err(|source| LindoError::ReadFile {
         path: path.display().to_string(),
@@ -99,7 +203,14 @@ pub fn read(
     })?;
 
     let content_hash = hash(&source);
-    Ok(render(app, path, source, content_hash, render_options))
+    Ok(render(
+        app,
+        path,
+        kind,
+        source,
+        content_hash,
+        render_options,
+    ))
 }
 
 /// Builds the document from Markdown already in hand.
@@ -113,6 +224,7 @@ pub fn read(
 fn render(
     app: &AppHandle,
     path: &Path,
+    kind: Kind,
     source: String,
     content_hash: String,
     render_options: markdown::RenderOptions,
@@ -131,7 +243,36 @@ fn render(
         |n| n.to_string_lossy().into_owned(),
     );
 
-    let rendered = markdown::render_with(&source, render_options);
+    // Plain text short-circuits everything below: no comrak, no heading to take a
+    // title from, no table of contents, and no source map, because there is no
+    // Markdown here for a `data-sourcepos` to point into.
+    if kind == Kind::PlainText {
+        return Document {
+            path: path.display().to_string(),
+            dir: dir.display().to_string(),
+            html: plaintext::render(&source, wants_mono(path)),
+            toc: Vec::new(),
+            frontmatter: None,
+            title: name.clone(),
+            name,
+            content_hash,
+            blocks: Vec::new(),
+            editable: false,
+            source,
+        };
+    }
+
+    // MDX renders through comrak like any dialect, but only after its JSX has been
+    // fenced — otherwise ammonia strips the components and keeps their text. That
+    // transform is also why the document is read-only: `rendered` describes
+    // `prepared`, while `source` (and therefore any save) is the file on disk, and
+    // the two no longer agree line for line.
+    let prepared = match kind {
+        Kind::Mdx => std::borrow::Cow::Owned(mdx::prepass(&source)),
+        _ => std::borrow::Cow::Borrowed(source.as_str()),
+    };
+
+    let rendered = markdown::render_with(&prepared, render_options);
     let title = rendered.title.clone().unwrap_or_else(|| name.clone());
 
     Document {
@@ -143,7 +284,14 @@ fn render(
         frontmatter: rendered.frontmatter,
         title,
         content_hash,
-        blocks: srcmap::for_webview(&source, render_options),
+        // Only ever built from the string that was actually rendered, and only when
+        // that string is the file itself. An MDX map would address `prepared`, whose
+        // line numbers the pre-pass has moved.
+        blocks: match kind {
+            Kind::Markdown => srcmap::for_webview(&source, render_options),
+            _ => Vec::new(),
+        },
+        editable: kind == Kind::Markdown,
         source,
     }
 }
@@ -189,7 +337,11 @@ pub fn save(
     expected_hash: &str,
     render_options: markdown::RenderOptions,
 ) -> LindoResult<Document> {
-    if !is_markdown(path) {
+    // Narrower than `read`, and that difference *is* the read-only rule. The webview
+    // is untrusted, so a document being read-only cannot rest on a React prop: a
+    // compromised frontend calling `save_document("notes.log", …)` has to be refused
+    // here. `Document.editable` mirrors this for the UI; it does not implement it.
+    if !is_editable(path) {
         return Err(LindoError::UnsupportedFile(path.display().to_string()));
     }
 
@@ -207,10 +359,12 @@ pub fn save(
     })?;
 
     // Rendered from what was written rather than from a fresh read of the file.
-    // See `render`.
+    // See `render`. The kind is `Markdown` by construction: `is_editable` above is
+    // exactly the predicate that admits nothing else.
     Ok(render(
         app,
         path,
+        Kind::Markdown,
         source.to_owned(),
         content_hash,
         render_options,
@@ -234,9 +388,13 @@ impl Default for ScanOptions {
     }
 }
 
-/// Builds the document tree for a folder. Directories containing no Markdown at
-/// any depth are dropped, so opening a source repository shows the docs rather
-/// than the source layout.
+/// Builds the document tree for a folder. Directories holding nothing openable at any
+/// depth are dropped, so opening a source repository shows the docs rather than the
+/// source layout.
+///
+/// "Openable" rather than "Markdown": a folder of notes usually holds a `.txt` or a
+/// `.log` beside them, and a tree that hides a file the app will happily open is the
+/// more confusing of the two failures.
 pub fn scan(root: &Path, options: ScanOptions) -> LindoResult<Vec<TreeNode>> {
     if !root.is_dir() {
         return Err(LindoError::msg(format!(
@@ -261,14 +419,18 @@ pub fn scan(root: &Path, options: ScanOptions) -> LindoResult<Vec<TreeNode>> {
                 .is_none_or(|name| !SKIP_DIRS.contains(&name))
         });
 
-    // Collect the markdown files first, then rebuild the directory structure from
+    // Collect the openable files first, then rebuild the directory structure from
     // their paths. Walking and pruning in one pass would need to look ahead to
     // know whether a directory contains anything worth keeping.
+    //
+    // `is_openable`, not `is_markdown`: a real folder holds notes and logs beside
+    // its Markdown, and a tree that hides a file the app can open is worse than a
+    // tree with a `.log` in it.
     let mut files: Vec<PathBuf> = builder
         .build()
         .filter_map(Result::ok)
         .map(ignore::DirEntry::into_path)
-        .filter(|path| path.is_file() && is_markdown(path))
+        .filter(|path| path.is_file() && is_openable(path))
         .collect();
     files.sort();
 
@@ -368,7 +530,7 @@ impl WatchState {
 /// Watches every open document and, optionally, the open folder. Emits:
 ///
 /// - `document-changed` with the path, when an open file's contents change
-/// - `tree-changed`, when Markdown files appear or disappear in the folder
+/// - `tree-changed`, when openable files appear or disappear in the folder
 ///
 /// Takes the whole set of open documents rather than one: with tabs, a file
 /// edited outside the app has to live-reload whether or not its tab happens to
@@ -482,8 +644,9 @@ fn classify(events: &[notify::Event], documents: &[PathBuf]) -> (Vec<PathBuf>, b
                     }
                 }
                 // A path with no extension is most likely a directory being added
-                // or removed; either way the tree needs a refresh.
-                None if is_markdown(path) || path.extension().is_none() => {
+                // or removed; either way the tree needs a refresh. Openable rather
+                // than Markdown, so the tree tracks everything it lists.
+                None if is_openable(path) || path.extension().is_none() => {
                     tree_changed = true;
                 }
                 None => {}
@@ -500,11 +663,70 @@ mod tests {
 
     #[test]
     fn recognizes_markdown_extensions_case_insensitively() {
-        for name in ["a.md", "a.MD", "a.markdown", "a.mdown", "a.mkd"] {
-            assert!(is_markdown(Path::new(name)), "{name} should be markdown");
+        for name in [
+            "a.md",
+            "a.MD",
+            "a.markdown",
+            "a.mdown",
+            "a.mkd",
+            "a.mkdn",
+            "a.qmd",
+            "a.RMD",
+        ] {
+            assert_eq!(kind_of(Path::new(name)), Some(Kind::Markdown), "{name}");
         }
-        for name in ["a.txt", "a.mdx", "a.rs", "a"] {
-            assert!(!is_markdown(Path::new(name)), "{name} should not be");
+    }
+
+    #[test]
+    fn classifies_mdx_and_plain_text_separately() {
+        for name in ["a.mdx", "a.MDX"] {
+            assert_eq!(kind_of(Path::new(name)), Some(Kind::Mdx), "{name}");
+        }
+        for name in ["a.txt", "a.TEXT", "a.log", "a.rst", "a.adoc"] {
+            assert_eq!(kind_of(Path::new(name)), Some(Kind::PlainText), "{name}");
+        }
+        for name in ["a.rs", "a.png", "a.json", "a"] {
+            assert_eq!(kind_of(Path::new(name)), None, "{name}");
+        }
+    }
+
+    /// `is_openable` gates what opens; `is_editable` gates what `save` will write.
+    /// The gap between them is the read-only rule, and it is the whole reason both
+    /// exist rather than one.
+    #[test]
+    fn openable_is_wider_than_editable_and_that_gap_is_the_read_only_rule() {
+        let markdown = Path::new("a.md");
+        let mdx = Path::new("a.mdx");
+        let text = Path::new("a.txt");
+
+        for path in [markdown, mdx, text] {
+            assert!(is_openable(path), "{} should open", path.display());
+        }
+        assert!(!is_openable(Path::new("a.png")));
+
+        assert!(is_editable(markdown));
+        assert!(!is_editable(mdx), "the JSX pre-pass shifts every sourcepos");
+        assert!(!is_editable(text), "there is no Markdown to rewrite");
+    }
+
+    #[test]
+    fn the_supported_list_names_every_openable_extension() {
+        let list = supported_list();
+        for extension in MARKDOWN_EXTENSIONS
+            .iter()
+            .chain(MDX_EXTENSIONS.iter())
+            .chain(PLAIN_TEXT_EXTENSIONS.iter())
+        {
+            assert!(list.contains(&format!(".{extension}")), "{extension}");
+        }
+    }
+
+    #[test]
+    fn only_log_files_ask_for_a_mono_face() {
+        assert!(wants_mono(Path::new("build.log")));
+        assert!(wants_mono(Path::new("build.LOG")));
+        for name in ["notes.txt", "readme.rst", "a.md"] {
+            assert!(!wants_mono(Path::new(name)), "{name}");
         }
     }
 
@@ -574,6 +796,56 @@ mod tests {
                 show_hidden: true
             }),
             vec![".hidden", "secret.md", "visible.md"]
+        );
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// The mixed folder this feature exists for: notes, a log and an MDX file beside
+    /// the Markdown. Before, the rail showed the `.md` and nothing else, so a real
+    /// working directory looked half-empty. Files lindo-md genuinely cannot open stay
+    /// out, or the tree stops being a list of things you can click.
+    #[test]
+    fn scanning_lists_every_openable_file_and_nothing_else() {
+        let root = std::env::temp_dir().join("lindo-md-scan-mixed-test");
+        std::fs::create_dir_all(&root).unwrap();
+        for name in [
+            "notes.md",
+            "guide.qmd",
+            "post.mdx",
+            "todo.txt",
+            "build.log",
+            "readme.rst",
+            "diagram.png",
+            "main.rs",
+            "data.json",
+        ] {
+            std::fs::write(root.join(name), "x").unwrap();
+        }
+
+        let mut found: Vec<String> = scan(
+            &root,
+            ScanOptions {
+                respect_gitignore: false,
+                show_hidden: false,
+            },
+        )
+        .unwrap()
+        .into_iter()
+        .map(|node| node.name)
+        .collect();
+        found.sort();
+
+        assert_eq!(
+            found,
+            vec![
+                "build.log",
+                "guide.qmd",
+                "notes.md",
+                "post.mdx",
+                "readme.rst",
+                "todo.txt",
+            ]
         );
 
         std::fs::remove_dir_all(&root).ok();
@@ -683,8 +955,18 @@ mod tests {
 
     #[test]
     fn classify_ignores_unrelated_files() {
-        let (docs, tree) = classify(&[event(&["/r/notes.txt"])], &open(&["/r/open.md"]));
+        // A `.png`, not a `.txt`: plain text is openable now, so it appears in the
+        // tree and a new one there *is* a tree change. This test needs a file the
+        // app genuinely cannot open to still mean what it meant.
+        let (docs, tree) = classify(&[event(&["/r/diagram.png"])], &open(&["/r/open.md"]));
         assert!(docs.is_empty() && !tree);
+    }
+
+    #[test]
+    fn classify_treats_a_new_plain_text_file_as_a_tree_change() {
+        let (docs, tree) = classify(&[event(&["/r/notes.txt"])], &open(&["/r/open.md"]));
+        assert!(docs.is_empty(), "it is not an open document");
+        assert!(tree, "but the tree lists it, so the tree has to refresh");
     }
 
     #[test]

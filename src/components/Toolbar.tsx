@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Code2,
+  Lock,
   Search,
   SlidersHorizontal,
 } from "lucide-react";
@@ -32,6 +33,14 @@ interface ToolbarProps {
   /** True when the reader is looking at the Markdown rather than the page. */
   sourceMode: boolean;
   onToggleSource: () => void;
+  /**
+   * Why this document cannot be edited, or null when it can be.
+   *
+   * A string rather than a bool because "read-only" on its own invites the reader to
+   * hunt for the switch that turns it off. There isn't one — it is a property of the
+   * file — so the badge says which property.
+   */
+  readOnlyReason: string | null;
 }
 
 export function Toolbar({
@@ -45,6 +54,7 @@ export function Toolbar({
   onAppearance,
   sourceMode,
   onToggleSource,
+  readOnlyReason,
 }: ToolbarProps) {
   return (
     <div className="flex h-[var(--ui-toolbar-h)] shrink-0 items-center gap-1 px-2">
@@ -53,12 +63,19 @@ export function Toolbar({
 
       <Breadcrumb breadcrumb={breadcrumb} path={path} />
 
-      <NavButton
-        label={sourceMode ? "Show the rendered document" : "Edit as Markdown"}
-        icon={sourceMode ? BookOpen : Code2}
-        active={sourceMode}
-        onClick={onToggleSource}
-      />
+      {readOnlyReason && <ReadOnlyBadge reason={readOnlyReason} />}
+
+      {/* Hidden rather than disabled for a read-only document: the source view is an
+          editable textarea that saves on blur, so there is no version of it that makes
+          sense here. A greyed-out control implies a state that could be reached. */}
+      {!readOnlyReason && (
+        <NavButton
+          label={sourceMode ? "Show the rendered document" : "Edit as Markdown"}
+          icon={sourceMode ? BookOpen : Code2}
+          active={sourceMode}
+          onClick={onToggleSource}
+        />
+      )}
       <NavButton label="Find in document" icon={Search} onClick={onFind} />
       <NavButton label="Appearance" icon={SlidersHorizontal} onClick={onAppearance} />
     </div>
@@ -97,6 +114,29 @@ function Breadcrumb({
       )}
       <span className="truncate text-ui-text">{breadcrumb.name}</span>
     </button>
+  );
+}
+
+/**
+ * Says that this document cannot be edited, and why.
+ *
+ * It sits in the toolbar rather than on the page because it describes the *file*, not
+ * the prose — the paper stays paper. `Lock` carries the meaning at a glance for anyone
+ * who has seen it before; the word is there for everyone else, and the title attribute
+ * carries the reason at length.
+ */
+function ReadOnlyBadge({ reason }: { reason: string }) {
+  return (
+    <span
+      className={cn(
+        "flex shrink-0 items-center gap-1 rounded-ui-sm px-1.5 py-0.5",
+        "bg-ui-plane-1 text-[11px] text-ui-text-muted select-none",
+      )}
+      title={reason}
+    >
+      <Lock size={11} strokeWidth={1.75} aria-hidden />
+      Read-only
+    </span>
   );
 }
 

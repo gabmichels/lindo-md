@@ -47,29 +47,56 @@ export function linkClickHandler(handlers: LinkHandlers) {
   };
 }
 
-async function follow(href: string, handlers: LinkHandlers): Promise<void> {
-  if (isExternal(href)) {
-    await openUrl(href);
-    return;
-  }
+/** Where a clicked href goes, decided without doing anything about it. */
+export type LinkTarget =
+  | { kind: "external"; url: string }
+  | { kind: "anchor"; fragment: string }
+  | { kind: "document"; path: string; fragment: string }
+  | { kind: "handoff"; path: string };
+
+/**
+ * Classifies a link. Pure, so the routing rules can be tested without standing up
+ * the opener plugin — which is the only reason this is separate from `follow`.
+ *
+ * The interesting case is the last one. lindo-md can *display* a `.txt`, but a
+ * `[notes](notes.txt)` written inside someone's document has always opened whatever
+ * they use for text files, and quietly capturing it would be a regression wearing a
+ * feature's clothes. So this asks `isMarkdownPath`, which is narrower than
+ * `isOpenablePath` on purpose — the file tree, the dialog and the drop target all use
+ * the wider one.
+ */
+export function linkTarget(dir: string, href: string): LinkTarget {
+  if (isExternal(href)) return { kind: "external", url: href };
 
   const { path, fragment } = splitFragment(href);
+  if (!path) return { kind: "anchor", fragment: decodeURIComponent(fragment) };
 
-  if (!path) {
-    handlers.scrollToAnchor(decodeURIComponent(fragment));
-    return;
-  }
-
-  const resolved = resolveRelative(handlers.dir, decodeURIComponent(path));
-
+  const resolved = resolveRelative(dir, decodeURIComponent(path));
   if (isMarkdownPath(resolved)) {
-    handlers.openDocument(resolved, decodeURIComponent(fragment));
-    return;
+    return { kind: "document", path: resolved, fragment: decodeURIComponent(fragment) };
   }
 
-  // A local file we do not render — a PDF, an image, a source file. The OS knows
-  // what to do with it better than we do.
-  await openUrl(resolved);
+  // A local file we do not capture — a PDF, an image, a source file, or a text file
+  // the reader has their own editor for. The OS knows what to do with it.
+  return { kind: "handoff", path: resolved };
+}
+
+async function follow(href: string, handlers: LinkHandlers): Promise<void> {
+  const target = linkTarget(handlers.dir, href);
+
+  switch (target.kind) {
+    case "external":
+      await openUrl(target.url);
+      return;
+    case "anchor":
+      handlers.scrollToAnchor(target.fragment);
+      return;
+    case "document":
+      handlers.openDocument(target.path, target.fragment);
+      return;
+    case "handoff":
+      await openUrl(target.path);
+  }
 }
 
 /**

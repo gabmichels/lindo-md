@@ -35,6 +35,8 @@ mod error;
 mod export;
 mod files;
 mod markdown;
+mod mdx;
+mod plaintext;
 mod srcmap;
 
 use tauri::Manager;

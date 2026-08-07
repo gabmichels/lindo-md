@@ -59,9 +59,11 @@ export function AboutDialog({
             lindo-md {version && <span className="text-ui-text-faint">{version}</span>}
           </Dialog.Title>
           <Dialog.Description className="mt-1 text-[12.5px] text-ui-text-muted">
-            A Markdown viewer with editorial typography and deeply customizable themes. Your
-            documents never leave this machine; the launch version check is the only request it
-            makes, and Settings &rarr; General turns it off.
+            A viewer for Markdown and text, with editorial typography and deeply customizable
+            themes. MDX shows its components as code rather than running them, and plain text is
+            shown exactly as written; both are read-only. Your documents never leave this machine;
+            the launch version check is the only request it makes, and Settings &rarr; General turns
+            it off.
           </Dialog.Description>
 
           <h3 className="rail-label mt-5 mb-1">Shortcuts</h3>

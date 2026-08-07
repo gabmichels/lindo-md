@@ -433,10 +433,13 @@ export function DocumentView({
       )}
 
       <FormatMenu
-        canFormat={canFormat}
+        // Nothing in this menu can act on a document that cannot be written back,
+        // and `FormatMenu` already holds that a row which does nothing is worse
+        // than a row that is not there.
+        canFormat={canFormat && doc.editable}
         onFormat={format}
         onCopy={copySelection}
-        onEditSource={onToggleSource}
+        onEditSource={doc.editable ? onToggleSource : undefined}
         // The menu asks once, when it opens: a selection can be gone by the
         // time a row is chosen, and greying the rows out afterwards would be
         // worse than deciding up front.
@@ -466,9 +469,17 @@ export function DocumentView({
             event.preventDefault();
             formatSelection(command);
           }}
-          // Editing is always available — there is no mode to find. The browser
-          // is never allowed to act on the input; see `useDocumentTyping`.
-          contentEditable
+          // Editing is available wherever it can be honoured, with no mode to
+          // find. The browser is never allowed to act on the input; see
+          // `useDocumentTyping`.
+          //
+          // The exception is a document Rust will refuse to save — plain text,
+          // which has no Markdown to rewrite, and MDX, whose pre-pass moves the
+          // positions an edit is applied with. Leaving `contentEditable` on for
+          // those would give the reader a caret, accept their typing, and then
+          // drop it: the silent no-op that a read-only file must never look like.
+          // `save` refuses regardless; this is the affordance, not the guard.
+          contentEditable={doc.editable}
           suppressContentEditableWarning
           spellCheck={false}
         />

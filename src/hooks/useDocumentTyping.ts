@@ -129,6 +129,12 @@ export function useDocumentTyping({ article, document: doc, onSave, restoring }:
   useEffect(() => {
     const root = article.current;
     if (!root) return;
+    // A read-only document never registers the listener at all. `contentEditable`
+    // is already off for these, which stops ordinary typing, but an IME
+    // composition can still deliver `beforeinput` to a non-editable subtree — and
+    // this handler would then try to map an edit onto a document with no block map
+    // to map it into.
+    if (!doc.editable) return;
 
     const onBeforeInput = (event: InputEvent) => {
       // Nothing the browser does to this document is allowed to stand.
@@ -195,7 +201,7 @@ export function useDocumentTyping({ article, document: doc, onSave, restoring }:
       // Leaving the view must not lose what was typed into it.
       flush(true);
     };
-  }, [article, flush]);
+  }, [article, flush, doc.editable]);
 }
 
 const MOVES = new Set([

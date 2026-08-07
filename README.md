@@ -2,6 +2,7 @@
   <img src="docs/icon.svg" width="88" alt="" />
   <h1>lindo-md</h1>
   <p><strong>A Markdown viewer that makes documents worth reading.</strong></p>
+  <p>Markdown first — and MDX, and plain text, so a real folder opens whole.</p>
   <p>
     <a href="https://github.com/gabmichels/lindo-md/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/gabmichels/lindo-md?color=1f6f78" /></a>
     <a href="https://github.com/gabmichels/lindo-md/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/gabmichels/lindo-md/total?color=1f6f78" /></a>
@@ -31,6 +32,11 @@ panel. lindo-md renders them the way a well-set page should look — editorial t
 measure, considered rhythm — with the full GitHub feature set behind it, and lets you edit the page
 you are reading without switching into a source view first.
 
+It opens the rest of a real folder too. Every Markdown dialect (`.markdown`, `.mkd`, `.mkdn`, `.qmd`,
+`.rmd`) reads and edits exactly like `.md`. `.mdx` renders with its components shown as code rather
+than run, and plain text — `.txt`, `.log`, `.rst`, `.adoc` — is shown exactly as written, with no
+Markdown applied to it. Those last two are read-only, and the window says so.
+
 It is a small native desktop app (Rust + Tauri), not an Electron shell. Nothing you open leaves
 your machine: the only request it ever makes is a version check on launch, which you can turn off
 in Settings → General, and with it off the app opens no connections at all.
@@ -49,7 +55,8 @@ Grab the installer for your platform from the
 `lindo-md_<version>_x64-setup.exe` (installer)
 `lindo-md_<version>_x64_en-US.msi`
 
-Associates `.md` files, so **Open with → lindo-md** works.
+Associates the Markdown extensions, so **Open with → lindo-md** works. Text files are
+opened but never claimed, so your own editor keeps them.
 
 </td>
 <td width="50%" valign="top">

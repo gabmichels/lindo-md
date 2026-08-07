@@ -43,10 +43,20 @@
   WriteRegStr SHELL_CONTEXT "${LINDO_CAPABILITIES}" "ApplicationIcon" \
     "$INSTDIR\${MAINBINARYNAME}.exe,0"
 
+  ; Markdown dialects only, and that is a decision rather than an oversight: the app
+  ; also *opens* .txt, .log, .rst and .adoc, but claiming those on install would put
+  ; lindo-md in the "Open with" list for every text file on the machine and pick a
+  ; fight with Notepad and every editor the reader already uses. Openable and claimed
+  ; are two different things. `tests/extensions.rs` fails if a plain-text extension
+  ; ever appears here.
   !insertmacro LindoRegisterExtension ".md"
   !insertmacro LindoRegisterExtension ".markdown"
   !insertmacro LindoRegisterExtension ".mdown"
   !insertmacro LindoRegisterExtension ".mkd"
+  !insertmacro LindoRegisterExtension ".mkdn"
+  !insertmacro LindoRegisterExtension ".mdx"
+  !insertmacro LindoRegisterExtension ".qmd"
+  !insertmacro LindoRegisterExtension ".rmd"
 
   ; The entry Settings > Default apps lists us under, and what the deep link
   ; looks up. Written last, so a half-finished registration is never advertised.
@@ -60,10 +70,17 @@
   ; Removed first, so Settings stops offering an app that is going away.
   DeleteRegValue SHELL_CONTEXT "Software\RegisteredApplications" "${LINDO_REGISTERED_APP}"
 
+  ; One line per extension registered above. An extension added there and forgotten
+  ; here leaves a dead "Open with" entry behind after uninstall, pointing at a binary
+  ; that no longer exists — which is why `tests/extensions.rs` counts both lists.
   DeleteRegValue SHELL_CONTEXT "Software\Classes\.md\OpenWithProgids" "${LINDO_PROGID}"
   DeleteRegValue SHELL_CONTEXT "Software\Classes\.markdown\OpenWithProgids" "${LINDO_PROGID}"
   DeleteRegValue SHELL_CONTEXT "Software\Classes\.mdown\OpenWithProgids" "${LINDO_PROGID}"
   DeleteRegValue SHELL_CONTEXT "Software\Classes\.mkd\OpenWithProgids" "${LINDO_PROGID}"
+  DeleteRegValue SHELL_CONTEXT "Software\Classes\.mkdn\OpenWithProgids" "${LINDO_PROGID}"
+  DeleteRegValue SHELL_CONTEXT "Software\Classes\.mdx\OpenWithProgids" "${LINDO_PROGID}"
+  DeleteRegValue SHELL_CONTEXT "Software\Classes\.qmd\OpenWithProgids" "${LINDO_PROGID}"
+  DeleteRegValue SHELL_CONTEXT "Software\Classes\.rmd\OpenWithProgids" "${LINDO_PROGID}"
 
   ; `DeleteRegKey /ifempty` would leave the Capabilities subtree behind, and this
   ; whole key is ours — nothing else writes under Software\lindo-md.

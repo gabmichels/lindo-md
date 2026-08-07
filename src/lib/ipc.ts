@@ -78,8 +78,21 @@ export const DocumentSchema = z.object({
    *  overwritten. */
   contentHash: z.string(),
   /** Where each block's rendered text lives in `source`. Describes exactly this
-   *  `source` and this `html`, which is why it travels with them. */
+   *  `source` and this `html`, which is why it travels with them. Empty for any
+   *  document that is not editable — there is nothing for a caret to address. */
   blocks: z.array(BlockMapSchema),
+  /**
+   * Whether an edit made here can be written back.
+   *
+   * Required rather than defaulted: a `Document` is never persisted, so there is no
+   * older file to stay compatible with, and a missing field would mean Rust and this
+   * schema disagree. Failing loudly at the IPC boundary with the command name
+   * attached beats silently deciding a `.log` is editable.
+   *
+   * This drives affordances only. `files::save` refuses independently — see the
+   * field's doc comment in `src-tauri/src/files.rs`.
+   */
+  editable: z.boolean(),
 });
 export type Document = z.infer<typeof DocumentSchema>;
 
@@ -311,7 +324,7 @@ export function onFileDrag(handler: (event: FileDrag) => void): Promise<Unlisten
   });
 }
 
-/** Markdown files appeared or disappeared in the open folder. */
+/** Openable files appeared or disappeared in the open folder. */
 export function onTreeChanged(handler: () => void): Promise<UnlistenFn> {
   return subscribe("tree-changed", z.unknown(), () => {
     handler();

@@ -12,3 +12,10 @@ pnpm-workspace.yaml
 # with deliberate line breaks that carry meaning in the diff — a reflowed paragraph
 # turns a one-word edit into a twelve-line change.
 *.md
+
+# The same reasoning, but load-bearing rather than cosmetic. `test/fixtures/mdx-sink.mdx`
+# exists to prove what `mdx::prepass` does to particular byte sequences: a multi-line
+# component, a JSX block containing a fence, prose with backticks in it. Prettier
+# collapsed the first onto one line, added semicolons inside the fence, and reflowed the
+# backticks out of the third — quietly turning the fixture into a test of something else.
+*.mdx
