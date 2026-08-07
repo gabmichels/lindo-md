@@ -85,11 +85,9 @@ jobs:
         with:
           persist-credentials: false
 
-      # `continue-on-error` because osv-scanner exits non-zero when it *finds*
-      # something, and the SARIF still has to reach the Security tab when it does.
-      # The explicit failure step at the end is what makes the job red — without it
-      # this would report success on every vulnerability it found, which is the one
-      # failure mode a security check must not have.
+      # `continue-on-error` because osv-scanner exits non-zero whenever it matched
+      # anything at all, and the SARIF still has to reach the Security tab when it
+      # does. What makes the job red is decided below, from the SARIF.
       - id: scan
         continue-on-error: true
         uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
@@ -97,7 +95,7 @@ jobs:
           scan-args: |-
             --config=osv-scanner.toml
             --format=sarif
-            --output=results.sarif
+            --output-file=results.sarif
             --lockfile=pnpm-lock.yaml
             --lockfile=src-tauri/Cargo.lock
 
@@ -105,13 +103,32 @@ jobs:
         with:
           sarif_file: results.sarif
 
-      # Covers both "found advisories" and "the scanner itself failed". A scan that
-      # could not run is not a pass.
-      - name: Fail if the scan did not come back clean
-        if: steps.scan.outcome == 'failure'
+      # The gate, and the reason it reads the SARIF rather than the exit code.
+      #
+      # osv-scanner exits 1 when it matched *anything*, including advisories that
+      # `osv-scanner.toml` then suppressed — the first version of this job used that
+      # exit code and went red on a run whose own log said "Filtered 20 vulnerabilities
+      # from output", i.e. nothing actionable at all. A check that is red every single
+      # day is one people stop reading, which is the failure this workflow's own header
+      # warns about; upstream has a whole reporter action for this reason.
+      #
+      # So: fail on what survived the suppressions. A missing or unparseable SARIF is
+      # also a failure, because a scan that did not produce output did not run, and a
+      # scan that did not run is not a pass.
+      - name: Fail if anything survived the suppressions
         run: |
-          echo "osv-scanner reported findings or failed to run — see the step above" >&2
-          exit 1
+          set -euo pipefail
+          if [ ! -s results.sarif ]; then
+            echo "::error::no SARIF was produced — the scan did not run" >&2
+            exit 1
+          fi
+          count=$(jq '[.runs[]?.results[]?] | length' results.sarif)
+          echo "advisories surviving osv-scanner.toml: $count"
+          if [ "$count" -gt 0 ]; then
+            jq -r '.runs[]?.results[]? | "\(.ruleId // "?"): \(.message.text // "")"' results.sarif >&2
+            echo "::error::$count advisory(ies) need attention — see the Security tab" >&2
+            exit 1
+          fi
 
   # The PR variant reports only what this PR *introduces*, rather than every
   # pre-existing advisory in the tree. A PR author can act on the first and not the
