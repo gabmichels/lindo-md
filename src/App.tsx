@@ -21,6 +21,7 @@ import { useFileTree } from "@/hooks/useFileTree";
 import { useFind } from "@/hooks/useFind";
 import { useOsDocuments } from "@/hooks/useOsDocuments";
 import { useOutline } from "@/hooks/useOutline";
+import { useRevealWindow } from "@/hooks/useRevealWindow";
 import { useTabDocuments } from "@/hooks/useTabDocuments";
 import { useTabs } from "@/hooks/useTabs";
 import { useTheme } from "@/hooks/useTheme";
@@ -47,6 +48,10 @@ export default function App() {
 
 function Shell() {
   const { config, loaded, update } = useConfig();
+
+  // The window is hidden until the config has loaded and the chrome has painted
+  // at the size the last session left behind.
+  useRevealWindow(loaded);
 
   const [canvas, setCanvas] = useState<HTMLElement | null>(null);
   const [scroller, setScroller] = useState<HTMLElement | null>(null);

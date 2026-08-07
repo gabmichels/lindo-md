@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>lindo-md</title>
+    <!-- The chrome's base plane, duplicated from `--ui-base` in styles.css and from
+         the window's `backgroundColor` in tauri.conf.json. The webview paints white
+         until a stylesheet arrives, and in dev that stylesheet comes from a module
+         graph — so without this the first frame is a white rectangle. -->
+    <style>
+      html,
+      body {
+        background: #111419;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
