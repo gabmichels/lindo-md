@@ -801,6 +801,56 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
+    /// The mixed folder this feature exists for: notes, a log and an MDX file beside
+    /// the Markdown. Before, the rail showed the `.md` and nothing else, so a real
+    /// working directory looked half-empty. Files lindo-md genuinely cannot open stay
+    /// out, or the tree stops being a list of things you can click.
+    #[test]
+    fn scanning_lists_every_openable_file_and_nothing_else() {
+        let root = std::env::temp_dir().join("lindo-md-scan-mixed-test");
+        std::fs::create_dir_all(&root).unwrap();
+        for name in [
+            "notes.md",
+            "guide.qmd",
+            "post.mdx",
+            "todo.txt",
+            "build.log",
+            "readme.rst",
+            "diagram.png",
+            "main.rs",
+            "data.json",
+        ] {
+            std::fs::write(root.join(name), "x").unwrap();
+        }
+
+        let mut found: Vec<String> = scan(
+            &root,
+            ScanOptions {
+                respect_gitignore: false,
+                show_hidden: false,
+            },
+        )
+        .unwrap()
+        .into_iter()
+        .map(|node| node.name)
+        .collect();
+        found.sort();
+
+        assert_eq!(
+            found,
+            vec![
+                "build.log",
+                "guide.qmd",
+                "notes.md",
+                "post.mdx",
+                "readme.rst",
+                "todo.txt",
+            ]
+        );
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
     #[test]
     fn hash_distinguishes_content() {
         assert_eq!(hash("# Title\n"), hash("# Title\n"));

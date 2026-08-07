@@ -11,6 +11,11 @@
 //! that loses information.
 //!
 //! So: fence the JSX before comrak sees it, and it renders as a visible `jsx` block.
+//! Inline components — `an inline <Foo /> mid-sentence` — are backslash-escaped
+//! instead, because a code span mid-paragraph would restyle the prose around it. Both
+//! halves matter: the first version of this module handled only the block case, and
+//! the fixture written to prove it worked was itself displaying a swallowed `<Foo />`
+//! two paragraphs further down.
 //!
 //! **This is a heuristic, not an MDX parser, and it fails toward doing nothing.** The
 //! cost of missing a block is cosmetic — it renders as it does today. The cost of
@@ -88,12 +93,80 @@ pub fn prepass(source: &str) -> String {
             continue;
         }
 
-        out.push_str(line);
+        out.push_str(&escape_inline_components(line));
         index += 1;
         at_block_start = false;
     }
 
     out
+}
+
+/// Backslash-escapes the `<` of an inline component so it survives as visible text.
+///
+/// Block-level JSX gets fenced above. What is left is the inline kind — `an inline
+/// <Foo /> mid-sentence` — and without this it hits the same silent strip that the
+/// whole module exists to prevent: comrak passes it through as raw inline HTML,
+/// ammonia removes the element it does not recognise, and the sentence closes over
+/// the gap as though nothing had been written there. That is worse than showing the
+/// tag, because nothing on screen indicates a loss.
+///
+/// Escaping rather than fencing, because an inline code span would restyle a run of
+/// prose; `\<` is CommonMark's own way of saying "this is a literal angle bracket".
+///
+/// **This can only ever improve on the alternative.** The match requires an uppercase
+/// letter immediately after `<` or `</`, which is exactly the set comrak would have
+/// treated as a tag and ammonia would then have dropped — so anything this touches was
+/// already being deleted. `a < B` (a space intervenes), `1 <2`, `<https://…>` and
+/// lowercase `<kbd>` are all unmatched and unchanged.
+fn escape_inline_components(line: &str) -> String {
+    if !line.contains('<') {
+        return line.to_owned();
+    }
+
+    let mut out = String::with_capacity(line.len() + 8);
+    let bytes: Vec<char> = line.chars().collect();
+    let mut i = 0;
+    // Content inside an inline code span is already literal — comrak will not read a
+    // tag there and ammonia never sees one, so escaping would add a visible backslash
+    // to text that was fine.
+    let mut code_run: Option<usize> = None;
+
+    while let Some(&ch) = bytes.get(i) {
+        if ch == '`' {
+            let run = bytes
+                .get(i..)
+                .map_or(0, |rest| rest.iter().take_while(|c| **c == '`').count());
+            match code_run {
+                Some(open) if open == run => code_run = None,
+                None => code_run = Some(run),
+                _ => {}
+            }
+            for _ in 0..run {
+                out.push('`');
+            }
+            i += run;
+            continue;
+        }
+
+        if ch == '<' && code_run.is_none() && starts_component_tag(&bytes, i) {
+            out.push('\\');
+        }
+        out.push(ch);
+        i += 1;
+    }
+
+    out
+}
+
+/// `<Foo`, `</Foo` — an uppercase letter with nothing between it and the bracket.
+fn starts_component_tag(chars: &[char], at: usize) -> bool {
+    let next = chars.get(at + 1);
+    let candidate = if next == Some(&'/') {
+        chars.get(at + 2)
+    } else {
+        next
+    };
+    candidate.is_some_and(char::is_ascii_uppercase)
 }
 
 /// A line that begins a run we want to fence: a top-level ESM statement, or a
@@ -250,10 +323,58 @@ mod tests {
             "See <https://example.com> for more.\n",
             "The value is 1 <2 in that case.\n",
             "Press <kbd>x</kbd> to continue.\n",
-            "text mentioning <Foo /> mid-sentence\n",
+            "A backtick span with `<Foo />` inside it.\n",
         ] {
             assert_eq!(prepass(source), source, "{source:?}");
         }
+    }
+
+    /// An inline component is escaped rather than fenced — it is prose, and a code
+    /// span mid-sentence would restyle the line. Without this it is deleted outright:
+    /// comrak reads it as raw inline HTML and ammonia drops the unknown element, so
+    /// the sentence closes over the gap with nothing to show a component was there.
+    #[test]
+    fn an_inline_component_is_escaped_so_it_stays_visible() {
+        assert_eq!(
+            prepass("text mentioning <Foo /> mid-sentence\n"),
+            "text mentioning \\<Foo /> mid-sentence\n"
+        );
+        assert_eq!(
+            prepass("wraps <Callout>x</Callout> inline\n"),
+            "wraps \\<Callout>x\\</Callout> inline\n"
+        );
+    }
+
+    #[test]
+    fn an_escaped_inline_component_survives_the_render() {
+        use crate::markdown::{render_with, RenderOptions};
+
+        let html = render_with(
+            &prepass("An inline <Foo /> mid-sentence.\n"),
+            RenderOptions::default(),
+        )
+        .html;
+        assert!(
+            html.contains("&lt;Foo /&gt;"),
+            "the component vanished: {html}"
+        );
+        assert!(!html.contains("<Foo"), "it must not be live markup: {html}");
+    }
+
+    /// The escape must not reach inside an inline code span, where the text is already
+    /// literal — a visible backslash would appear in prose that was rendering fine.
+    #[test]
+    fn a_code_span_is_left_alone() {
+        for source in [
+            "use `<Foo />` like this\n",
+            "double ``<Foo />`` span\n",
+            "`<A>` then <B /> then `<C>`\n",
+        ] {
+            let out = prepass(source);
+            assert!(!out.contains("`\\<"), "escaped inside a code span: {out}");
+        }
+        // …but the one outside the spans still is.
+        assert!(prepass("`<A>` then <B /> then `<C>`\n").contains("\\<B />"));
     }
 
     #[test]
