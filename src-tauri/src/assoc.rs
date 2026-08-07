@@ -193,8 +193,27 @@ mod tests {
     }
 
     #[test]
-    fn ignores_a_path_that_is_not_markdown() {
-        assert_eq!(document_from_args(["C:\\notes.txt", "/etc/passwd"]), None);
+    fn ignores_a_path_that_lindo_md_cannot_open() {
+        assert_eq!(document_from_args(["C:\\diagram.png", "/etc/passwd"]), None);
+    }
+
+    /// The hand-off takes the *wider* predicate, so a text file passed on the command
+    /// line opens rather than being dropped — see the comment on `document_from_args`.
+    ///
+    /// A real file, because the previous version of the test next door asserted that
+    /// `C:\notes.txt` was rejected and would have kept passing after `.txt` became
+    /// openable: nothing at that path exists, so `is_file()` filtered it either way.
+    /// A test that cannot fail is not evidence.
+    #[test]
+    fn accepts_a_text_file_passed_on_the_command_line() {
+        let path = fixture("passed.txt");
+
+        assert_eq!(
+            document_from_args([path.to_str().unwrap()]),
+            Some(path.clone())
+        );
+
+        std::fs::remove_file(&path).ok();
     }
 
     #[test]
@@ -268,14 +287,31 @@ mod tests {
         }
 
         #[test]
-        fn ignores_urls_that_are_not_local_markdown() {
-            let text = fixture("notes.txt");
+        fn ignores_urls_that_are_not_local_documents() {
+            // A `.png` rather than the `.txt` this used to use: plain text is openable
+            // now, so Finder handing one over should open it. The case being made here
+            // is about a remote URL, a file lindo-md cannot render, and a path that is
+            // not there — not about Markdown specifically.
+            let image = fixture("diagram.png");
             let urls = [
                 Url::parse("https://example.com/readme.md").unwrap(),
-                Url::from_file_path(&text).unwrap(),
+                Url::from_file_path(&image).unwrap(),
                 Url::from_file_path(std::env::temp_dir().join("absent.md")).unwrap(),
             ];
             assert!(documents_from_urls(urls.iter()).is_empty());
+
+            std::fs::remove_file(&image).ok();
+        }
+
+        /// Selecting a `.txt` in Finder and pressing return must open it. The
+        /// association list does not route text files here, but "Open with" and a
+        /// multi-file selection both still can.
+        #[test]
+        fn accepts_a_text_file_handed_over_by_finder() {
+            let text = fixture("handed-over.txt");
+            let url = Url::from_file_path(&text).unwrap();
+
+            assert_eq!(documents_from_urls([&url]), vec![text.clone()]);
 
             std::fs::remove_file(&text).ok();
         }
