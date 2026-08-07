@@ -103,6 +103,25 @@ pub fn run() {
     }
 
     builder
+        // The window is configured `visible: false`, so that the reader's first
+        // sight of it is the restored geometry with the chrome already painted,
+        // rather than a white rectangle at the default size that then jumps once
+        // the window-state plugin and the config have had their say. The frontend
+        // shows it (see `useRevealWindow`); this is the backstop for a frontend
+        // that fails to boot, which should look like a broken app rather than no
+        // app at all.
+        .setup(|app| {
+            if let Some(window) = app.get_webview_window("main") {
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+                    if window.is_visible().unwrap_or(false) {
+                        return;
+                    }
+                    let _ = window.show();
+                });
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::set_config,
@@ -203,6 +222,46 @@ mod tests {
                 "updater endpoint {url} is not https"
             );
         }
+    }
+
+    /// A window configured `visible: false` is shown from the webview, and the webview can
+    /// only do that if the capability grants it. Without `core:window:allow-show` the app
+    /// starts, loads, and is never seen: the three-second backstop in `run` is the only
+    /// thing that puts it on screen, so the bug reads as "lindo-md takes three seconds to
+    /// open" rather than as a missing permission.
+    ///
+    /// Another config invariant with no runtime representation, asserted against the
+    /// manifests for the same reason as the two tests around it.
+    #[test]
+    fn a_window_that_starts_hidden_can_be_shown_from_the_webview() {
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json"))
+            .expect("tauri.conf.json is valid JSON");
+
+        let starts_hidden = config["app"]["windows"]
+            .as_array()
+            .expect("the config declares a windows array")
+            .iter()
+            .any(|window| window["visible"] == serde_json::Value::Bool(false));
+
+        if !starts_hidden {
+            return;
+        }
+
+        let capability: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json"))
+                .expect("capabilities/default.json is valid JSON");
+        let permissions: Vec<&str> = capability["permissions"]
+            .as_array()
+            .expect("the capability has a permissions array")
+            .iter()
+            .filter_map(|p| p.as_str())
+            .collect();
+
+        assert!(
+            permissions.contains(&"core:window:allow-show"),
+            "a window starts hidden but the webview cannot show it; grant \
+             core:window:allow-show."
+        );
     }
 
     /// The opener plugin splits the command grant from the URL scope: `allow-open-url`
