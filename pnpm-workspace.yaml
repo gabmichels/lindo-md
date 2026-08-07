@@ -27,6 +27,32 @@ allowBuilds:
 # older, so pnpm recorded the exact versions it had to accept. They are pinned to the
 # version, so they lapse the moment shiki moves — which makes the list a record of
 # knowingly-accepted young packages rather than a permanent hole.
+#
+# **Reasoning goes here, not beside the entries.** pnpm rewrites that list wholesale on
+# every install: the comment that used to sit above the `brace-expansion` lines was
+# silently eaten when `mermaid` was added, and the two entries were rewritten into one
+# `||` range at the same time. Anything written inline is lost the next time someone
+# runs `pnpm install`.
+#
+# What is currently excluded, and why each was taken early:
+#
+#   * `shiki@4.4.1` — not a security fix. It was five days old when `minimumReleaseAge`
+#     was switched on and `^4.4.1` admitted nothing older, so the alternative was an
+#     unbuildable repo.
+#   * `brace-expansion@1.1.18 || 5.0.9` — GHSA-rgw5-rvv9-x895, CVSS 7.5, in both major
+#     lines. Fixed versions were 6.4 days old; see `overrides` below.
+#   * `mermaid@11.16.1` — five advisories in 11.16.0: prototype pollution in the config
+#     APIs (GHSA-c4c3-pg64-4m4v) and architecture diagrams (GHSA-3rrr-jr9j-h3q3), CSS
+#     injection reaching siblings of the diagram (GHSA-6x64-9x62-f2gx), and DoS in radar
+#     (GHSA-rhh3-jpg6-66xh) and XY charts (GHSA-2v8p-3f2j-5mp7). Published 2026-08-04 and
+#     taken on 2026-08-07, three days inside the floor.
+#
+#     Taken early rather than waited out because of what mermaid *is* here: it parses
+#     fence bodies out of arbitrary documents, which is this app's entire threat model,
+#     and the alternative was shipping a desktop binary with all five baked in. A
+#     statically linked app has no server to patch afterwards. This is the case the
+#     "security fixes bypass the delay" rule in AGENTS.md exists for — a known-good fix
+#     for a known-bad version, which is the opposite of what the floor guards against.
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - "@shikijs/core@4.4.1"
@@ -37,9 +63,8 @@ minimumReleaseAgeExclude:
   - "@shikijs/themes@4.4.1"
   - "@shikijs/types@4.4.1"
   - "shiki@4.4.1"
-  # Security fixes, deliberately taken before the age floor — see `overrides` below.
-  - "brace-expansion@1.1.18"
-  - "brace-expansion@5.0.9"
+  - brace-expansion@1.1.18 || 5.0.9
+  - mermaid@11.16.1
 
 # When *no* version inside a declared range is old enough, install the newest anyway
 # rather than failing. This only ever fires when the whole range is young — the normal
