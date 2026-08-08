@@ -183,14 +183,30 @@ check("the document's --doc-* tokens reach the page", async (cdp) => {
  * that they stop firing while a modal owns the keyboard is to press one.
  */
 check("the command palette opens with its caret after the prefix", async (cdp) => {
+  /**
+   * Dispatched at the focused element, never at `window`.
+   *
+   * A real keystroke lands on whatever has focus and bubbles up through
+   * `document` to `window`, and the two ends of that path belong to different
+   * owners: `useKeyboardShortcuts` listens on `window`, while Radix's dismiss
+   * layer listens on `document`. Dispatching straight at `window` reaches the
+   * first and skips the second — which reported "Escape left the palette open"
+   * against an app where Escape works perfectly well.
+   */
   const key = (init) =>
-    `window.dispatchEvent(new KeyboardEvent('keydown', {bubbles: true, cancelable: true, ${init}}))`;
+    `(document.activeElement ?? document.body).dispatchEvent(
+       new KeyboardEvent('keydown', {bubbles: true, cancelable: true, ${init}}))`;
 
   await cdp.evaluate(key(`key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true`));
   await settle(400);
 
+  // `[role="combobox"]` alone is not the palette: every Radix `Select` trigger
+  // carries that role, and the Appearance drawer is full of them. A probe written
+  // that way reports the palette as still open whenever a drawer is showing.
+  const PALETTE = `document.querySelector('[role="combobox"][aria-controls="palette-results"]')`;
+
   const field = await cdp.evaluate(`(() => {
-    const box = document.querySelector('[role="combobox"]');
+    const box = ${PALETTE};
     return box && { value: box.value, caret: box.selectionStart, focused: box === document.activeElement };
   })()`);
 
@@ -213,7 +229,7 @@ check("the command palette opens with its caret after the prefix", async (cdp) =
 
   await cdp.evaluate(key(`key: 'Escape', code: 'Escape'`));
   await settle(300);
-  if (await cdp.evaluate(`!!document.querySelector('[role="combobox"]')`)) {
+  if (await cdp.evaluate(`!!${PALETTE}`)) {
     throw new Error("Escape left the palette open");
   }
 });
