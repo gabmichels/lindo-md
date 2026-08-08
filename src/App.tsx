@@ -3,6 +3,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AboutDialog } from "@/components/AboutDialog";
+import { CommandPalette } from "@/components/CommandPalette";
 import { DocumentDeck } from "@/components/DocumentDeck";
 import { DropOverlay } from "@/components/DropOverlay";
 import { EmptyState } from "@/components/EmptyState";
@@ -19,6 +20,7 @@ import { ConfigProvider, useConfig } from "@/hooks/useConfig";
 import { useFileDrop } from "@/hooks/useFileDrop";
 import { useFileTree } from "@/hooks/useFileTree";
 import { useFind } from "@/hooks/useFind";
+import { useHostPlatform } from "@/hooks/useHostPlatform";
 import { useOsDocuments } from "@/hooks/useOsDocuments";
 import { useOutline } from "@/hooks/useOutline";
 import { useRevealWindow } from "@/hooks/useRevealWindow";
@@ -28,6 +30,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useUpdater } from "@/hooks/useUpdater";
 import { writeHtmlFile } from "@/lib/ipc";
 import { buildStandaloneHtml } from "@/lib/export/html";
+import type { PaletteActions, PaletteState } from "@/lib/palette/items";
 import { stepZoom } from "@/lib/zoom";
 import documentCss from "@/document.css?inline";
 import {
@@ -61,6 +64,9 @@ function Shell() {
   const [aboutOpen, setAboutOpen] = useState(false);
   /** The group whose name is being asked for, just after it was created. */
   const [namingGroup, setNamingGroup] = useState<string | null>(null);
+  /** The command palette's starting query, or `null` when it is closed — the
+   *  same box opens on documents or on commands depending on the chord. */
+  const [paletteQuery, setPaletteQuery] = useState<string | null>(null);
 
   const [folder, setFolder] = useState<string | null>(null);
   /** Which tabs are showing their Markdown. Per tab, not per window: two tabs
@@ -256,18 +262,22 @@ function Shell() {
     [update],
   );
 
-  useKeyboardShortcuts({
-    scroller,
+  /**
+   * Everything the app can be told to do, in one object.
+   *
+   * Both front-ends read from here — the keyboard below and the command palette
+   * — so a command and its chord cannot drift apart, and an action added for
+   * one is reachable from the other without being wired twice.
+   */
+  const actions: PaletteActions = {
     onFind: () => {
       setFindOpen(true);
-    },
-    onCloseFind: () => {
-      setFindOpen(false);
     },
     // All three are gated on `editable` rather than left to the controls being
     // hidden: a keyboard shortcut reaches past the toolbar, and the source view is
     // a textarea that saves on blur — opening one over a file Rust will refuse to
-    // write is how a reader loses an edit they thought they had made.
+    // write is how a reader loses an edit they thought they had made. A palette
+    // row reaches past it in exactly the same way.
     onToggleSource: () => {
       if (active && document?.editable) toggleSource(active.id);
     },
@@ -280,10 +290,19 @@ function Shell() {
     onOpenFile: () => void openFile(),
     onOpenFolder: () => void openFolder(),
     onSettings: () => {
-      setSettingsOpen((open) => !open);
+      setSettingsOpen(true);
     },
     onAppearance: () => {
-      setAppearanceOpen((open) => !open);
+      setAppearanceOpen(true);
+    },
+    onAbout: () => {
+      setAboutOpen(true);
+    },
+    onToggleRail: () => {
+      update({ railCollapsed: !config.railCollapsed });
+    },
+    onRevealInFolder: () => {
+      if (document) void revealItemInDir(document.path).catch(() => undefined);
     },
     onZoomIn: () => {
       zoomBy(0.1);
@@ -311,11 +330,37 @@ function Shell() {
     onCycleTab: (delta) => {
       tabs.cycle(delta);
     },
-    onSelectTab: (index) => {
-      tabs.activateIndex(index);
-    },
     onReopenTab: () => {
       tabs.reopenClosed();
+    },
+  };
+
+  useKeyboardShortcuts({
+    ...actions,
+    scroller,
+    // The palette owns the whole keyboard while it is open. Without this, Ctrl+F
+    // typed into its box would open the find bar behind the modal.
+    suspended: paletteQuery !== null,
+    onCloseFind: () => {
+      setFindOpen(false);
+    },
+    // The two panels toggle from the keyboard and only ever open from the
+    // palette: a row labelled "Settings…" that closes Settings is a row whose
+    // label was true a moment ago.
+    onSettings: () => {
+      setSettingsOpen((open) => !open);
+    },
+    onAppearance: () => {
+      setAppearanceOpen((open) => !open);
+    },
+    onCommandPalette: () => {
+      setPaletteQuery(">");
+    },
+    onQuickOpen: () => {
+      setPaletteQuery("");
+    },
+    onSelectTab: (index) => {
+      tabs.activateIndex(index);
     },
     onMoveTab: (delta) => {
       if (!active) return;
@@ -339,6 +384,22 @@ function Shell() {
     },
     [scroller],
   );
+
+  const host = useHostPlatform();
+  // Not memoized. It used to be, with a comment claiming the palette's item list
+  // depended on its identity — but `docs` is a fresh object literal on every
+  // render, so the memo never held and the comment described a property the code
+  // did not have. The palette rebuilds its list per render regardless, and
+  // deliberately: see the note above `buildItems` in `CommandPalette`.
+  const paletteState: PaletteState = {
+    hasDocument: document !== null,
+    editable: document?.editable === true,
+    sourceMode: active ? sourceTabs.has(active.id) : false,
+    canGoBack: active ? docs.canGoBack(active.id) : false,
+    canGoForward: active ? docs.canGoForward(active.id) : false,
+    railCollapsed: config.railCollapsed,
+    mod: host === "macos" ? "⌘" : "Ctrl",
+  };
 
   return (
     <div className="flex h-full">
@@ -494,6 +555,35 @@ function Shell() {
         }}
       />
 
+      {/* Mounted only while open, so building its item list — every document in
+          the open folder — costs nothing the rest of the time. */}
+      {paletteQuery !== null && (
+        <CommandPalette
+          initialQuery={paletteQuery}
+          onClose={() => {
+            setPaletteQuery(null);
+          }}
+          actions={actions}
+          state={paletteState}
+          tabs={session.tabs}
+          activeTabId={session.activeTabId}
+          onActivateTab={tabs.activate}
+          recentFiles={config.recentFiles}
+          openPaths={openPaths}
+          onOpenPath={(path) => {
+            openInTab(path, true);
+          }}
+          tree={tree}
+          folder={folder}
+          toc={document?.toc ?? []}
+          onJumpTo={jumpTo}
+          customThemes={config.customThemes}
+          onPickTheme={(themeId) => {
+            update({ themeId });
+          }}
+        />
+      )}
+
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
 
       <UpdateDialog updater={updater} />
@@ -539,34 +629,22 @@ function Message({ text }: { text: string }) {
  * with the keyboard has focus on the document, and Ctrl+F has to work from
  * anywhere in the window.
  */
-function useKeyboardShortcuts(handlers: {
-  /** Scrolled by the paging keys, so a reader never has to click the document
-   *  first — and so we do not have to auto-focus it and paint a focus ring
-   *  around every page. */
-  scroller: HTMLElement | null;
-  onFind: () => void;
-  onCloseFind: () => void;
-  onToggleSource: () => void;
-  onUndo: () => void;
-  onRedo: () => void;
-  onOpenFile: () => void;
-  onOpenFolder: () => void;
-  onSettings: () => void;
-  onAppearance: () => void;
-  onPrint: () => void;
-  onExport: () => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onZoomReset: () => void;
-  onBack: () => void;
-  onForward: () => void;
-  onNewTab: () => void;
-  onCloseTab: () => void;
-  onCycleTab: (delta: number) => void;
-  onSelectTab: (index: number | "last") => void;
-  onReopenTab: () => void;
-  onMoveTab: (delta: number) => void;
-}) {
+function useKeyboardShortcuts(
+  handlers: PaletteActions & {
+    /** Scrolled by the paging keys, so a reader never has to click the document
+     *  first — and so we do not have to auto-focus it and paint a focus ring
+     *  around every page. */
+    scroller: HTMLElement | null;
+    /** True while a modal owns the keyboard. Every chord here is registered on
+     *  `window`, so nothing else can take one back. */
+    suspended: boolean;
+    onCloseFind: () => void;
+    onCommandPalette: () => void;
+    onQuickOpen: () => void;
+    onSelectTab: (index: number | "last") => void;
+    onMoveTab: (delta: number) => void;
+  },
+) {
   // The handlers object is rebuilt on every render, so it is held in a ref: the
   // listener is attached once and always calls the current version.
   const current = useRef(handlers);
@@ -575,6 +653,7 @@ function useKeyboardShortcuts(handlers: {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const handlers = current.current;
+      if (handlers.suspended) return;
 
       if (event.key === "Escape") {
         handlers.onCloseFind();
@@ -639,6 +718,10 @@ function useKeyboardShortcuts(handlers: {
           event.preventDefault();
           handlers.onFind();
           break;
+        case "k":
+          event.preventDefault();
+          handlers.onQuickOpen();
+          break;
         case "o":
           event.preventDefault();
           if (event.shiftKey) handlers.onOpenFolder();
@@ -672,9 +755,12 @@ function useKeyboardShortcuts(handlers: {
           event.preventDefault();
           handlers.onZoomReset();
           break;
+        // Ctrl+Shift+P is the command palette everywhere else, so it is the one
+        // people try first; printing keeps the bare chord it has always had.
         case "p":
           event.preventDefault();
-          handlers.onPrint();
+          if (event.shiftKey) handlers.onCommandPalette();
+          else handlers.onPrint();
           break;
         case "t":
           event.preventDefault();

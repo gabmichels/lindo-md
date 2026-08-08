@@ -8,8 +8,12 @@ export type HostPlatform = "windows" | "macos" | "linux";
  *
  * The window is frameless, so this is not cosmetic: macOS keeps its real traffic
  * lights (the rail insets to clear them), while Windows and Linux need controls
- * drawn by us, in each platform's own order and semantics. `TitleBar` is the
- * only consumer, deliberately — all per-platform branching lives there.
+ * drawn by us, in each platform's own order and semantics. `TitleBar` draws all
+ * of that and is the only place per-platform *chrome* branching lives.
+ *
+ * `App` is the one other consumer, and only to spell a modifier key: the command
+ * palette prints `⌘` beside a row on macOS and `Ctrl` elsewhere. Reach for it
+ * for naming, not for laying anything out.
  */
 export function useHostPlatform(): HostPlatform {
   const [host, setHost] = useState<HostPlatform>(guessFromUserAgent);
