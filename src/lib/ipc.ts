@@ -113,8 +113,17 @@ export const TreeNodeSchema: z.ZodType<TreeNode> = z.object({
   },
 });
 
-export function openDocument(path: string): Promise<Document> {
-  return call("open_document", DocumentSchema, { path });
+/**
+ * Who chose this path. `"document"` means a link inside a file did, and Rust
+ * restricts what such a path may be — see `files::Origin`. It is a required
+ * argument rather than an optional one so that a new call site has to answer the
+ * question; Rust treats an absent value as `"document"` regardless, so the
+ * failure mode of forgetting is a refusal rather than a hole.
+ */
+export type DocumentOrigin = "reader" | "document";
+
+export function openDocument(path: string, origin: DocumentOrigin): Promise<Document> {
+  return call("open_document", DocumentSchema, { path, origin });
 }
 
 /**

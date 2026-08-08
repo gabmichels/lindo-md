@@ -50,6 +50,15 @@ pub enum LindoError {
     )]
     NotText { path: String },
 
+    /// Names the document rather than the path, because the reader did not type
+    /// this path — a file they opened did, and that is the part worth knowing.
+    #[error(
+        "A link in this document points at {path}, which is on another machine. \
+         Opening it would connect to that host, so lindo-md did not. Open a \
+         network file yourself and it will work normally."
+    )]
+    NetworkPath { path: String },
+
     #[error("Settings file at {path} is not valid JSON: {source}. Fix or delete it — lindo-md will not overwrite it automatically.")]
     ConfigParse {
         path: String,
