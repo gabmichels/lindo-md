@@ -64,12 +64,33 @@ describe("linkTarget", () => {
    * Pinned as it is, not as it arguably should be. `isExternal` does not recognise a
    * protocol-relative URL — AGENTS.md records the same quirk where `stripRemoteRefs`
    * had to work around it — so this falls through to the OS hand-off, where the
-   * opener's scope rejects it and the click does nothing. That is pre-existing and
-   * unchanged by the predicate split; the test is here so it is a known shape rather
-   * than a surprise the next time someone reads this function.
+   * opener's scope rejects it and the click does nothing.
+   *
+   * That is *why* the network-path guard lives in Rust rather than here. This
+   * predicate decides only whether to hand a link to the OS; it does not decide
+   * whether the file is opened, and a rule that mattered would not be safe in the
+   * webview anyway. See `files::Origin`.
    */
   it("does not recognise a protocol-relative URL as external", () => {
     expect(linkTarget("/docs", "//host/path").kind).toBe("handoff");
+  });
+
+  /**
+   * The shape the guard exists for, pinned so the reach is visible from here.
+   * These reach `kind: "document"` — `isMarkdownPath` is happy, and nothing in
+   * this file is in a position to object. What stops them is that a link is
+   * followed with `origin: "document"`, and Rust refuses a network path with
+   * that origin. If this test ever starts reporting `handoff`, the Rust guard is
+   * no longer the only thing standing there and its tests should say so too.
+   */
+  it("routes a network path to a document open, which is Rust's to refuse", () => {
+    for (const href of [
+      "//evil.test/share/x.md",
+      String.raw`\\evil.test\share\x.md`,
+      String.raw`\\?\UNC\evil.test\share\x.md`,
+    ]) {
+      expect(linkTarget("/docs", href).kind, href).toBe("document");
+    }
   });
 
   it("keeps a fragment-only link inside the document", () => {

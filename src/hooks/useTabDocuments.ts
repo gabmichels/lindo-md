@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   onDocumentChanged,
   openDocument,
+  type DocumentOrigin,
   saveDocument,
   watchPaths,
   type Document,
@@ -109,13 +110,26 @@ export function useTabDocuments(session: Session, folder: string | null): TabDoc
     }));
   }, []);
 
+  /** Paths the reader picked themselves, rather than followed a link to.
+   *
+   *  Only network paths care about the difference (see `files::Origin`), but the
+   *  set cannot be limited to those: whether something is a network path is
+   *  Rust's judgement, not the webview's, and a second copy of that rule here is
+   *  a second copy to get wrong.
+   *
+   *  It exists because a tab's `history` is only a list of paths, and `navigate`
+   *  pushes onto it *before* the open resolves — so a link that Rust refused is
+   *  still in the history. Letting Back re-open a history entry as the reader's
+   *  own choice would hand back exactly what the refusal took away. */
+  const readerChosen = useRef(new Set<string>());
+
   const load = useCallback(
-    (id: string, path: string, anchor: string | null) => {
+    (id: string, path: string, anchor: string | null, origin: DocumentOrigin) => {
       const token = (generation.current[id] ?? 0) + 1;
       generation.current[id] = token;
       patch(id, { loading: true });
 
-      openDocument(path).then(
+      openDocument(path, origin).then(
         (document) => {
           if (generation.current[id] !== token) return;
           // The file has just been read, so its own fingerprint is now the newest
@@ -152,8 +166,12 @@ export function useTabDocuments(session: Session, folder: string | null): TabDoc
       // A tab that failed is left failed: retrying on every render would spin
       // on a deleted file instead of showing the reader what went wrong.
       if (runtime && (runtime.document || runtime.loading || runtime.error)) return;
+      // Everything the reader opens deliberately arrives here — the dialog, a
+      // drop, the tree, a restored session, and Explorer's hand-off. Following a
+      // link is the one route that does not, and it goes through `navigate`.
+      readerChosen.current.add(path);
       patch(id, { history: [path], cursor: 0 });
-      load(id, path, null);
+      load(id, path, null, "reader");
     },
     [load, patch],
   );
@@ -165,7 +183,7 @@ export function useTabDocuments(session: Session, folder: string | null): TabDoc
       // does — the branch the reader did not take is gone.
       const history = [...runtime.history.slice(0, runtime.cursor + 1), path];
       patch(id, { history, cursor: history.length - 1 });
-      load(id, path, anchor ?? null);
+      load(id, path, anchor ?? null, "document");
     },
     [load, patch],
   );
@@ -178,7 +196,9 @@ export function useTabDocuments(session: Session, folder: string | null): TabDoc
       const path = runtime.history[cursor];
       if (!path) return;
       patch(id, { cursor });
-      load(id, path, null);
+      // Stepping back to a link the reader followed is still following that
+      // link, so the entry only counts as theirs if they opened it themselves.
+      load(id, path, null, readerChosen.current.has(path) ? "reader" : "document");
     },
     [load, patch],
   );
@@ -312,7 +332,11 @@ export function useTabDocuments(session: Session, folder: string | null): TabDoc
   useEffect(() => {
     const unlisten = onDocumentChanged((changed) => {
       for (const [id, runtime] of Object.entries(current.current)) {
-        if (runtime.document?.path === changed) load(id, changed, null);
+        // Already open, so re-reading it is not a new choice — it keeps whatever
+        // standing the open had.
+        if (runtime.document?.path === changed) {
+          load(id, changed, null, readerChosen.current.has(changed) ? "reader" : "document");
+        }
       }
     });
     return () => {

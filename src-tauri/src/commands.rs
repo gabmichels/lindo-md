@@ -25,7 +25,15 @@ pub fn set_config(app: AppHandle, config: AppConfig) -> LindoResult<()> {
 }
 
 #[tauri::command]
-pub fn open_document(app: AppHandle, path: String) -> LindoResult<Document> {
+pub fn open_document(
+    app: AppHandle,
+    path: String,
+    // Whether the reader chose this path or a link in a document did. Only the
+    // second is restricted, and only from reaching another machine — see
+    // `files::Origin`. `#[serde(default)]` on the enum means a caller that omits
+    // it gets the restricted answer rather than the permissive one.
+    origin: files::Origin,
+) -> LindoResult<Document> {
     // Rendering settings are read here rather than passed in: they are the same
     // for every document, and a frontend that had to remember to send them would
     // eventually render one document by different rules than the last.
@@ -33,7 +41,7 @@ pub fn open_document(app: AppHandle, path: String) -> LindoResult<Document> {
         smart_punctuation: config::load(&app).is_ok_and(|config| config.smart_punctuation),
     };
 
-    let document = files::read(&app, &PathBuf::from(&path), render_options)?;
+    let document = files::read(&app, &PathBuf::from(&path), origin, render_options)?;
 
     // Recording the open is part of opening it, not a separate call the frontend
     // could forget to make. A failure to persist must not fail the open.
