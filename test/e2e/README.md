@@ -63,10 +63,19 @@ cannot see or drive. Everything behind them — importing a theme, exporting HTM
 `open_path` branch of link handling — is out of reach here and is covered by unit tests
 on the pure parts instead.
 
-**A clean session.** The app restores its tabs, so the fixture is not necessarily the
-active document on launch. The first check finds and activates its tab, and fails loudly
-if it is not open at all rather than silently measuring whatever else was on screen —
-which is a mistake that was actually made while developing this.
+**The fixture open — but not alone.** The app restores its tabs, so the fixture is not
+necessarily the active document on launch. The first check finds and activates its tab,
+and fails loudly if it is not open at all rather than silently measuring whatever else
+was on screen — which is a mistake that was actually made while developing this.
+
+Other tabs may stay open. That is worth stating because it was not always true:
+`DocumentDeck` keeps every open tab mounted and merely hides the inactive ones, so the
+early checks — which asked the page for `article` and `figure.mermaid` with no scope —
+were answered by whichever document happened to sit first in the DOM. With one tab open
+that is the right one, and the harness looked correct for as long as nobody ran it over a
+restored session. Every query now goes through `ACTIVE` in `smoke.mjs`, which resolves
+the visible scroller; an ambient `document.querySelector` in a new check would quietly
+reintroduce this.
 
 ## Why CDP at all
 
