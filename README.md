@@ -182,13 +182,16 @@ automatically.
 
 ## Themes
 
-![The appearance drawer, showing all fourteen theme presets and the type controls](docs/screenshot-themes.png)
+![The appearance drawer, showing the theme presets and the type controls](docs/screenshot-themes.png)
 
 The default is **House**, a reading theme designed for this app: warm bone paper, Source Serif 4 at
-a 66-character measure, ink-teal links. Thirteen more presets cover the themes people already read
+a 66-character measure, ink-teal links. Fourteen more presets cover the themes people already read
 in — GitHub, GitHub Dimmed, Solarized, Nord, Dracula, One, Tokyo Night, Catppuccin, Gruvbox,
-Rosé Pine, Everforest, plus **Paper** (sepia and lamplight, set in Garamond) and **High Contrast**
-(Atkinson Hyperlegible at a short measure).
+Rosé Pine, Everforest — plus three built for reading rather than recognition: **Paper** (sepia and
+lamplight, set in Garamond), **High Contrast** (Atkinson Hyperlegible at a short measure), and
+**Colorblind Safe**, whose alert colours and syntax highlighting are picked so that no two you have
+to tell apart collapse into each other under red-green or blue-yellow colour blindness — the code
+theme included, which is where most themes give up.
 
 Each is a light/dark pair presented as a single choice; the appearance setting — light, dark, or
 follow the system — picks the half.
@@ -198,6 +201,10 @@ scale, line height, measure, paragraph spacing, letter spacing, heading weight, 
 thirteen individual colors can be adjusted. Touching any control forks the preset into a custom
 theme rather than overwriting it, and the result exports to a `.lindo-md-theme.json` file you can
 share.
+
+**Reading size** sits with the width control in the same drawer: Standard, Large and Largest scale
+the whole document in one click, without editing the theme or hunting for a percentage. Anything in
+between is `Ctrl` `+` and `Ctrl` `-`.
 
 ## Keyboard
 

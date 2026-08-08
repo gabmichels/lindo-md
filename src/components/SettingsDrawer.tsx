@@ -25,6 +25,7 @@ import type {
   ThemeTypography,
 } from "@/lib/theme/schema";
 import { cn } from "@/lib/utils";
+import { READING_SIZES } from "@/lib/zoom";
 
 /**
  * Everything about how the document looks, in one panel.
@@ -270,6 +271,24 @@ export function SettingsDrawer({
                   onUpdateConfig({ contentWidth });
                 }}
                 options={WIDTHS}
+              />
+            </Section>
+
+            {/* Beside Width because it is the same kind of setting — the window's,
+                not the paper's — and because a reader who cannot read the page is
+                looking for a size control, not a typography section. Nothing is
+                highlighted when the zoom sits between the named sizes, which is
+                where the stepper and Ctrl+= leave it; the same shape as Density
+                below. */}
+            <Section title="Reading size">
+              <Segmented
+                label="Reading size"
+                value={READING_SIZES.find((size) => size.zoom === config.zoom)?.value ?? ""}
+                onChange={(value) => {
+                  const size = READING_SIZES.find((s) => s.value === value);
+                  if (size) onUpdateConfig({ zoom: size.zoom });
+                }}
+                options={READING_SIZES}
               />
             </Section>
 

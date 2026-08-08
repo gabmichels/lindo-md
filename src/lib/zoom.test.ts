@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, clampZoom, stepZoom } from "./zoom";
+import { READING_SIZES, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, clampZoom, stepZoom } from "./zoom";
 
 describe("stepZoom", () => {
   it("moves by one step", () => {
@@ -20,6 +20,27 @@ describe("stepZoom", () => {
   it("stops at the bounds rather than running past them", () => {
     expect(stepZoom(ZOOM_MAX, ZOOM_STEP)).toBe(ZOOM_MAX);
     expect(stepZoom(ZOOM_MIN, -ZOOM_STEP)).toBe(ZOOM_MIN);
+  });
+});
+
+describe("READING_SIZES", () => {
+  it("survives the clamp unchanged, so the button it names stays lit", () => {
+    // The drawer highlights the size whose zoom equals `config.zoom`. A value
+    // outside the range would be clamped on the way to disk and come back as
+    // something else, leaving the button the reader just pressed unlit.
+    for (const size of READING_SIZES) {
+      expect(clampZoom(size.zoom), size.value).toBe(size.zoom);
+    }
+  });
+
+  it("starts at 1, so Standard means the theme's own size", () => {
+    expect(READING_SIZES[0]?.zoom).toBe(1);
+  });
+
+  it("grows, and never names the same zoom twice", () => {
+    const zooms = READING_SIZES.map((size) => size.zoom);
+    expect(new Set(zooms).size).toBe(zooms.length);
+    expect([...zooms].sort((a, b) => a - b)).toEqual(zooms);
   });
 });
 

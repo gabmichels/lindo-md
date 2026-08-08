@@ -111,6 +111,52 @@ const ALERTS = {
   },
 } as const;
 
+/**
+ * The five alert hues, chosen to survive colour blindness.
+ *
+ * GitHub's set is green for tip and red for caution, and blue for note beside
+ * purple for important. Both pairs collapse: to a deuteranope, red and green
+ * differ by almost nothing, and purple is blue with the red taken out of it.
+ * `cvd.test.ts` measures it — GitHub's worst pair is 9 units apart in simulated
+ * deuteranopia, which is to say indistinguishable.
+ *
+ * Getting past that took giving up on hue as the only channel. Okabe–Ito's
+ * eight-colour set is the usual answer, but its members sit at similar lightness
+ * by design, and an alert colour here is also the title text — `document.css`
+ * paints `.markdown-alert-title` with it — so every one of these has to clear
+ * 4.5:1 against the page as well. Under that ceiling the Okabe–Ito hues bunch up
+ * again. So these vary *lightness* as well as hue: a dark violet for important
+ * against a mid blue for note, a light ochre for warning against a dark brick
+ * for caution. Whatever the eye does to the hue, the two bars are still
+ * different weights of ink.
+ *
+ * The floor the test holds them to is 25, against GitHub's 9. These reach 40
+ * on the light half and 32 on the dark, which is the headroom to keep when
+ * adjusting one.
+ *
+ * None of this makes colour the only signal: comrak writes the kind's name into
+ * the callout, so "Warning" says so in words on every theme in the app. This
+ * preset is about not making that the only thing the reader has.
+ */
+const CVD_ALERTS = {
+  light: {
+    note: "#2a6ed6", // mid blue
+    tip: "#0d6b57", // deep green
+    important: "#54169b", // violet, deliberately much darker than note
+    warning: "#8d6a08", // ochre, deliberately much lighter than caution
+    caution: "#9c1e0c", // brick
+  },
+  // Not the light hues lightened. Contrast runs the other way against a dark
+  // ground, so the spread that separated them there had to be rebuilt here.
+  dark: {
+    note: "#7fa8ff",
+    tip: "#35c9a4",
+    important: "#b972f5",
+    warning: "#e8a91e",
+    caution: "#e0685c",
+  },
+} as const;
+
 /** The nine colors a palette actually has to state. The rest are derived, which
  *  is what keeps 28 themes consistent instead of 28 independent guesses. */
 interface Palette {
@@ -126,7 +172,11 @@ interface Palette {
   accent?: string;
 }
 
-function colorsFrom(palette: Palette, appearance: Appearance): ThemeColors {
+function colorsFrom(
+  palette: Palette,
+  appearance: Appearance,
+  alerts: ThemeColors["alert"] = ALERTS[appearance],
+): ThemeColors {
   // Hover darkens on paper and lightens on a dark ground — the direction that
   // reads as "more", not "less", in each case.
   const toward = appearance === "light" ? "black" : "white";
@@ -144,7 +194,7 @@ function colorsFrom(palette: Palette, appearance: Appearance): ThemeColors {
     accent: palette.accent ?? palette.link,
     quoteBar: palette.border,
     selection: `color-mix(in oklab, ${palette.link} 22%, transparent)`,
-    alert: { ...ALERTS[appearance] },
+    alert: { ...alerts },
   };
 }
 
@@ -155,12 +205,13 @@ function theme(
   palette: Palette,
   shikiTheme: string,
   typography: ThemeTypography = EDITORIAL,
+  alerts?: ThemeColors["alert"],
 ): Theme {
   return {
     id,
     name,
     appearance,
-    colors: colorsFrom(palette, appearance),
+    colors: colorsFrom(palette, appearance, alerts),
     typography,
     layout: { ...LAYOUT, table: { ...LAYOUT.table } },
     code: { shikiTheme, lineNumbers: false, wrap: false },
@@ -172,8 +223,11 @@ interface PresetSpec {
   name: string;
   note: string;
   typography?: ThemeTypography;
-  light: { palette: Palette; shiki: string };
-  dark: { palette: Palette; shiki: string };
+  /** Only Colorblind Safe sets these. GitHub's five hues are the default
+   *  because they are what readers recognise, and a preset that replaces them
+   *  is saying it has a reason the palette cannot express. */
+  light: { palette: Palette; shiki: string; alerts?: ThemeColors["alert"] };
+  dark: { palette: Palette; shiki: string; alerts?: ThemeColors["alert"] };
 }
 
 function preset(spec: PresetSpec): ThemePreset {
@@ -189,6 +243,7 @@ function preset(spec: PresetSpec): ThemePreset {
       spec.light.palette,
       spec.light.shiki,
       typography,
+      spec.light.alerts,
     ),
     dark: theme(
       `${spec.id}-dark`,
@@ -197,6 +252,7 @@ function preset(spec: PresetSpec): ThemePreset {
       spec.dark.palette,
       spec.dark.shiki,
       typography,
+      spec.dark.alerts,
     ),
   };
 }
@@ -665,6 +721,42 @@ export const PRESETS: ThemePreset[] = [
         codeBg: "#0d0d0d",
       },
       shiki: "github-dark-high-contrast",
+    },
+  }),
+
+  preset({
+    id: "colorblind",
+    name: "Colorblind Safe",
+    note: "Hues that stay apart under every common colour blindness, code included",
+    light: {
+      palette: {
+        bg: "#fbfbfa",
+        surface: "#f0f0ef",
+        text: "#1a1a1a",
+        muted: "#4d4d4d",
+        heading: "#000000",
+        link: "#0072b2", // blue: the one hue no common deficiency loses
+        border: "#c4c4c2",
+        codeBg: "#f2f2f2",
+        accent: "#d55e00", // vermillion, which reads as "not the link" to everyone
+      },
+      shiki: "lindo-md-cvd-light",
+      alerts: CVD_ALERTS.light,
+    },
+    dark: {
+      palette: {
+        bg: "#161616",
+        surface: "#202020",
+        text: "#eaeaea",
+        muted: "#b0b0b0",
+        heading: "#ffffff",
+        link: "#56b4e9",
+        border: "#3d3d3d",
+        codeBg: "#1e1e1e",
+        accent: "#e69f00",
+      },
+      shiki: "lindo-md-cvd-dark",
+      alerts: CVD_ALERTS.dark,
     },
   }),
 ];

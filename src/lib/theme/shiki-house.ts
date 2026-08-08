@@ -1,7 +1,7 @@
 import type { ThemeRegistrationRaw } from "shiki";
 
 /**
- * lindo-md's own syntax theme, in the two House appearances.
+ * The syntax themes that are ours rather than Shiki's.
  *
  * Every other preset points at the authentic VS Code theme of the same name.
  * House needs its own, because a borrowed one always reads as a foreign object
@@ -9,6 +9,10 @@ import type { ThemeRegistrationRaw } from "shiki";
  * a different idea of what a comment looks like. These colors are drawn from the
  * same warm-ink family as the House prose palette, so a code block sits *in* the
  * document rather than on top of it.
+ *
+ * Colorblind Safe needs its own for a harder reason — see `CVD_LIGHT` below.
+ * Every theme in Shiki's bundle picks its scope colors on the assumption that
+ * red and green are two colors.
  *
  * Deliberately a short scope list. A TextMate theme with 200 rules is a theme
  * nobody can adjust; these twelve cover what the grammars actually emit.
@@ -40,11 +44,58 @@ const DARK = {
   bg: "oklch(0.22 0.010 250)", // matches --doc-code-bg for House Dark
 } as const;
 
-function build(
-  name: string,
-  type: "light" | "dark",
-  c: typeof LIGHT | typeof DARK,
-): ThemeRegistrationRaw {
+/**
+ * The syntax palette for Colorblind Safe.
+ *
+ * A code theme is the hardest place in the app to get this right, and the
+ * reason none of Shiki's bundled themes could be pointed at instead. Prose has
+ * two or three colours in it; a fence has eight at once, in short runs at 15px,
+ * and the reader is being asked to tell a type from a keyword *by colour* on a
+ * line where nothing else distinguishes them. Every bundled theme spends its
+ * budget the same way — a red keyword next to a green string — which is the one
+ * pair that does not survive the most common deficiency there is.
+ *
+ * So these six hues were fitted rather than chosen: spread around the wheel,
+ * held to a 4.5:1 band against the code background so none of them is a whisper
+ * on the page, and then checked pairwise under simulated protanopia,
+ * deuteranopia and tritanopia. `cvd.test.ts` holds them to the same floor as
+ * the alerts. Adjust one by eye and that test is what tells you which other
+ * five you just broke.
+ *
+ * `comment` and `punctuation` stay grey on purpose. They are the two scopes
+ * that want to recede, and spending a distinguishable hue on either would mean
+ * one fewer for the scopes a reader is actually comparing.
+ */
+const CVD_LIGHT = {
+  fg: "#1a1a1a",
+  comment: "#595959",
+  string: "#154c2f",
+  keyword: "#8e0c01",
+  func: "#3b62b7",
+  constant: "#85058a",
+  type: "#8d6520",
+  punctuation: "#6b6b6b",
+  invalid: "#c02389",
+  bg: "#f2f2f2",
+} as const;
+
+const CVD_DARK = {
+  fg: "#e8e8e8",
+  comment: "#9a9a9a",
+  string: "#6ede80",
+  keyword: "#ee7c11",
+  func: "#428dd4",
+  constant: "#cdaaf6",
+  type: "#f1b83b",
+  punctuation: "#8f8f8f",
+  invalid: "#fe3e5b",
+  bg: "#1e1e1e",
+} as const;
+
+/** The twelve slots `build` colors. Named so a second palette can fill them. */
+type SyntaxPalette = { readonly [K in keyof typeof LIGHT]: string };
+
+function build(name: string, type: "light" | "dark", c: SyntaxPalette): ThemeRegistrationRaw {
   return {
     name,
     type,
@@ -126,10 +177,18 @@ function build(
 
 export const HOUSE_LIGHT = build("lindo-md-house-light", "light", LIGHT);
 export const HOUSE_DARK = build("lindo-md-house-dark", "dark", DARK);
+export const CVD_SAFE_LIGHT = build("lindo-md-cvd-light", "light", CVD_LIGHT);
+export const CVD_SAFE_DARK = build("lindo-md-cvd-dark", "dark", CVD_DARK);
+
+/** The two palettes above, before `build` scatters them across TextMate scopes.
+ *  Exported for `cvd.test.ts`, which checks the claim the theme's name makes. */
+export const CVD_SYNTAX = { light: CVD_LIGHT, dark: CVD_DARK };
 
 /** Ids that must be registered from these objects rather than fetched from
  *  Shiki's bundle. `lib/render/shiki.ts` checks against this map. */
 export const HOUSE_THEMES: Record<string, ThemeRegistrationRaw> = {
   "lindo-md-house-light": HOUSE_LIGHT,
   "lindo-md-house-dark": HOUSE_DARK,
+  "lindo-md-cvd-light": CVD_SAFE_LIGHT,
+  "lindo-md-cvd-dark": CVD_SAFE_DARK,
 };
