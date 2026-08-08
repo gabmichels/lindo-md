@@ -44,6 +44,21 @@ const checks = [];
  */
 const check = (name, fn, { required = false } = {}) => checks.push({ name, fn, required });
 
+/**
+ * A page-side expression for the *active* tab's scroller.
+ *
+ * `DocumentDeck` keeps every open tab mounted and hides the inactive ones, so a bare
+ * `document.querySelector('article')` returns whichever document sits first in the DOM
+ * rather than the one under test. With a single tab open those are the same element,
+ * which is why this harness was fine until the first run against a restored session:
+ * it clicked the fixture's tab, then measured a different tab's document and reported
+ * the fixture as unrendered.
+ *
+ * Every query below is scoped through this. Ambient `document.querySelector` in a
+ * check is a bug waiting for someone to have two tabs open.
+ */
+const ACTIVE = `[...document.querySelectorAll('.doc-scroller')].find((el) => el.getClientRects().length > 0)`;
+
 check(
   "the fixture is the active document",
   async (cdp) => {
@@ -70,7 +85,7 @@ check(
     await settle(2000);
 
     const body = await cdp.evaluate(
-      `(document.querySelector('article')?.textContent || '').slice(0, 200)`,
+      `((${ACTIVE})?.querySelector('article')?.textContent || '').slice(0, 200)`,
     );
     if (!body.includes("smoke")) {
       throw new Error(`the fixture does not appear to be rendered; article begins: ${body}`);
@@ -83,16 +98,17 @@ check(
   "a Mermaid diagram renders",
   async (cdp) => {
     await cdp.evaluate(
-      `document.querySelector('.mermaid-src, figure.mermaid')?.scrollIntoView(), 1`,
+      `(${ACTIVE})?.querySelector('.mermaid-src, figure.mermaid')?.scrollIntoView(), 1`,
     );
     // Rendering is behind an IntersectionObserver and loads ~2MB of Mermaid on first use.
     await settle(6000);
 
     const rendered = await cdp.evaluate(`(() => {
-    const figure = document.querySelector('figure.mermaid');
+    const doc = ${ACTIVE};
+    const figure = doc?.querySelector('figure.mermaid');
     return {
       present: !!figure,
-      failed: !!document.querySelector('figure.mermaid-error'),
+      failed: !!doc?.querySelector('figure.mermaid-error'),
       svg: !!figure?.querySelector('svg'),
     };
   })()`);
@@ -119,7 +135,7 @@ check("the rendered diagram holds no remote reference", async (cdp) => {
   // Belt and braces against the network check: a reference that is present but not yet
   // fetched would pass the trace and still be a hole.
   const leaked = await cdp.evaluate(`(() => {
-    const figure = document.querySelector('figure.mermaid');
+    const figure = (${ACTIVE})?.querySelector('figure.mermaid');
     const html = figure ? figure.innerHTML : '';
     return { probe: html.includes('probe-'), imgs: figure?.querySelectorAll('img').length ?? 0 };
   })()`);
@@ -140,8 +156,7 @@ check("the document's --doc-* tokens reach the page", async (cdp) => {
 
     const before = getComputedStyle(document.body).backgroundColor;
     root.style.setProperty('--doc-bg', 'rgb(1, 2, 3)');
-    const changed = getComputedStyle(document.querySelector('.doc-scroller') ?? document.body)
-      .backgroundColor;
+    const changed = getComputedStyle((${ACTIVE}) ?? document.body).backgroundColor;
     root.style.removeProperty('--doc-bg');
 
     return { missing, before, changed };
