@@ -96,8 +96,11 @@ export function useTabDocuments(session: Session, folder: string | null): TabDoc
   const generation = useRef<Record<string, number>>({});
 
   /** The content fingerprint of the last save that landed, per path. Updated
-   *  synchronously, unlike the copy inside `Document`, which waits for a render. */
-  const written = useRef<Record<string, string>>({});
+   *  synchronously, unlike the copy inside `Document`, which waits for a render.
+   *
+   *  An entry only outranks `Document.contentHash` until the file is read again,
+   *  so `load` clears it — see there for what a stale one costs. */
+  const written = useRef(new Map<string, string>());
 
   const patch = useCallback((id: string, next: Partial<TabRuntime>) => {
     setRuntimes((runtimes) => ({
@@ -115,6 +118,15 @@ export function useTabDocuments(session: Session, folder: string | null): TabDoc
       openDocument(path).then(
         (document) => {
           if (generation.current[id] !== token) return;
+          // The file has just been read, so its own fingerprint is now the newest
+          // thing anyone knows about it and the recorded save is history. Leaving
+          // the record in place is what made an external write permanent: the
+          // live-reload path below re-reads the file, `written` keeps naming the
+          // content from before a `git checkout`, and every later save is refused
+          // as a `StaleWrite` — telling the reader to reload a document they are
+          // already looking at, with no way back, since closing the tab does not
+          // clear a ref.
+          written.current.delete(document.path);
           patch(id, {
             document,
             pendingAnchor: anchor,
@@ -195,9 +207,9 @@ export function useTabDocuments(session: Session, folder: string | null): TabDoc
         const saved = await saveDocument(
           document.path,
           source,
-          written.current[document.path] ?? document.contentHash,
+          written.current.get(document.path) ?? document.contentHash,
         );
-        written.current[saved.path] = saved.contentHash;
+        written.current.set(saved.path, saved.contentHash);
 
         const stacks = (existing: TabRuntime): Pick<TabRuntime, "undo" | "redo"> => {
           switch (track) {
