@@ -1,6 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 
-import { isExternal, isMarkdownPath, resolveRelative, splitFragment } from "../utils";
+import { isExternal, isMarkdownPath, resolveRelative, splitFragment, wikilinkPath } from "../utils";
 
 /**
  * Decides what a click on a link in the document does. Three outcomes, and the
@@ -41,7 +41,9 @@ export function linkClickHandler(handlers: LinkHandlers) {
     // URL, and an unobserved rejection is exactly how v1.0.0 shipped with every
     // external link dead: the click was swallowed, nothing was logged, and the only
     // symptom was that nothing happened.
-    follow(href, handlers).catch((error: unknown) => {
+    // comrak's mark on `[[Note]]`, kept through the sanitizer for exactly this.
+    const wikilink = anchor.getAttribute("data-wikilink") === "true";
+    follow(href, handlers, wikilink).catch((error: unknown) => {
       console.error(`lindo-md: could not follow link ${href}`, error);
     });
   };
@@ -65,13 +67,18 @@ export type LinkTarget =
  * `isOpenablePath` on purpose — the file tree, the dialog and the drop target all use
  * the wider one.
  */
-export function linkTarget(dir: string, href: string): LinkTarget {
+export function linkTarget(dir: string, href: string, wikilink = false): LinkTarget {
   if (isExternal(href)) return { kind: "external", url: href };
 
   const { path, fragment } = splitFragment(href);
   if (!path) return { kind: "anchor", fragment: decodeURIComponent(fragment) };
 
-  const resolved = resolveRelative(dir, decodeURIComponent(path));
+  // The two differ only in that a wikilink target has no extension to resolve
+  // against — see `wikilinkPath`. Everything after this point is the same
+  // question for both, which is why they share the rest of the function rather
+  // than getting a branch of their own.
+  const target = decodeURIComponent(path);
+  const resolved = wikilink ? wikilinkPath(dir, target) : resolveRelative(dir, target);
   if (isMarkdownPath(resolved)) {
     return { kind: "document", path: resolved, fragment: decodeURIComponent(fragment) };
   }
@@ -81,8 +88,8 @@ export function linkTarget(dir: string, href: string): LinkTarget {
   return { kind: "handoff", path: resolved };
 }
 
-async function follow(href: string, handlers: LinkHandlers): Promise<void> {
-  const target = linkTarget(handlers.dir, href);
+async function follow(href: string, handlers: LinkHandlers, wikilink: boolean): Promise<void> {
+  const target = linkTarget(handlers.dir, href, wikilink);
 
   switch (target.kind) {
     case "external":

@@ -161,6 +161,10 @@ Everything GitHub renders:
   allowlist
 - YAML frontmatter, relative image paths, and relative links between documents
 
+Plus one thing GitHub does not: **`[[wikilinks]]`**, so a folder of notes carried out of Obsidian,
+Foam or Logseq still links to itself. `[[Note]]`, `[[Note|read as this]]` and `[[Note#Heading]]` all
+open the file they name, extension and all left off as written.
+
 Heading anchors carry no `user-content-` prefix, so a `file.md#anchor` link works exactly as typed.
 
 ## Editing
@@ -172,6 +176,10 @@ truth rather than something reconstructed from the DOM. Text in paragraphs, head
 table cells is editable; code fences, Mermaid blocks and math are inert, as are generated bits like
 heading anchors and footnote backrefs. Task list checkboxes are clickable and write straight to the
 file.
+
+A save writes the file back the way it was found: CRLF stays CRLF, LF stays LF, and a byte-order
+mark is still there afterwards. Editing one line of a Windows-authored document does not turn the
+whole file into a diff.
 
 Right-click for formatting — bold, italic, code, strikethrough, headings, lists, quotes — all applied
 as Markdown, not as styling. `Ctrl + E` opens the raw source over the same scroller when you want it.

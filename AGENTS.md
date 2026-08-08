@@ -128,6 +128,7 @@ src-tauri/src/
   mdx.rs         fences JSX/ESM before comrak sees it — read-only, see above
   plaintext.rs   escape + <pre>; never touches comrak
   files.rs       open/read/scan/watch; the extension lists and what they each mean
+  text.rs        bytes ⇄ text: BOM and line endings off on the way in, back on the way out
   config.rs      settings persistence
   defaults.rs    which app owns .md (read-only — Windows blocks writing it)
   error.rs       LindoError, serialized to the frontend as a plain string
@@ -568,6 +569,26 @@ existing group's run does still join it, and that is ordinary reordering with a 
 
 ## Gotchas
 
+- **Nothing above `text.rs` ever sees a `\r` or a BOM, and that is load-bearing rather than tidy.**
+  `text::decode` normalizes every line ending to `\n` and takes any BOM off; `text::encode` puts
+  both back at save time, using a form read off the disk one call earlier rather than anything the
+  webview sent. The editing path only ever inserts `\n` — `input.ts` has one newline literal and
+  `format.ts` rejoins lines with another — so a CRLF file reaching it unnormalized picked up mixed
+  endings from a single keystroke, and the diff touched lines nobody edited. Two consequences worth
+  knowing: **every hash in `files.rs` is over the normalized string**, so a caller that reads bytes
+  itself computes a fingerprint that matches nothing and turns every save into a `StaleWrite`; and
+  **a file with already-mixed endings is unified to its dominant one**, the single case that does
+  not round-trip byte for byte. A file that is neither UTF-8 nor BOM-marked UTF-16 is refused with
+  `NotText` rather than guessed at — a mis-guessed code page renders a document that looks right
+  and is not, which is the worse failure for a viewer whose claim is fidelity.
+- **`[[wikilinks]]` are a comrak extension, and `links.ts` needs the attribute to route them.**
+  A wikilink target carries no extension, so `wikilinkPath` adds `.md` — but only after asking
+  whether the target is *already* something lindo-md opens, because `[[Notes v1.2]]` has an
+  "extension" of `2` to any rule that splits on the last dot. The `data-wikilink` mark comrak
+  writes is what separates that from an ordinary extensionless `[text](../sibling)` href, which is
+  why it is in the ammonia allowlist. comrak also skips its own dangerous-URL check on these
+  hrefs whenever `unsafe_` is on, which it permanently is, so `[[javascript:…]]` is stopped by the
+  sanitizer's scheme list and by nothing else.
 - **The window is frameless on Windows and Linux** (`decorations: false`), but **decorated on
   macOS**. `body` sets `user-select: none` because dragging the titlebar would otherwise start a text
   selection; the document canvas re-enables selection for itself. Controls are drawn per-platform in

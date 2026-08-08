@@ -683,6 +683,11 @@ mod tests {
             ("inline code", "Use `let x = 1;` in code"),
             ("link", "A [labelled link](http://e.com) here"),
             ("image", "An ![alt text](pic.png) inline"),
+            ("wikilink", "A [[Design Notes]] link"),
+            // The one that would catch a bad mapping: what the reader sees is the
+            // title after the pipe, so a run claiming the whole `[[…]]` would let an
+            // edit to "shown" rewrite the target instead.
+            ("piped wikilink", "A [[Design Notes|shown]] link"),
             ("hard break", "Line one  \nLine two"),
             ("smart-ish punctuation", "It's a \"quoted\" word -- dash"),
             ("repeated word", "the the the the"),
