@@ -115,6 +115,8 @@ src/
   hooks/         one concern each, colocated tests
   lib/
     ipc.ts       the ONLY place `invoke` is called; every response zod-parsed
+    palette/     the command palette as data: match.ts (fuzzy scoring),
+                 items.ts (what a query reaches, and what each row runs)
     tabs/        the tab session: model.ts (order + groups), layout.ts (widths),
                  drag.ts (the gesture), schema.ts (what gets persisted)
     render/      mirror.ts puts a re-render on screen; the rest are post-render
@@ -565,6 +567,35 @@ existing group's run does still join it, and that is ordinary reordering with a 
     `pre`, and `asDiagramSource` carries it back. That is the only element swap any pass performs,
     it is named explicitly in `fills`, and without it every line-shifting edit re-renders every
     diagram on screen.
+
+## The command palette
+
+`Ctrl/⌘+K` opens it on documents, `Ctrl/⌘+Shift+P` on commands, and the `>` and `@` prefixes
+switch between documents, commands and the current document's headings inside the one box. The
+logic is pure and lives in `src/lib/palette/`; `CommandPalette.tsx` is a list and a text field.
+
+Four decisions worth not re-litigating:
+
+- **`App.tsx` builds one `actions` object and hands it to both front-ends.** The keyboard hook and
+  the palette are two views onto the same set, so a command cannot exist with no chord shown beside
+  it, and a chord cannot drift from the row that advertises it. The two panels are the deliberate
+  exception: `Ctrl+,` toggles Settings while the palette row only ever opens it, because a row
+  labelled "Settings…" that closes Settings is a row whose label was true a moment ago. Availability
+  is gated in `commandItems` on the same conditions the keyboard applies — a palette row reaches
+  past a hidden toolbar button exactly as a shortcut does, and offering an edit on a file
+  `files::save` will refuse is how someone loses one.
+- **Every window shortcut is suspended while it is open** (`suspended` in `useKeyboardShortcuts`).
+  They are registered on `window`, so nothing else can take one back: without the flag, `Ctrl+F`
+  typed into the palette opens the find bar behind the modal.
+- **Results are one flat run in score order, never sectioned.** A quick-open that files the best
+  match under a heading called "Files" has hidden the answer it just found. `GROUPS` still exists,
+  but only as the tie-break that orders the list before anything is typed.
+- **The matcher is ours, and that is the cheaper option.** `cmdk` and `fuse.js` both do this well,
+  and neither is worth an entry in a tree that ships inside a downloaded binary (see
+  [Dependencies](#dependencies)) for sixty lines. `match.ts` tries every place the query's first
+  character occurs, because anchoring on the first one alone puts `mer` on `mock`'s `m` in
+  `src/mock/render/mermaid.ts` and never reaches the word it was aiming at. Both halves of that —
+  the per-start scan and the backward tightening — have a test named after the case they fix.
 
 ## Gotchas
 

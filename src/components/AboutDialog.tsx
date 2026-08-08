@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 const REPOSITORY = "https://github.com/gabmichels/lindo-md";
 
 const SHORTCUTS: [string, string][] = [
+  ["Ctrl / ⌘ + K", "Go to a file"],
+  ["Ctrl / ⌘ + Shift + P", "Run a command"],
   ["Ctrl / ⌘ + O", "Open a file"],
   ["Ctrl / ⌘ + Shift + O", "Open a folder"],
   ["Ctrl / ⌘ + T", "Open a file in a new tab"],
