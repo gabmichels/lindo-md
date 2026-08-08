@@ -33,20 +33,41 @@ pub enum Bom {
     Utf16Be,
 }
 
+/// All three, and `Cr` is not there for completeness.
+///
+/// comrak ends a line on a bare `\r` exactly as it does on `\n` (CommonMark says
+/// so), but `srcmap::LineIndex` finds line starts by counting `'\n'` alone. One
+/// stray `\r` therefore slides comrak's line numbers one ahead of the map's, and
+/// `data-sourcepos` stops describing the bytes it claims to: two paragraphs get
+/// handed the same source range, and an edit to the second rewrites the first.
+/// Further down the same path `align_block` slices `&source[start..end]` on a
+/// mis-derived offset, which panics if it lands mid-character — and `panic =
+/// "abort"` means that takes the window down with every open tab.
+///
+/// Normalizing it away here is what makes this module's promise true rather than
+/// nearly true. A file that really is CR-terminated is still written back that way.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LineEnding {
     Lf,
     Crlf,
+    Cr,
 }
 
 impl LineEnding {
     /// Whichever ending the file mostly uses. A file with no newline at all is
-    /// `Lf`, which only decides what a *future* newline looks like.
+    /// `Lf`, which only decides what a *future* newline looks like, and a tie goes
+    /// to `Lf` for the same reason.
     fn detect(text: &str) -> Self {
         let crlf = text.matches("\r\n").count();
-        let lone_lf = text.matches('\n').count() - crlf;
-        if crlf > lone_lf {
+        // Both counts are of *lone* endings: every `\r\n` contains one of each, so
+        // subtracting it is what stops a CRLF file reading as a tie between three.
+        let lf = text.matches('\n').count() - crlf;
+        let cr = text.matches('\r').count() - crlf;
+
+        if crlf > lf && crlf > cr {
             Self::Crlf
+        } else if cr > lf && cr > crlf {
+            Self::Cr
         } else {
             Self::Lf
         }
@@ -68,6 +89,15 @@ pub struct TextForm {
 /// attempted — a wrong guess renders a document that is subtly, silently wrong,
 /// which is worse for a viewer whose whole claim is fidelity than refusing it.
 pub fn decode(bytes: &[u8]) -> Option<(String, TextForm)> {
+    // Before the UTF-16LE check, because a UTF-32LE BOM *starts with* one. Left to
+    // fall through, `\xFF\xFE\0\0` decodes as UTF-16 into NUL-riddled mojibake that
+    // `String::from_utf16` accepts without complaint — a silently wrong document,
+    // which is the one outcome this function refuses to produce.
+    if bytes.starts_with(&[0xFF, 0xFE, 0x00, 0x00]) || bytes.starts_with(&[0x00, 0x00, 0xFE, 0xFF])
+    {
+        return None;
+    }
+
     let (text, bom) = if let Some(rest) = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]) {
         (std::str::from_utf8(rest).ok()?.to_owned(), Bom::Utf8)
     } else if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
@@ -92,6 +122,7 @@ pub fn encode(text: &str, form: TextForm) -> Vec<u8> {
     let restored = match form.line_ending {
         LineEnding::Lf => normalized,
         LineEnding::Crlf => std::borrow::Cow::Owned(normalized.replace('\n', "\r\n")),
+        LineEnding::Cr => std::borrow::Cow::Owned(normalized.replace('\n', "\r")),
     };
 
     match form.bom {
@@ -108,9 +139,19 @@ pub fn encode(text: &str, form: TextForm) -> Vec<u8> {
 
 /// Every line ending as `\n`. Borrows when there is nothing to do, which is the
 /// common case and the one on the save path.
+///
+/// **This has to be idempotent, and handling the lone `\r` is what makes it so.**
+/// `save` hashes the normalized string and then hands it to `encode`, which
+/// normalizes again; if the second pass could still change something, the hash
+/// would describe a string that never reached the disk. Every consequence of that
+/// is severe and none of them says so: `is_our_write` stops recognising the
+/// reader's own save and reloads the document under their caret, and
+/// `ensure_unchanged` then refuses every later save as a `StaleWrite` — telling
+/// them the file changed underneath them when nothing touched it. Collapsing only
+/// `\r\n` is not idempotent, because `"\r\r\n"` becomes `"\r\n"`.
 pub fn normalize(text: &str) -> std::borrow::Cow<'_, str> {
-    if text.contains("\r\n") {
-        std::borrow::Cow::Owned(text.replace("\r\n", "\n"))
+    if text.contains('\r') {
+        std::borrow::Cow::Owned(text.replace("\r\n", "\n").replace('\r', "\n"))
     } else {
         std::borrow::Cow::Borrowed(text)
     }
@@ -232,10 +273,63 @@ mod tests {
         assert!(decode(b"\xFF\xFE\x00\xD8").is_none());
     }
 
-    /// A lone `\r` is a classic-Mac ending and is left exactly as it is: not
-    /// normalized, so not re-expanded either.
+    /// A `\r` reaching comrak slides its line numbering one ahead of
+    /// `srcmap::LineIndex`, which counts `'\n'` alone — so `data-sourcepos` starts
+    /// describing bytes it does not own, and an edit lands on the wrong paragraph.
+    /// It never gets that far now.
     #[test]
-    fn a_lone_carriage_return_is_left_alone() {
-        round_trips(b"a\rb\n");
+    fn no_carriage_return_survives_decoding() {
+        for bytes in [
+            b"a\rb\n".as_slice(),
+            b"a\r\rb\n".as_slice(),
+            b"a\r\r\nb".as_slice(),
+            b"\xFF\xFEa\x00\r\x00b\x00".as_slice(),
+        ] {
+            let (text, _) = decode(bytes).expect("text");
+            assert!(!text.contains('\r'), "a \\r reached the renderer: {text:?}");
+        }
+    }
+
+    #[test]
+    fn a_classic_mac_file_is_written_back_with_its_own_endings() {
+        round_trips(b"a\rb\rc\r");
+
+        let (text, form) = decode(b"a\rb\r").expect("text");
+        assert_eq!(text, "a\nb\n");
+        assert_eq!(form.line_ending, LineEnding::Cr);
+    }
+
+    /// `save` hashes the normalized string and then `encode` normalizes it again.
+    /// A second pass that still changed something would leave the recorded hash
+    /// describing a string that never reached the disk — see `normalize`.
+    #[test]
+    fn normalizing_twice_is_normalizing_once() {
+        for text in ["a\r\r\nb", "a\r\nb", "a\rb", "a\n\r\r\n\nb", "plain"] {
+            let once = normalize(text).into_owned();
+            assert_eq!(normalize(&once), once, "not idempotent for {text:?}");
+        }
+    }
+
+    /// The same property from the caller's side: what `save` hashes is what
+    /// `encode` writes, so `is_our_write` recognises the write and the next
+    /// `ensure_unchanged` does not report a `StaleWrite` on a file nobody touched.
+    #[test]
+    fn what_is_hashed_is_what_is_written() {
+        let form = TextForm {
+            bom: Bom::None,
+            line_ending: LineEnding::Lf,
+        };
+        // As it arrives from a paste, before `save` has normalized it.
+        let hashed = normalize("a\r\r\nb").into_owned();
+        let written = encode(&hashed, form);
+        assert_eq!(String::from_utf8(written).expect("utf-8"), hashed);
+    }
+
+    /// A UTF-32LE BOM opens with the same two bytes as UTF-16LE, and decoding it
+    /// as UTF-16 produces mojibake `String::from_utf16` is happy to accept.
+    #[test]
+    fn utf32_is_refused_rather_than_read_as_utf16() {
+        assert!(decode(b"\xFF\xFE\x00\x00A\x00\x00\x00").is_none());
+        assert!(decode(b"\x00\x00\xFE\xFF\x00\x00\x00A").is_none());
     }
 }

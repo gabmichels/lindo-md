@@ -581,6 +581,17 @@ existing group's run does still join it, and that is ordinary reordering with a 
   not round-trip byte for byte. A file that is neither UTF-8 nor BOM-marked UTF-16 is refused with
   `NotText` rather than guessed at — a mis-guessed code page renders a document that looks right
   and is not, which is the worse failure for a viewer whose claim is fidelity.
+- **The lone `\r` is the reason that normalization is not merely tidiness, and why `normalize` must
+  stay idempotent.** comrak ends a line on a bare `\r` (CommonMark says so) while
+  `srcmap::LineIndex` finds line starts by counting `'\n'` alone, so one stray `\r` slides the two
+  apart and `data-sourcepos` starts describing bytes it does not own — two paragraphs handed the
+  same source range, and an edit to the second rewriting the first. `align_block` then slices
+  `&source[start..end]` on the mis-derived offset, which panics if it lands mid-character, and
+  `panic = "abort"` makes that the whole window. Separately, `save` hashes the normalized string
+  and `encode` normalizes again, so a `normalize` that changed anything on a second pass would
+  record a hash for a string that never reached disk — collapsing only `\r\n` is *not* idempotent,
+  because `"\r\r\n"` becomes `"\r\n"`. Both are why `LineEnding` has three variants rather than the
+  two anyone would guess at.
 - **`[[wikilinks]]` are a comrak extension, and `links.ts` needs the attribute to route them.**
   A wikilink target carries no extension, so `wikilinkPath` adds `.md` — but only after asking
   whether the target is *already* something lindo-md opens, because `[[Notes v1.2]]` has an

@@ -377,10 +377,17 @@ pub fn save(
     // cannot arrive before the watcher knows to ignore it.
     state.expect_write(path, &content_hash);
 
-    std::fs::write(path, text::encode(&source, form)).map_err(|source| LindoError::WriteFile {
-        path: path.display().to_string(),
-        source,
-    })?;
+    // On failure the record has to come back off, or it outlives the write it was
+    // describing: a read-only file or a full disk would leave the state claiming a
+    // write that never happened, and the next *external* change that happens to
+    // produce that content would be suppressed as ours.
+    if let Err(error) = std::fs::write(path, text::encode(&source, form)) {
+        state.forget_write(path);
+        return Err(LindoError::WriteFile {
+            path: path.display().to_string(),
+            source: error,
+        });
+    }
 
     // Rendered from what was written rather than from a fresh read of the file.
     // See `render`. The kind is `Markdown` by construction: `is_editable` above is
@@ -527,6 +534,14 @@ impl WatchState {
     pub fn expect_write(&self, path: &Path, hash: &str) {
         if let Ok(mut written) = self.written.lock() {
             written.insert(path.to_path_buf(), hash.to_owned());
+        }
+    }
+
+    /// Drops a record whose write did not happen. Without it a failed save leaves
+    /// a claim on `path` that the next matching change — somebody else's — spends.
+    fn forget_write(&self, path: &Path) {
+        if let Ok(mut written) = self.written.lock() {
+            written.remove(path);
         }
     }
 
