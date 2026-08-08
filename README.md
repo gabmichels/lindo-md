@@ -139,8 +139,8 @@ reaches the network, and it has a switch.
 
 ### Built to be lived in
 
-File tree, "On this page" outline, reading progress, find, zoom, live reload, HTML export and
-print-to-PDF.
+File tree, "On this page" outline, reading progress, find, zoom, live reload, a read-only
+comparison pane for a second file, HTML export and print-to-PDF.
 
 </td>
 </tr>
@@ -211,6 +211,7 @@ between is `Ctrl` `+` and `Ctrl` `-`.
 | | |
 | --- | --- |
 | `Ctrl / ⌘ + F` | Find in document |
+| `Ctrl / ⌘ + \` | Compare with another file, side by side — or drag a tab to the right |
 | `Ctrl / ⌘ + E` | Toggle the Markdown source |
 | `Ctrl / ⌘ + P` | Print, or save as PDF |
 | `Ctrl / ⌘ + T` · `+ W` · `+ Shift + T` | New tab · close · reopen closed |

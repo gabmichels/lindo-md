@@ -345,6 +345,7 @@ function tabSession(
             },
           ],
     activeTabId: names[0] ?? null,
+    comparePath: null,
   });
 }
 

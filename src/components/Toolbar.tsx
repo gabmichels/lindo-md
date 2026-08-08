@@ -4,11 +4,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Code2,
-  Lock,
+  Columns2,
   Search,
   SlidersHorizontal,
 } from "lucide-react";
 
+import { ReadOnlyBadge } from "@/components/ReadOnlyBadge";
 import { cn } from "@/lib/utils";
 
 /**
@@ -41,6 +42,9 @@ interface ToolbarProps {
    * file — so the badge says which property.
    */
   readOnlyReason: string | null;
+  /** True while the comparison pane is showing a second document. */
+  compareOpen: boolean;
+  onToggleCompare: () => void;
 }
 
 export function Toolbar({
@@ -55,6 +59,8 @@ export function Toolbar({
   sourceMode,
   onToggleSource,
   readOnlyReason,
+  compareOpen,
+  onToggleCompare,
 }: ToolbarProps) {
   return (
     <div className="flex h-[var(--ui-toolbar-h)] shrink-0 items-center gap-1 px-2">
@@ -76,6 +82,14 @@ export function Toolbar({
           onClick={onToggleSource}
         />
       )}
+      <NavButton
+        // Named for what it opens rather than for the geometry: "Split" says
+        // how the window ends up, "Compare" says why anyone would want it.
+        label={compareOpen ? "Close the comparison pane" : "Compare with another file…"}
+        icon={Columns2}
+        active={compareOpen}
+        onClick={onToggleCompare}
+      />
       <NavButton label="Find in document" icon={Search} onClick={onFind} />
       <NavButton label="Appearance" icon={SlidersHorizontal} onClick={onAppearance} />
     </div>
@@ -114,29 +128,6 @@ function Breadcrumb({
       )}
       <span className="truncate text-ui-text">{breadcrumb.name}</span>
     </button>
-  );
-}
-
-/**
- * Says that this document cannot be edited, and why.
- *
- * It sits in the toolbar rather than on the page because it describes the *file*, not
- * the prose — the paper stays paper. `Lock` carries the meaning at a glance for anyone
- * who has seen it before; the word is there for everyone else, and the title attribute
- * carries the reason at length.
- */
-function ReadOnlyBadge({ reason }: { reason: string }) {
-  return (
-    <span
-      className={cn(
-        "flex shrink-0 items-center gap-1 rounded-ui-sm px-1.5 py-0.5",
-        "bg-ui-plane-1 text-[11px] text-ui-text-muted select-none",
-      )}
-      title={reason}
-    >
-      <Lock size={11} strokeWidth={1.75} aria-hidden />
-      Read-only
-    </span>
   );
 }
 

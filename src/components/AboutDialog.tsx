@@ -19,6 +19,7 @@ const SHORTCUTS: [string, string][] = [
   ["Ctrl / ⌘ + 1…9", "Select a tab"],
   ["Ctrl / ⌘ + Shift + PgUp/PgDn", "Move the tab"],
   ["Ctrl / ⌘ + F", "Find in document"],
+  ["Ctrl / ⌘ + \\", "Compare with another file"],
   ["Ctrl / ⌘ + ,", "Settings"],
   ["Ctrl / ⌘ + Shift + ,", "Appearance"],
   ["Ctrl / ⌘ + + or −", "Zoom in / out"],

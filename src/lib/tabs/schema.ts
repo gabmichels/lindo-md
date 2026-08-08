@@ -40,6 +40,13 @@ export const SessionSchema = z.object({
     .string()
     .nullish()
     .transform((value) => value ?? null),
+  // Nullish rather than required: a `config.json` written before the comparison
+  // pane existed has no such key, and a session that refuses to parse costs the
+  // reader every tab they had open.
+  comparePath: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? null),
 });
 
 /** Parses whatever was in `config.json`, repairing it or falling back to empty.

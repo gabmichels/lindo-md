@@ -50,6 +50,21 @@ export interface DragSnapshot {
   /** Pointer x minus the subject's left edge, both in track coordinates. */
   grabOffset: number;
   trackWidth: number;
+  /**
+   * Where dragging a tab opens the comparison pane instead of reordering, in
+   * **client** coordinates — the canvas's right half.
+   *
+   * Client rather than track coordinates on purpose: the zone is a region of a
+   * different element in a different row, and converting it into the strip's
+   * frame would mean two conversions that have to agree. The pointer's own
+   * client position is carried on the move event for the same reason.
+   *
+   * `null` for a group, and whenever there is no canvas to drop onto. A group
+   * cannot be split off into a pane that holds exactly one document, and
+   * offering it a drop target that then does nothing is worse than not
+   * offering one.
+   */
+  splitZone: { minX: number; minY: number } | null;
 }
 
 /** What releasing right now would do. Dragging only ever reorders: making a
@@ -79,6 +94,22 @@ export type Dragging = {
    *  where the gap is, or the tab under the pointer is not the tab the reader
    *  sees under the pointer. */
   position: number;
+  /**
+   * The pointer is in the split zone, so releasing opens the comparison pane
+   * rather than moving the tab.
+   *
+   * This is the one place dragging does something other than reorder, and it is
+   * only safe because the two gestures cannot be confused: the zone is a
+   * different element in a different row, several tab-heights below the strip.
+   * That is exactly what tab-onto-tab grouping could not manage — there,
+   * "hovering my right neighbour" and "not having moved" were the same pointer
+   * position. Here they are hundreds of pixels apart.
+   *
+   * `target` keeps being computed while this is true, so leaving the zone
+   * returns to the reorder the reader was in the middle of rather than to a
+   * seam of zero.
+   */
+  overSplit: boolean;
 };
 
 export type DragState =
@@ -94,7 +125,17 @@ export type DragState =
 
 export type DragEvent =
   | { type: "down"; pointerId: number; x: number; y: number; snapshot: DragSnapshot }
-  | { type: "move"; pointerId: number; x: number; y: number; now: number }
+  /** `x`/`y` are track coordinates and drive the reorder; `clientX`/`clientY`
+   *  are the raw pointer and are what the split zone is tested against. */
+  | {
+      type: "move";
+      pointerId: number;
+      x: number;
+      y: number;
+      clientX: number;
+      clientY: number;
+      now: number;
+    }
   | { type: "up"; pointerId: number }
   | { type: "cancel" }
   /** The session changed underneath the drag. */
@@ -145,19 +186,27 @@ export function reduce(state: DragState, event: DragEvent): DragState {
           x: 0,
           target: { seam: 0, intent: { kind: "keep" } },
           position: 0,
+          overSplit: false,
         };
-        return advance(started, event.x);
+        return advance(started, event);
       }
 
-      return advance(state, event.x);
+      return advance(state, event);
     }
   }
 }
 
 /** What the model should be told when the pointer is released. `null` when the
- *  gesture was a click, was cancelled, or would change nothing. */
+ *  gesture was a click, was cancelled, would change nothing, or is a split —
+ *  a drop in the split zone must not also reorder the strip behind it. */
 export function commitOf(state: DragState): DropTarget | null {
-  return state.kind === "dragging" ? state.target : null;
+  if (state.kind !== "dragging" || state.overSplit) return null;
+  return state.target;
+}
+
+/** True when releasing now would open the dragged tab in the comparison pane. */
+export function isOverSplit(state: DragState): boolean {
+  return state.kind === "dragging" && state.overSplit;
 }
 
 export function isDragging(state: DragState): boolean {
@@ -199,20 +248,27 @@ function blockWidth(snapshot: DragSnapshot): number {
   return last.left + last.width - first.left + pad;
 }
 
-function advance(state: Dragging, pointerX: number): Dragging {
+function advance(
+  state: Dragging,
+  pointer: { x: number; clientX: number; clientY: number },
+): Dragging {
   const { snapshot } = state;
   const others = otherSlots(snapshot);
   const block = blockWidth(snapshot);
 
-  const x = clamp(pointerX - snapshot.grabOffset, 0, Math.max(0, snapshot.trackWidth - block));
+  const x = clamp(pointer.x - snapshot.grabOffset, 0, Math.max(0, snapshot.trackWidth - block));
 
   const previous = positionOfSeam(snapshot, others, state.target.seam);
   const position = positionFor(restingPlaces(others), x, previous);
+
+  const zone = snapshot.splitZone;
+  const overSplit = zone !== null && pointer.clientY >= zone.minY && pointer.clientX >= zone.minX;
 
   return {
     ...state,
     x,
     position,
+    overSplit,
     target: {
       seam: seamAt(snapshot, others, position),
       intent: intentAt(snapshot, others, position),

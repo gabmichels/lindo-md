@@ -533,6 +533,10 @@ The reader keeps a set of documents open, in Chrome-style groups. Almost all of 
   have already **slid to**, not their frozen positions: use the frozen ones and a swap needs a full
   tab-width of travel instead of half, and the tab visibly lags the pointer.
 
+  Dragging has exactly one other outcome, added later: dropping a tab in the right half of the
+  canvas opens it in the comparison pane. That is safe for precisely the reason the next paragraph
+  says grouping was not — see [The comparison pane](#the-comparison-pane).
+
 **Groups are made from the menu, not by dragging one tab onto another.** This was tried and
 removed, so it is worth knowing why before trying again: lifting a tab lets its right-hand
 neighbour slide into the slot just vacated, so *hovering the tab to my right* and *having not moved
@@ -567,6 +571,78 @@ existing group's run does still join it, and that is ordinary reordering with a 
     `pre`, and `asDiagramSource` carries it back. That is the only element swap any pass performs,
     it is named explicitly in `fills`, and without it every line-shifting edit re-renders every
     diagram on screen.
+
+## The comparison pane
+
+A second document beside the deck, opened with `Ctrl/⌘+\`, the toolbar's split button, the palette,
+or by **dragging a tab into the right half of the canvas**. It exists so two files can be read at
+once — the previous version of a document beside the current one, a spec beside the notes on it.
+
+**It is not a split view, and the difference is the whole design.** A split view in an editor pairs
+source with preview; this app renders, so the only thing a second pane is *for* is comparison. So
+the pane holds **one file, as a path** (`Session.comparePath`) rather than a second deck of tabs.
+Nothing in `lib/tabs/` had to learn about panes: there is no pane tree, no per-pane active tab, no
+dragging between panes, and no migration of the persisted session beyond one nullable field.
+
+Four things follow from that, and each is somewhere a later change could quietly break it:
+
+- **The pane is read-only, and that is a decision rather than a shortfall.** `DocumentView` grew a
+  `readOnly` prop which means something different from `doc.editable`: that flag says the *file*
+  cannot be written and `files::save` enforces it in Rust, while this one says *this view* is not
+  where it is written — the same file is editable as ever in its own tab. Two live editable views of
+  one file would mean two undo stacks over one set of bytes. The pane also passes an `onSave` that
+  refuses, because AGENTS.md's own rule applies here too: a document that is read-only only in React
+  is not read-only. The header says so with a badge rather than leaving it to be discovered by
+  typing.
+- **Its runtime key is derived, not allocated.** `compare:${path}` in `App.tsx`, so swapping the
+  file is a different key and hydrates as a fresh runtime with no reset step to remember.
+  `useTabDocuments` takes that key as `pinnedId` — without it the collector, which keeps only the
+  runtimes belonging to `session.tabs`, would drop the pane's document on the next tab change, and
+  the watcher would never see the file it holds. Live reload is most of the point: the pane is where
+  you watch a file something else is rewriting.
+- **`normalize` rebuilds the session from a fresh literal**, so `comparePath` has to be restated
+  there or it is set successfully and then lost on the next unrelated tab operation. There is a test
+  named for exactly that.
+- **"The document" became a choice.** The outline, the find bar, the paging keys and the HTML
+  exporter all used to read one `scroller` and the active tab, which were the same document by
+  construction. They now follow the focused pane (`focusedPane` in `App.tsx`), and the export in
+  particular takes *both* its title and its markup from it — taking one from each would write a file
+  named after a document it does not contain. The toolbar deliberately does not follow focus: back,
+  forward and "Edit as Markdown" are tab operations, and the pane names its own file in its header.
+
+Two things it deliberately does not do yet: the split is a fixed half each, with no draggable
+divider, and links followed inside the pane open in the deck rather than in the pane — the pane is a
+reference held still beside your work, and it has no history to navigate with.
+
+### Dragging a tab into it
+
+**This is the only thing dragging does other than reorder, and the section above on tabs explains
+why that used to be forbidden.** Tab-onto-tab grouping was removed because lifting a tab lets its
+right neighbour slide into the vacated slot, so *hovering the tab to my right* and *not having moved
+at all* are the same pointer position — two intentions sharing one coordinate. The split zone has no
+such problem: it is a different element in a different row, the whole toolbar below the strip, and
+the reducer tests pin each boundary.
+
+How it is built, and the three constraints that shaped it:
+
+- **The zone is in client coordinates**, unlike everything else in `drag.ts`, which works in track
+  coordinates. It is a region of the canvas rather than of the strip, and converting it into the
+  strip's frame would mean two conversions that have to agree; the pointer's own client position
+  rides along on the move event instead.
+- **It is frozen into the snapshot at grab time**, like the rest of the geometry — the canvas is
+  resized by the drop itself, and a zone that moved mid-gesture would move out from under the
+  pointer. It is `null` for a group, which is how a group is refused a target it could not use.
+- **Nothing is reparented and the overlay never takes the pointer.** The dragged tab stays in the
+  strip; the canvas only draws where it would land, `pointer-events-none`. An overlay that could
+  receive events would take pointer capture and end the gesture — see the note about
+  `lostpointercapture` above.
+
+`commitOf` returns `null` while the pointer is in the zone, so one release cannot both split and
+reorder. Leaving the zone returns to the reorder that was in progress rather than to a seam of zero.
+
+**A dropped tab stays a tab.** VS Code moves the editor; that part is deliberately not copied,
+because the pane is read-only and moving a tab into it would quietly take away the ability to edit
+that file — not a thing a drag should decide.
 
 ## The command palette
 

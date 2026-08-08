@@ -28,6 +28,7 @@ function build(count: number, groupFrom?: number, groupTo?: number): Session {
     groups:
       groupFrom === undefined ? [] : [{ id: "G", name: "Specs", color: "clay", collapsed: false }],
     activeTabId: "t0",
+    comparePath: null,
   });
 }
 
@@ -81,7 +82,10 @@ describe("widen and squeeze", () => {
   });
 
   it("lays out nothing when nothing is open", () => {
-    const layout = widths(normalize({ tabs: [], groups: [], activeTabId: null }), 900);
+    const layout = widths(
+      normalize({ tabs: [], groups: [], activeTabId: null, comparePath: null }),
+      900,
+    );
     expect(layout.slots).toEqual([]);
     expect(layout.overflow).toBe(false);
   });

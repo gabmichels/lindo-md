@@ -47,6 +47,17 @@ interface DocumentViewProps {
   /** False for a background tab: still mounted, so its highlighted code and
    *  rendered diagrams survive, but not drawn. */
   visible?: boolean;
+  /**
+   * Show this document without any way to change it, whatever the file allows.
+   *
+   * Set by the comparison pane, and it means something different from
+   * `doc.editable`. That flag says the *file* cannot be written — plain text,
+   * MDX — and `files::save` enforces it in Rust. This one says *this view* is
+   * not the place to write it: the same file is editable as ever in its own
+   * tab. It is an affordance, not a boundary, which is why the pane also passes
+   * an `onSave` that refuses rather than relying on this prop alone.
+   */
+  readOnly?: boolean;
   /** Where this tab was scrolled to when it was last on screen. */
   restoreScrollTop?: number;
   onScrollChange?: (scrollTop: number) => void;
@@ -64,12 +75,20 @@ export function DocumentView({
   sourceMode,
   onToggleSource,
   visible = true,
+  readOnly = false,
   restoreScrollTop = 0,
   onScrollChange,
 }: DocumentViewProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const [blocked, setBlocked] = useState(false);
+
+  /** Whether this view offers editing at all: the file has to allow it *and*
+   *  this has to be a view that writes. Everything below asks this rather than
+   *  `doc.editable`, so a single flag covers the caret, the format menu, the
+   *  checkboxes and the source view together — four affordances that would
+   *  otherwise each need remembering. */
+  const editable = doc.editable && !readOnly;
 
   useEffect(() => {
     if (!visible) return;
@@ -190,7 +209,7 @@ export function DocumentView({
   source.current = doc.source;
   useEffect(() => {
     const article = articleRef.current;
-    if (!article) return;
+    if (!article || !editable) return;
 
     const handler = taskClickHandler({
       source: () => source.current,
@@ -200,7 +219,7 @@ export function DocumentView({
     return () => {
       article.removeEventListener("click", handler);
     };
-  }, [onSave]);
+  }, [onSave, editable]);
 
   // The selection is captured when the menu opens rather than when a row is
   // chosen: opening the menu can collapse the selection, and by the time the
@@ -436,10 +455,10 @@ export function DocumentView({
         // Nothing in this menu can act on a document that cannot be written back,
         // and `FormatMenu` already holds that a row which does nothing is worse
         // than a row that is not there.
-        canFormat={canFormat && doc.editable}
+        canFormat={canFormat && editable}
         onFormat={format}
         onCopy={copySelection}
-        onEditSource={doc.editable ? onToggleSource : undefined}
+        onEditSource={editable ? onToggleSource : undefined}
         // The menu asks once, when it opens: a selection can be gone by the
         // time a row is chosen, and greying the rows out afterwards would be
         // worse than deciding up front.
@@ -463,6 +482,7 @@ export function DocumentView({
           // `formatBold` is suppressed in `useDocumentTyping`, so without this
           // the menu was advertising keys that did nothing at all.
           onKeyDown={(event) => {
+            if (!editable) return;
             if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
             const command = FORMAT_KEYS[event.key.toLowerCase()];
             if (!command) return;
@@ -479,7 +499,13 @@ export function DocumentView({
           // those would give the reader a caret, accept their typing, and then
           // drop it: the silent no-op that a read-only file must never look like.
           // `save` refuses regardless; this is the affordance, not the guard.
-          contentEditable={doc.editable}
+          //
+          // The comparison pane joins them through `readOnly` for a different
+          // reason — the file is writable, that pane just is not where it is
+          // written. Turning the caret off here is also what makes
+          // `useDocumentTyping` inert there, since `beforeinput` never fires on
+          // a node that is not editable.
+          contentEditable={editable}
           suppressContentEditableWarning
           spellCheck={false}
         />

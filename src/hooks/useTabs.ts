@@ -18,6 +18,7 @@ import {
   recolorGroup,
   removeFromGroup,
   renameGroup,
+  setComparePath,
   setGroupCollapsed,
   setTabPath,
   ungroup,
@@ -55,6 +56,8 @@ export interface TabsState {
   promote: (id: string) => void;
   /** Re-points a tab at another document, when a link is followed inside it. */
   setPath: (id: string, path: string) => void;
+  /** Opens a file in the comparison pane, or closes the pane with `null`. */
+  setCompare: (path: string | null) => void;
   move: (id: string, toSeam: number, intent?: MoveIntent) => void;
   moveGroup: (groupId: string, toSeam: number) => void;
   group: (ids: string[], init?: { name?: string; color?: GroupColor }) => string;
@@ -215,6 +218,12 @@ export function useTabs(): TabsState {
     setPath: useCallback(
       (id, path) => {
         apply((s) => setTabPath(s, id, path));
+      },
+      [apply],
+    ),
+    setCompare: useCallback(
+      (path) => {
+        apply((s) => setComparePath(s, path));
       },
       [apply],
     ),

@@ -333,3 +333,24 @@
     inset 1px 0 0 0 var(--ui-hairline-strong),
     inset 12px 0 16px -12px rgb(0 0 0 / 0.45);
 }
+
+/* The same seam again, between the deck and the comparison pane.
+   Deliberately identical to `canvas-edge` rather than a lighter divider: the two
+   panes are the same paper under the same theme, so with nothing between them
+   they read as one document with an inexplicable gutter down the middle. The
+   shadow is what says "a second sheet", and it has to work when both sides are
+   bone white. */
+/* Printing renders the live DOM, so anything on screen that is not the document
+   being printed has to be taken out of it. `!important` because the panes carry
+   a `display` of their own from the layout. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
+
+@utility compare-edge {
+  box-shadow:
+    inset 1px 0 0 0 var(--ui-hairline-strong),
+    inset 12px 0 16px -12px rgb(0 0 0 / 0.45);
+}
