@@ -27,6 +27,12 @@ open in a tab — [an MDX document](./mdx-sink.mdx) and [a dialect](./nested/sec
 while [a text file](./plain.txt) and [a log](./sample.log) go to whatever the reader
 uses for them, even though lindo-md would happily display both.
 
+Wikilinks, which arrive with every folder of notes moved out of Obsidian and name a
+file without its extension: [[nested/second]] opens that document,
+[[nested/second|under another name]] does the same while reading differently, and
+[[nested/second#an-anchor-to-jump-to]] lands on a heading inside it. A target that does not exist —
+[[No Such Note]] — is a link like any other until it is clicked.
+
 > A blockquote, which should read as a quotation rather than as a grey box.
 >
 > — with a second paragraph

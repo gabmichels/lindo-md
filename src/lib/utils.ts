@@ -135,6 +135,24 @@ export function readOnlyReason(doc: { editable: boolean; path: string }): string
   return "Plain text is shown exactly as written, with no Markdown applied — so there is nothing here to edit as Markdown.";
 }
 
+/**
+ * Where `[[Design Notes]]` points.
+ *
+ * A wikilink names a note, not a file: the extension is left off, and the reader of
+ * an Obsidian or Foam vault has never typed one. So the extension is added back —
+ * `.md`, because that is the dialect anything emitting wikilinks writes.
+ *
+ * It is added by *default* rather than only when the target looks extensionless, and
+ * that is the whole subtlety here. `[[Notes v1.2]]` has an "extension" of `2` to any
+ * rule that just splits on the last dot, so a rule phrased that way leaves it
+ * pointing at a file that does not exist. Asking instead whether the target is
+ * already something lindo-md opens gets both that case and `[[README.md]]` right.
+ */
+export function wikilinkPath(dir: string, target: string): string {
+  const resolved = resolveRelative(dir, target);
+  return isOpenablePath(resolved) ? resolved : `${resolved}.md`;
+}
+
 export function basename(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }

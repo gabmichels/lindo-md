@@ -16,7 +16,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::error::{LindoError, LindoResult};
 use crate::markdown::{self, Heading};
-use crate::{mdx, plaintext, srcmap};
+use crate::{mdx, plaintext, srcmap, text};
 
 /// Rendered by comrak and editable: `data-sourcepos` addresses the file on disk
 /// byte for byte, which is what lets a keystroke in the rendered view rewrite the
@@ -197,10 +197,7 @@ pub fn read(
         return Err(LindoError::UnsupportedFile(path.display().to_string()));
     };
 
-    let source = std::fs::read_to_string(path).map_err(|source| LindoError::ReadFile {
-        path: path.display().to_string(),
-        source,
-    })?;
+    let (source, _) = read_text(path)?;
 
     let content_hash = hash(&source);
     Ok(render(
@@ -296,6 +293,24 @@ fn render(
     }
 }
 
+/// Reads a file as text, normalized to `\n` endings with any BOM taken off, plus
+/// the form needed to write it back exactly as it was found.
+///
+/// The single door onto disk for document content, and it has to stay single: the
+/// content hash that guards every save is taken over the *normalized* string, so a
+/// caller that read the raw bytes instead would compute a hash that never matches
+/// and refuse every save on a CRLF file.
+fn read_text(path: &Path) -> LindoResult<(String, text::TextForm)> {
+    let bytes = std::fs::read(path).map_err(|source| LindoError::ReadFile {
+        path: path.display().to_string(),
+        source,
+    })?;
+
+    text::decode(&bytes).ok_or_else(|| LindoError::NotText {
+        path: path.display().to_string(),
+    })
+}
+
 /// A content fingerprint. Used to decide whether a file changed, never to
 /// authenticate anything — two documents colliding here would mean a refused
 /// save, not a security failure.
@@ -304,23 +319,26 @@ pub fn hash(contents: &str) -> String {
     format!("{:x}", Sha256::digest(contents.as_bytes()))
 }
 
-/// Fails unless `path` still holds exactly what the caller last saw.
+/// Fails unless `path` still holds exactly what the caller last saw, and reports
+/// the form it holds it in.
 ///
 /// This is the whole data-loss guard. Without it an edit made against a document
 /// the reader opened ten minutes ago would overwrite whatever a `git checkout`,
 /// another editor, or the far side of a sync had written since — work nobody
 /// ever had the chance to look at.
-fn ensure_unchanged(path: &Path, expected_hash: &str) -> LindoResult<()> {
-    let current = std::fs::read_to_string(path).map_err(|source| LindoError::ReadFile {
-        path: path.display().to_string(),
-        source,
-    })?;
+///
+/// It returns the [`text::TextForm`] because it has just read the file anyway, and
+/// that is what spares the round trip: the webview never learns a document's line
+/// endings or its BOM, so it cannot get them wrong or be talked into changing them.
+/// The form used to write is read off the disk, one call before the write.
+fn ensure_unchanged(path: &Path, expected_hash: &str) -> LindoResult<text::TextForm> {
+    let (current, form) = read_text(path)?;
     if hash(&current) != expected_hash {
         return Err(LindoError::StaleWrite {
             path: path.display().to_string(),
         });
     }
-    Ok(())
+    Ok(form)
 }
 
 /// Writes an edited document back to disk and re-renders it.
@@ -345,18 +363,31 @@ pub fn save(
         return Err(LindoError::UnsupportedFile(path.display().to_string()));
     }
 
-    ensure_unchanged(path, expected_hash)?;
+    let form = ensure_unchanged(path, expected_hash)?;
 
-    let content_hash = hash(source);
+    // The webview edits — and therefore sends back — a `\n` string, because that is
+    // the only thing `decode` ever gave it. Normalizing again covers the one way a
+    // `\r` can get in from that side: a paste. Every hash below, and the document
+    // returned at the end, describe this string rather than the bytes on disk, so
+    // the next save compares like with like.
+    let source = text::normalize(source);
+    let content_hash = hash(&source);
 
     // Recorded *before* the write, so the event this write is about to cause
     // cannot arrive before the watcher knows to ignore it.
     state.expect_write(path, &content_hash);
 
-    std::fs::write(path, source).map_err(|source| LindoError::WriteFile {
-        path: path.display().to_string(),
-        source,
-    })?;
+    // On failure the record has to come back off, or it outlives the write it was
+    // describing: a read-only file or a full disk would leave the state claiming a
+    // write that never happened, and the next *external* change that happens to
+    // produce that content would be suppressed as ours.
+    if let Err(error) = std::fs::write(path, text::encode(&source, form)) {
+        state.forget_write(path);
+        return Err(LindoError::WriteFile {
+            path: path.display().to_string(),
+            source: error,
+        });
+    }
 
     // Rendered from what was written rather than from a fresh read of the file.
     // See `render`. The kind is `Markdown` by construction: `is_editable` above is
@@ -365,7 +396,7 @@ pub fn save(
         app,
         path,
         Kind::Markdown,
-        source.to_owned(),
+        source.into_owned(),
         content_hash,
         render_options,
     ))
@@ -506,6 +537,14 @@ impl WatchState {
         }
     }
 
+    /// Drops a record whose write did not happen. Without it a failed save leaves
+    /// a claim on `path` that the next matching change — somebody else's — spends.
+    fn forget_write(&self, path: &Path) {
+        if let Ok(mut written) = self.written.lock() {
+            written.remove(path);
+        }
+    }
+
     /// Whether a change to `path` is the write we just made. Consumes the
     /// record: a second change to the same content really is someone else, and
     /// the reader should see it.
@@ -516,7 +555,10 @@ impl WatchState {
         let Some(expected) = written.get(path) else {
             return false;
         };
-        let Ok(current) = std::fs::read_to_string(path) else {
+        // Through `read_text`, not `read_to_string`: the recorded hash is of the
+        // normalized string, so on a CRLF file a raw read never matches and every
+        // save the reader makes reloads the document out from under their caret.
+        let Ok((current, _)) = read_text(path) else {
             return false;
         };
         if &hash(&current) != expected {
@@ -907,6 +949,78 @@ mod tests {
         // The message has to tell the reader what to do about it.
         let shown = error.to_string();
         assert!(shown.contains("Reload"), "{shown}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Every hash in this module is taken over the *normalized* string, and this is
+    /// the test that says so. Hash the bytes instead and a CRLF document breaks in
+    /// two directions at once: `ensure_unchanged` compares a `\r\n` hash against the
+    /// `\n` one the frontend was given and refuses every save as stale, while
+    /// `is_our_write` stops recognising our own writes and reloads the document out
+    /// from under the caret on each one.
+    #[test]
+    fn a_crlf_document_is_hashed_the_way_the_frontend_sees_it() {
+        let dir = std::env::temp_dir().join("lindo-md-crlf-hash-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("note.md");
+        std::fs::write(&path, b"# Ours\r\n\r\nA line.\r\n").unwrap();
+
+        let as_read = hash("# Ours\n\nA line.\n");
+        let form = ensure_unchanged(&path, &as_read)
+            .expect("the stale-write guard must speak the same string the editor does");
+
+        // The form travelling from disk to `encode` is the wiring the whole feature
+        // rests on, and nothing else pins it: `text.rs` proves `encode` honours a
+        // form it is handed, not that `save` hands it the file's own. Stub this to
+        // a default and every other test in the crate still passes, while every
+        // CRLF file quietly saves back as LF.
+        assert_eq!(form.line_ending, text::LineEnding::Crlf);
+        assert_eq!(form.bom, text::Bom::None);
+
+        let state = WatchState::default();
+        state.expect_write(&path, &as_read);
+        assert!(state.is_our_write(&path));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The record has to come off again when the write it describes did not happen,
+    /// or it sits there waiting to be spent on somebody else's change.
+    #[test]
+    fn a_write_that_failed_leaves_no_claim_behind() {
+        let dir = std::env::temp_dir().join("lindo-md-forget-write-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("note.md");
+        std::fs::write(&path, "# Ours\n").unwrap();
+
+        let state = WatchState::default();
+        state.expect_write(&path, &hash("# Ours\n"));
+        state.forget_write(&path);
+        assert!(
+            !state.is_our_write(&path),
+            "a claim outlived the write it was describing"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A file lindo-md cannot interpret is refused by name, rather than surfacing as
+    /// whatever `std::io` calls invalid UTF-8.
+    #[test]
+    fn a_file_in_an_unknown_encoding_is_refused_with_a_reason() {
+        let dir = std::env::temp_dir().join("lindo-md-encoding-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("legacy.md");
+        // "café" in Windows-1252.
+        std::fs::write(&path, b"# caf\xE9\n").unwrap();
+
+        let error = read_text(&path).unwrap_err();
+        assert!(
+            matches!(error, LindoError::NotText { .. }),
+            "expected a refusal naming the encoding, got {error:?}"
+        );
+        assert!(error.to_string().contains("UTF-8"), "{error}");
 
         std::fs::remove_dir_all(&dir).ok();
     }

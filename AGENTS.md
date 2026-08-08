@@ -130,6 +130,7 @@ src-tauri/src/
   mdx.rs         fences JSX/ESM before comrak sees it — read-only, see above
   plaintext.rs   escape + <pre>; never touches comrak
   files.rs       open/read/scan/watch; the extension lists and what they each mean
+  text.rs        bytes ⇄ text: BOM and line endings off on the way in, back on the way out
   config.rs      settings persistence
   defaults.rs    which app owns .md (read-only — Windows blocks writing it)
   error.rs       LindoError, serialized to the frontend as a plain string
@@ -608,6 +609,49 @@ Four decisions worth not re-litigating:
 
 ## Gotchas
 
+- **Nothing above `text.rs` ever sees a `\r` or a BOM, and that is load-bearing rather than tidy.**
+  `text::decode` normalizes every line ending to `\n` and takes any BOM off; `text::encode` puts
+  both back at save time, using a form read off the disk one call earlier rather than anything the
+  webview sent. The editing path only ever inserts `\n` — `input.ts` has one newline literal and
+  `format.ts` rejoins lines with another — so a CRLF file reaching it unnormalized picked up mixed
+  endings from a single keystroke, and the diff touched lines nobody edited. Two consequences worth
+  knowing: **every hash in `files.rs` is over the normalized string**, so a caller that reads bytes
+  itself computes a fingerprint that matches nothing and turns every save into a `StaleWrite`; and
+  **a file with already-mixed endings is unified to its dominant one**, the single case that does
+  not round-trip byte for byte. A file that is neither UTF-8 nor BOM-marked UTF-16 is refused with
+  `NotText` rather than guessed at — a mis-guessed code page renders a document that looks right
+  and is not, which is the worse failure for a viewer whose claim is fidelity.
+- **The lone `\r` is the reason that normalization is not merely tidiness, and why `normalize` must
+  stay idempotent.** comrak ends a line on a bare `\r` (CommonMark says so) while
+  `srcmap::LineIndex` finds line starts by counting `'\n'` alone, so one stray `\r` slides the two
+  apart and `data-sourcepos` starts describing bytes it does not own — two paragraphs handed the
+  same source range, and an edit to the second rewriting the first. `align_block` then slices
+  `&source[start..end]` on the mis-derived offset, which panics if it lands mid-character, and
+  `panic = "abort"` makes that the whole window. Separately, `save` hashes the normalized string
+  and `encode` normalizes again, so a `normalize` that changed anything on a second pass would
+  record a hash for a string that never reached disk — collapsing only `\r\n` is *not* idempotent,
+  because `"\r\r\n"` becomes `"\r\n"`. Both are why `LineEnding` has three variants rather than the
+  two anyone would guess at.
+- **`[[wikilinks]]` are a comrak extension, and `links.ts` needs the attribute to route them.**
+  A wikilink target carries no extension, so `wikilinkPath` adds `.md` — but only after asking
+  whether the target is *already* something lindo-md opens, because `[[Notes v1.2]]` has an
+  "extension" of `2` to any rule that splits on the last dot. The `data-wikilink` mark comrak
+  writes is what separates that from an ordinary extensionless `[text](../sibling)` href, which is
+  why it is in the ammonia allowlist. comrak also skips its own dangerous-URL check on these
+  hrefs whenever `unsafe_` is on, which it permanently is, so `[[javascript:…]]` is stopped by the
+  sanitizer's scheme list and by nothing else.
+- **A wikilink is an atom in `srcmap`, and the reason generalizes to any construct added after it.**
+  `scan_forward` takes the earliest match at or after the cursor, and the safety argument written
+  above it is that runs appear in the source in the order they appear in the output. `[[target|label]]`
+  was the first construct here where *hidden source precedes the visible text it renders* — in
+  `[label](url)` the label comes first, and image alt text is skipped outright — so a label echoing
+  its own target matched inside the target. `[[Roadmap#Q3|Roadmap]]` mapped the visible word to the
+  target's bytes, `align_block` reported `Exact` because a match *was* found, and typing after the
+  label rewrote the link. `[[Note#Heading|Note]]` and `[[folder/Note|Note]]` are the ordinary
+  Obsidian idioms, so this was the common case, not an edge one. `is_skipped` now covers
+  `NodeValue::WikiLink`. **Before adding an inline extension, ask where its non-rendered source
+  sits relative to its rendered text** — and note that `produces()` in the tests cannot answer it,
+  since the wrong "Roadmap" spells "Roadmap" too. Only an assertion on the offset can.
 - **The window is frameless on Windows and Linux** (`decorations: false`), but **decorated on
   macOS**. `body` sets `user-select: none` because dragging the titlebar would otherwise start a text
   selection; the document canvas re-enables selection for itself. Controls are drawn per-platform in

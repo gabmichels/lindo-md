@@ -198,6 +198,22 @@ fn run_text(value: &NodeValue) -> Option<String> {
 /// - an image's children are its **alt text**, which renders as an attribute
 /// - a footnote reference renders as a generated superscript number
 /// - code, math and raw HTML are atoms — see the module docs
+/// - a wikilink's label sits *after* source the reader cannot see, and that is
+///   the whole reason it is here rather than treated like a `[label](url)` label,
+///   which is editable. `scan_forward` takes the earliest match at or after the
+///   cursor, and its stated safety argument is that runs appear in the source in
+///   the order they appear in the output. `[[target|label]]` is the first
+///   construct in this app where hidden source *precedes* the visible text it
+///   renders — everywhere else the label comes first — so a label echoing its own
+///   target matched inside the target. `[[Roadmap#Q3|Roadmap]]` mapped the visible
+///   "Roadmap" to the one at byte 4, `align_block` called it `Exact` because a
+///   match was found, and typing after the label rewrote the link instead of the
+///   word. That is the failure AGENTS.md names as the worst kind: not a misdrawn
+///   character, an edit landing on text it does not own. `[[Note#Heading|Note]]`
+///   and `[[folder/Note|Note]]` are the ordinary Obsidian idioms, so this was not
+///   an edge case. Skipping the subtree means no run claims those bytes at all,
+///   the rest of the paragraph still maps exactly, and the label is inert like any
+///   other atom.
 ///
 /// Skipping has to be by subtree, not by node: `descendants()` is flat, so
 /// skipping only the image node itself would still walk its alt text.
@@ -209,6 +225,7 @@ fn is_skipped(value: &NodeValue) -> bool {
             | NodeValue::CodeBlock(_)
             | NodeValue::Math(_)
             | NodeValue::HtmlInline(_)
+            | NodeValue::WikiLink(_)
     )
 }
 
@@ -581,6 +598,47 @@ mod tests {
             == Some(run.source_end - run.source_start)
     }
 
+    /// The one shape `produces` cannot judge: a run whose text occurs *twice* in
+    /// the source, once in markup the reader cannot see.
+    ///
+    /// `[[target|label]]` is the first construct here where hidden source precedes
+    /// the visible text it renders — everywhere else (`[label](url)`, image alt,
+    /// reference links) the visible text comes first, which is what `scan_forward`'s
+    /// earliest-match rule silently assumes. So a label echoing its own target
+    /// matched inside the target, `align_block` reported `Exact` because a match
+    /// *was* found, and typing a character after the visible label rewrote the link
+    /// instead. `produces` waves that through: the wrong "Roadmap" spells "Roadmap"
+    /// too. Only the offset itself tells them apart.
+    #[test]
+    fn no_run_reaches_inside_a_wikilink() {
+        // A label that echoes its own target, which is the ordinary Obsidian
+        // idiom and the case that used to map onto the target's bytes.
+        let source = "A [[Roadmap#Q3|Roadmap]] link";
+        let open = source.find("[[").expect("a wikilink");
+        let close = source.find("]]").expect("a wikilink") + 2;
+
+        let runs: Vec<_> = map(source)
+            .into_iter()
+            .flat_map(|block| block.runs)
+            .collect();
+
+        for run in &runs {
+            assert!(
+                run.source_end <= open || run.source_start >= close,
+                "a run claimed bytes {}..{} inside the link — an edit there would \
+                 rewrite the target: {:?}",
+                run.source_start,
+                run.source_end,
+                &source[run.source_start..run.source_end]
+            );
+        }
+
+        // And the text on either side still maps, so skipping the link did not
+        // cost the paragraph its editability.
+        let mapped: String = runs.iter().map(|run| run.text.as_str()).collect();
+        assert_eq!(mapped, "A  link");
+    }
+
     /// Every run must be a byte-exact slice of the source at the offset the map
     /// claims. This is the property the whole editing design rests on: if it
     /// holds, a caret position in the rendered view is a file position.
@@ -683,6 +741,11 @@ mod tests {
             ("inline code", "Use `let x = 1;` in code"),
             ("link", "A [labelled link](http://e.com) here"),
             ("image", "An ![alt text](pic.png) inline"),
+            ("wikilink", "A [[Design Notes]] link"),
+            // The one that would catch a bad mapping: what the reader sees is the
+            // title after the pipe, so a run claiming the whole `[[…]]` would let an
+            // edit to "shown" rewrite the target instead.
+            ("piped wikilink", "A [[Design Notes|shown]] link"),
             ("hard break", "Line one  \nLine two"),
             ("smart-ish punctuation", "It's a \"quoted\" word -- dash"),
             ("repeated word", "the the the the"),

@@ -40,6 +40,16 @@ pub enum LindoError {
     )]
     StaleWrite { path: String },
 
+    /// Distinct from `ReadFile` because the file was read perfectly well — it is
+    /// its contents that cannot be interpreted, and "Could not read" sends the
+    /// reader to check permissions on a file that has none wrong with it.
+    #[error(
+        "{path} is not UTF-8 or UTF-16 text. lindo-md does not guess older \
+         encodings, because a wrong guess renders a document that looks right \
+         and is not. Re-save the file as UTF-8 and it will open."
+    )]
+    NotText { path: String },
+
     #[error("Settings file at {path} is not valid JSON: {source}. Fix or delete it — lindo-md will not overwrite it automatically.")]
     ConfigParse {
         path: String,

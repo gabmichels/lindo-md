@@ -118,6 +118,67 @@ describe("linkTarget", () => {
   });
 });
 
+describe("linkTarget, for wikilinks", () => {
+  it("opens the note a bare target names", () => {
+    // comrak percent-encodes the space, so this is also the decode path.
+    expect(linkTarget("/docs", "Design%20Notes", true)).toEqual({
+      kind: "document",
+      path: "/docs/Design Notes.md",
+      fragment: "",
+    });
+  });
+
+  it("carries a heading fragment across", () => {
+    expect(linkTarget("/docs", "Design%20Notes#Colour", true)).toEqual({
+      kind: "document",
+      path: "/docs/Design Notes.md",
+      fragment: "Colour",
+    });
+  });
+
+  it("resolves a target that names a folder", () => {
+    expect(linkTarget("/docs", "guides/Setup", true)).toEqual({
+      kind: "document",
+      path: "/docs/guides/Setup.md",
+      fragment: "",
+    });
+  });
+
+  /** A version number is not an extension. See `wikilinkPath`. */
+  it("does not mistake a dot in a note's name for an extension", () => {
+    expect(linkTarget("/docs", "Notes%20v1.2", true)).toEqual({
+      kind: "document",
+      path: "/docs/Notes v1.2.md",
+      fragment: "",
+    });
+  });
+
+  it("leaves an extension the target already has", () => {
+    expect(linkTarget("/docs", "README.md", true)).toEqual({
+      kind: "document",
+      path: "/docs/README.md",
+      fragment: "",
+    });
+  });
+
+  /**
+   * The same rule as every other link in a document: lindo-md displays plain text
+   * but does not capture links to it. A wikilink is not a reason to make an
+   * exception, and sharing the tail of `linkTarget` is what guarantees it cannot
+   * drift into one.
+   */
+  it("still hands plain text to the OS", () => {
+    expect(linkTarget("/docs", "notes.txt", true)).toEqual({
+      kind: "handoff",
+      path: "/docs/notes.txt",
+    });
+  });
+
+  it("is inert on an ordinary link", () => {
+    expect(linkTarget("/docs", "Design%20Notes").kind).toBe("handoff");
+  });
+});
+
 describe("resolveImages", () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -161,6 +161,14 @@ Everything GitHub renders:
   allowlist
 - YAML frontmatter, relative image paths, and relative links between documents
 
+Plus one thing GitHub does not: **`[[wikilinks]]`**. `[[Note]]`, `[[Note|read as this]]` and
+`[[Note#Heading]]` open the file they name, with the extension left off as written.
+
+The target is resolved **relative to the document it is written in**, exactly as `[a](../b.md)`
+would be — `[[Note]]` beside the file, `[[folder/Note]]` below it. That covers a flat folder of
+notes and any vault that links by path. It is deliberately not Obsidian's vault-wide search for a
+note by name, which needs an index of every file in a vault, and lindo-md has no vault to index.
+
 Heading anchors carry no `user-content-` prefix, so a `file.md#anchor` link works exactly as typed.
 
 ## Editing
@@ -172,6 +180,10 @@ truth rather than something reconstructed from the DOM. Text in paragraphs, head
 table cells is editable; code fences, Mermaid blocks and math are inert, as are generated bits like
 heading anchors and footnote backrefs. Task list checkboxes are clickable and write straight to the
 file.
+
+A save writes the file back the way it was found: CRLF stays CRLF, LF stays LF, and a byte-order
+mark is still there afterwards. Editing one line of a Windows-authored document does not turn the
+whole file into a diff.
 
 Right-click for formatting — bold, italic, code, strikethrough, headings, lists, quotes — all applied
 as Markdown, not as styling. `Ctrl + E` opens the raw source over the same scroller when you want it.

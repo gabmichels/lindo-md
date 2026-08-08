@@ -72,6 +72,15 @@ pub(crate) fn options(settings: RenderOptions) -> Options<'static> {
     ext.math_dollars = true;
     ext.math_code = true;
     ext.shortcodes = true;
+    // `[[Note]]` and `[[Note|shown as this]]`, which is how Obsidian, Foam and
+    // Logseq link between files — so it is what a folder of notes moved out of one
+    // of them is full of. Without this they render as literal brackets, and the
+    // reader concludes the file is broken rather than the viewer.
+    //
+    // *After* the pipe is the Obsidian order (`[[target|title]]`). comrak's other
+    // wikilink option reads the same syntax the other way round, and picking the
+    // wrong one silently turns every titled link into a link to its own title.
+    ext.wikilinks_title_after_pipe = true;
     ext.front_matter_delimiter = Some("---".to_owned());
     // An empty prefix keeps ids identical to the text anchor a reader would type
     // by hand (`#installation`), which is what relative `file.md#anchor` links in
@@ -398,7 +407,11 @@ fn sanitizer() -> ammonia::Builder<'static> {
         // needs it to map a caret back into the file; `export.rs` strips it so it
         // never reaches a standalone HTML file.
         .add_generic_attributes(["id", "class", "data-sourcepos"])
-        .add_tag_attributes("a", ["href", "title", "aria-hidden"])
+        // `data-wikilink` is comrak's mark on a `[[Note]]` link. `links.ts` needs it
+        // to tell one from an ordinary relative link: a wikilink target carries no
+        // extension, so it is resolved by adding one, and doing that to every
+        // extensionless href would capture `[text](../sibling)` too.
+        .add_tag_attributes("a", ["href", "title", "aria-hidden", "data-wikilink"])
         .add_tag_attributes("img", ["src", "alt", "title", "align", "width", "height"])
         // `disabled` is deliberately absent, so ammonia strips the attribute
         // comrak puts on every task-list checkbox. Ticking a box is the one edit
@@ -1136,5 +1149,55 @@ mod tests {
             "relative links are the point"
         );
         assert!(!html("[x](ftp://example.com/f)").contains("ftp://"));
+
+        // `data-wikilink` has to survive, because it is what tells `links.ts` that an
+        // extensionless href is a note reference rather than an ordinary relative link.
+        assert!(html("[[Note]]").contains(r#"data-wikilink="true""#));
+    }
+
+    // --- Wikilinks ---------------------------------------------------------
+
+    /// The target is percent-encoded on the way out, which is why `links.ts`
+    /// decodes an href before it ever reaches a path.
+    #[test]
+    fn renders_a_wikilink_as_a_link_to_its_target() {
+        let out = html("See [[Design Notes]].");
+        assert!(out.contains(r#"href="Design%20Notes""#), "{out}");
+        assert!(out.contains(">Design Notes</a>"), "{out}");
+    }
+
+    /// The pipe order is the whole reason `wikilinks_title_after_pipe` was picked
+    /// over its twin: reversed, this links to "the design" instead of to the file.
+    #[test]
+    fn a_piped_wikilink_takes_its_target_from_the_left() {
+        let out = html("[[Design Notes|the design]]");
+        assert!(out.contains(r#"href="Design%20Notes""#), "{out}");
+        assert!(out.contains(">the design</a>"), "{out}");
+    }
+
+    #[test]
+    fn a_wikilink_keeps_its_heading_fragment() {
+        assert!(html("[[Design Notes#Colour]]").contains(r#"href="Design%20Notes#Colour""#));
+    }
+
+    /// comrak renders a wikilink href *without* its own dangerous-URL check when
+    /// `unsafe_` is on — which it is, permanently — so this construct's safety rests
+    /// entirely on ammonia running afterwards, and ammonia drops the whole attribute
+    /// rather than the link. The text is left over as escaped characters, which is
+    /// why this asserts on the href and not on the document.
+    #[test]
+    fn a_wikilink_cannot_smuggle_a_scheme_past_the_sanitizer() {
+        for source in [
+            "[[javascript:alert(1)]]",
+            "[[javascript:alert(1)|innocent]]",
+            "[[data:text/html,<script>alert(1)</script>]]",
+        ] {
+            let out = html(source);
+            assert!(
+                !out.contains("href="),
+                "a scheme survived on an href: {out}"
+            );
+            assert!(!out.contains("<script"), "{out}");
+        }
     }
 }

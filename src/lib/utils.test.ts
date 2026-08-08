@@ -13,6 +13,7 @@ import {
   isOpenablePath,
   resolveRelative,
   splitFragment,
+  wikilinkPath,
 } from "./utils";
 
 describe("resolveRelative", () => {
@@ -165,6 +166,28 @@ describe("the extension lists match the Rust side", () => {
       expect(rustOpenable.has(extension), extension).toBe(true);
     }
     expect(DOCUMENT_EXTENSIONS.length + TEXT_EXTENSIONS.length).toBe(rustOpenable.size);
+  });
+});
+
+describe("wikilinkPath", () => {
+  it("adds the extension a wikilink leaves off", () => {
+    expect(wikilinkPath("/notes", "Design Notes")).toBe("/notes/Design Notes.md");
+    expect(wikilinkPath("/notes", "guides/Setup")).toBe("/notes/guides/Setup.md");
+  });
+
+  it("leaves a target that already names something openable", () => {
+    expect(wikilinkPath("/notes", "README.md")).toBe("/notes/README.md");
+    expect(wikilinkPath("/notes", "notes.txt")).toBe("/notes/notes.txt");
+  });
+
+  /**
+   * The case that rules out the obvious implementation. "Is there a dot after the
+   * last separator" says yes here and leaves the link pointing at nothing, so the
+   * question asked is "is this already a file we open" instead.
+   */
+  it("does not read a version number as an extension", () => {
+    expect(wikilinkPath("/notes", "Notes v1.2")).toBe("/notes/Notes v1.2.md");
+    expect(wikilinkPath("/notes", "R.E.M.")).toBe("/notes/R.E.M..md");
   });
 });
 

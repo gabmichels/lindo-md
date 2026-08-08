@@ -38,6 +38,7 @@ mod markdown;
 mod mdx;
 mod plaintext;
 mod srcmap;
+mod text;
 
 use tauri::Manager;
 use tauri_plugin_window_state::StateFlags;

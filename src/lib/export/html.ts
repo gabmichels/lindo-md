@@ -1,5 +1,6 @@
 import { DEFAULT_VIEW, docTokens, viewTokens, type DocView } from "../theme/apply";
 import { isSafeCssValue, type Theme } from "../theme/schema";
+import { isOpenablePath, splitFragment } from "../utils";
 
 /**
  * Builds a standalone HTML file from the document as it is currently rendered.
@@ -109,7 +110,36 @@ function cleanedMarkup(article: HTMLElement): string {
     element.removeAttribute("data-sourcepos");
   }
 
+  // A wikilink is app-only bookkeeping in the same way, but removing the
+  // attribute alone would leave `href="Design%20Notes"` — a link to a name with
+  // no extension, which resolves to nothing anywhere outside this app. The
+  // extension only exists in `wikilinkPath`, so spell it out here and the export
+  // carries the same relative link an ordinary `[label](Design Notes.md)` would.
+  for (const anchor of clone.querySelectorAll<HTMLAnchorElement>("a[data-wikilink]")) {
+    anchor.removeAttribute("data-wikilink");
+    const href = anchor.getAttribute("href");
+    if (href) anchor.setAttribute("href", exportedWikilinkHref(href));
+  }
+
   return clone.innerHTML;
+}
+
+/**
+ * The href a wikilink would have had if it were written as an ordinary link.
+ *
+ * Same rule as `wikilinkPath` — add `.md` unless the target already names
+ * something openable — but applied to the href rather than to a resolved path,
+ * and without resolving anything: an export is a single file, so the link stays
+ * exactly as relative as the document wrote it. The href is left percent-encoded
+ * throughout, which is what it has to be in the output anyway, and which is why
+ * this does not call `decodeURIComponent` — that throws on a lone `%`, and an
+ * export must not fail over one link.
+ */
+function exportedWikilinkHref(href: string): string {
+  const { path, fragment } = splitFragment(href);
+  if (!path) return href;
+  const target = isOpenablePath(path) ? path : `${path}.md`;
+  return fragment ? `${target}#${fragment}` : target;
 }
 
 function escapeHtml(value: string): string {
