@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AboutDialog } from "@/components/AboutDialog";
 import { CommandPalette } from "@/components/CommandPalette";
+import { CompareBar, ComparePane } from "@/components/ComparePane";
 import { DocumentDeck } from "@/components/DocumentDeck";
 import { DropOverlay } from "@/components/DropOverlay";
 import { EmptyState } from "@/components/EmptyState";
@@ -37,6 +38,7 @@ import {
   DOCUMENT_EXTENSIONS,
   TEXT_EXTENSIONS,
   basename,
+  cn,
   dirname,
   readOnlyReason,
 } from "@/lib/utils";
@@ -57,7 +59,22 @@ function Shell() {
   useRevealWindow(loaded);
 
   const [canvas, setCanvas] = useState<HTMLElement | null>(null);
-  const [scroller, setScroller] = useState<HTMLElement | null>(null);
+  /**
+   * The scroller of each pane, and which one the keyboard is talking to.
+   *
+   * There used to be one `scroller` here, because there was one place a
+   * document could be. The comparison pane makes that ambiguous — the outline,
+   * the find bar and the paging keys all act on "the document", and with two on
+   * screen that has to become a choice rather than an assumption. Everything
+   * downstream still takes a single element; the only new idea is that it is
+   * now *derived* from which pane was last focused.
+   */
+  const [mainScroller, setMainScroller] = useState<HTMLElement | null>(null);
+  const [compareScroller, setCompareScroller] = useState<HTMLElement | null>(null);
+  const [focusedPane, setFocusedPane] = useState<"main" | "compare">("main");
+  /** A tab is being dragged over the canvas's right half, so the region it
+   *  would land in is drawn. */
+  const [splitPreview, setSplitPreview] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
@@ -94,7 +111,21 @@ function Shell() {
 
   const tabs = useTabs();
   const { session } = tabs;
-  const docs = useTabDocuments(session, folder);
+
+  /**
+   * The comparison pane's runtime key, which is derived from its path rather
+   * than allocated.
+   *
+   * That is what makes swapping the file in the pane free: a different path is
+   * a different key, so it hydrates as a fresh runtime and the collector in
+   * `useTabDocuments` drops the old one, with no reset step to remember. The
+   * pane is not a tab and deliberately has no id of its own — see
+   * `Session.comparePath`.
+   */
+  const comparePath = session.comparePath;
+  const compareId = comparePath === null ? null : `compare:${comparePath}`;
+
+  const docs = useTabDocuments(session, folder, compareId);
 
   const active = session.activeTabId
     ? session.tabs.find((tab) => tab.id === session.activeTabId)
@@ -102,12 +133,39 @@ function Shell() {
   const runtime = active ? docs.runtimes[active.id] : undefined;
   const document = runtime?.document ?? null;
 
+  const compareRuntime = compareId ? docs.runtimes[compareId] : undefined;
+
+  /**
+   * The document the outline, the find bar and the paging keys act on.
+   *
+   * The *toolbar* deliberately keeps describing the active tab whatever has
+   * focus: back, forward and "Edit as Markdown" are tab operations, and a
+   * breadcrumb that followed focus would offer them for a pane that has none.
+   * The pane names its own file in its header instead, so nothing is left to
+   * infer from which surface a heading list came from.
+   */
+  const reading = focusedPane === "compare" ? (compareRuntime?.document ?? null) : document;
+  const scroller = focusedPane === "compare" ? compareScroller : mainScroller;
+
   // The active tab loads on demand rather than at restore time — see
   // `useTabDocuments` for why a ten-tab session must not open ten documents.
   const { hydrate } = docs;
   useEffect(() => {
     if (active) hydrate(active.id, active.path);
   }, [active, hydrate]);
+
+  // The pane loads the same way a tab does, and gets file-watching and live
+  // reload with it — which is most of why it is worth having on an AI-written
+  // file that is being regenerated while you read the one beside it.
+  useEffect(() => {
+    if (compareId && comparePath) hydrate(compareId, comparePath);
+  }, [compareId, comparePath, hydrate]);
+
+  // Focus cannot stay on a pane that is no longer there, or the outline and the
+  // paging keys would go on addressing a document nobody can see.
+  useEffect(() => {
+    if (comparePath === null) setFocusedPane("main");
+  }, [comparePath]);
 
   // The rail's folder: the one the reader last picked, or failing that the
   // directory of whatever tab is open. A restored session with an empty tree
@@ -121,18 +179,19 @@ function Shell() {
     if (active) setFolder((current) => current ?? dirname(active.path));
   }, [loaded, config.lastFolder, active]);
 
-  const outline = useOutline(document?.toc ?? [], scroller);
+  const outline = useOutline(reading?.toc ?? [], scroller);
   const find = useFind(scroller);
 
   // Find highlights are ranges into the DOM of one document, so they cannot
-  // survive a switch to another tab's DOM.
+  // survive a switch to another tab's DOM — nor a switch to the other pane's,
+  // which is the same problem arriving by a different route.
   useEffect(() => {
     find.clear();
     setFindOpen(false);
-    // Only when the tab changes; re-running on every `find` identity would
-    // clear the query as the reader types it.
+    // Only when the document under the find bar changes; re-running on every
+    // `find` identity would clear the query as the reader types it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.activeTabId]);
+  }, [session.activeTabId, focusedPane, comparePath]);
 
   const openPaths = useMemo(() => new Set(session.tabs.map((tab) => tab.path)), [session.tabs]);
 
@@ -195,13 +254,100 @@ function Shell() {
     update({ lastFolder: path });
   }, [update]);
 
+  /**
+   * Picks the file for the comparison pane.
+   *
+   * An OS dialog rather than a quick-open list, because the pane is most often
+   * wanted for a file that is *not* already open — the previous version of a
+   * document, something out of Downloads — and reaching those through the
+   * folder tree would mean opening a different folder to get at them.
+   */
+  const openCompare = useCallback(async () => {
+    const path = await openDialog({
+      multiple: false,
+      filters: [
+        { name: "Documents", extensions: DOCUMENT_EXTENSIONS },
+        { name: "Text", extensions: TEXT_EXTENSIONS },
+      ],
+    });
+    if (typeof path !== "string") return;
+    tabs.setCompare(path);
+    // The reader just chose this file; the outline and the find bar should be
+    // about it without a further click.
+    setFocusedPane("compare");
+  }, [tabs]);
+
+  const toggleCompare = useCallback(() => {
+    if (comparePath !== null) tabs.setCompare(null);
+    else void openCompare();
+  }, [comparePath, openCompare, tabs]);
+
+  /**
+   * Where a dragged tab has to be released to open in the comparison pane: the
+   * right half of the canvas, below the chrome.
+   *
+   * Measured when the drag starts rather than held in state — see `splitZone`
+   * on `TabStrip`. The `minY` deliberately sits below the toolbar row and not
+   * merely below the tab strip: the strip's own right-hand end is where a tab
+   * is dropped to move it *last*, and those two gestures must not overlap.
+   */
+  const splitZoneOf = useCallback(() => {
+    if (!canvas) return null;
+    const box = canvas.getBoundingClientRect();
+    const chrome = canvas.querySelector<HTMLElement>("[data-canvas-body]");
+    const top = chrome?.getBoundingClientRect().top ?? box.top;
+    return { minX: box.left + box.width / 2, minY: top };
+  }, [canvas]);
+
+  /**
+   * A tab dropped in that region opens in the comparison pane — **and stays a
+   * tab.**
+   *
+   * VS Code would *move* the editor, and that is the one part of the gesture
+   * not copied. The pane is read-only, so moving a tab into it would quietly
+   * take away the ability to edit that file, which is not something a drag
+   * should decide. Nothing is lost either way: the pane closes back to exactly
+   * the session that was there before it opened.
+   */
+  const splitToCompare = useCallback(
+    (tabId: string) => {
+      const tab = session.tabs.find((candidate) => candidate.id === tabId);
+      if (!tab) return;
+      tabs.setCompare(tab.path);
+      setFocusedPane("compare");
+    },
+    [session.tabs, tabs],
+  );
+
+  /**
+   * A link followed inside the comparison pane opens in the deck, not in the
+   * pane.
+   *
+   * The pane is a reference held beside your work, so following a link there
+   * should not cost you the thing you were comparing against. It also means
+   * links land somewhere with history, which the pane deliberately has none of.
+   */
+  const openFromCompare = useCallback(
+    (path: string, fragment: string) => {
+      const id = tabs.open(path);
+      setFocusedPane("main");
+      if (fragment) docs.navigate(id, path, fragment);
+    },
+    [docs, tabs],
+  );
+
+  // Both halves come from the focused pane. They used to be "the active tab"
+  // and "the one scroller", which were the same document by construction; with
+  // two panes on screen they are not, and taking the title from one while
+  // taking the markup from the other would write a file named after a document
+  // it does not contain.
   const exportHtml = useCallback(async () => {
     const article = scroller?.querySelector<HTMLElement>(".doc");
-    if (!document || !article) return;
+    if (!reading || !article) return;
 
     const path = await saveDialog({
       title: "Export as HTML",
-      defaultPath: `${document.title}.html`,
+      defaultPath: `${reading.title}.html`,
       filters: [{ name: "HTML", extensions: ["html"] }],
     });
     if (!path) return;
@@ -209,14 +355,14 @@ function Shell() {
     await writeHtmlFile(
       path,
       buildStandaloneHtml({
-        title: document.title,
+        title: reading.title,
         theme,
         article,
         documentCss,
         view: { contentWidth: config.contentWidth },
       }),
     );
-  }, [config.contentWidth, document, scroller, theme]);
+  }, [config.contentWidth, reading, scroller, theme]);
 
   /**
    * Following a link inside a tab.
@@ -316,6 +462,7 @@ function Shell() {
     onPrint: () => {
       window.print();
     },
+    onToggleCompare: toggleCompare,
     onExport: () => void exportHtml(),
     onBack: () => {
       step(-1);
@@ -393,6 +540,7 @@ function Shell() {
   // deliberately: see the note above `buildItems` in `CommandPalette`.
   const paletteState: PaletteState = {
     hasDocument: document !== null,
+    compareOpen: comparePath !== null,
     editable: document?.editable === true,
     sourceMode: active ? sourceTabs.has(active.id) : false,
     canGoBack: active ? docs.canGoBack(active.id) : false,
@@ -418,7 +566,7 @@ function Shell() {
         onToggleTreeCollapsed={() => {
           update({ railTreeCollapsed: !config.railTreeCollapsed });
         }}
-        toc={document?.toc ?? []}
+        toc={reading?.toc ?? []}
         activeHeadingId={outline.activeId}
         progress={outline.progress}
         onJumpTo={jumpTo}
@@ -468,39 +616,66 @@ function Shell() {
               const tab = session.tabs.find((candidate) => candidate.id === id);
               if (tab) void revealItemInDir(tab.path).catch(() => undefined);
             }}
+            splitZone={splitZoneOf}
+            onSplit={splitToCompare}
+            onSplitPreview={setSplitPreview}
           />
         </TitleBar>
 
-        <Toolbar
-          breadcrumb={
-            document
-              ? {
-                  folder: folder ? basename(folder) : null,
-                  name: document.name,
-                }
-              : null
-          }
-          path={document?.path ?? null}
-          readOnlyReason={document ? readOnlyReason(document) : null}
-          sourceMode={active ? sourceTabs.has(active.id) : false}
-          onToggleSource={() => {
-            if (active) toggleSource(active.id);
-          }}
-          canGoBack={active ? docs.canGoBack(active.id) : false}
-          canGoForward={active ? docs.canGoForward(active.id) : false}
-          onBack={() => {
-            step(-1);
-          }}
-          onForward={() => {
-            step(1);
-          }}
-          onFind={() => {
-            setFindOpen(true);
-          }}
-          onAppearance={() => {
-            setAppearanceOpen(true);
-          }}
-        />
+        {/* One chrome row, split the same way the documents below it are.
+            The comparison pane's name and controls belong *here* rather than in
+            a header of the pane's own: a header would push that document down
+            by its height, and two documents at different offsets cannot be
+            compared line for line, which is the only thing the pane is for. */}
+        <div className="flex shrink-0">
+          <div className="min-w-0 flex-1">
+            <Toolbar
+              breadcrumb={
+                document
+                  ? {
+                      folder: folder ? basename(folder) : null,
+                      name: document.name,
+                    }
+                  : null
+              }
+              path={document?.path ?? null}
+              readOnlyReason={document ? readOnlyReason(document) : null}
+              sourceMode={active ? sourceTabs.has(active.id) : false}
+              onToggleSource={() => {
+                if (active) toggleSource(active.id);
+              }}
+              canGoBack={active ? docs.canGoBack(active.id) : false}
+              canGoForward={active ? docs.canGoForward(active.id) : false}
+              onBack={() => {
+                step(-1);
+              }}
+              onForward={() => {
+                step(1);
+              }}
+              onFind={() => {
+                setFindOpen(true);
+              }}
+              onAppearance={() => {
+                setAppearanceOpen(true);
+              }}
+              compareOpen={comparePath !== null}
+              onToggleCompare={toggleCompare}
+            />
+          </div>
+
+          {comparePath !== null && (
+            <CompareBar
+              path={comparePath}
+              focused={focusedPane === "compare"}
+              onFocus={() => {
+                setFocusedPane("compare");
+              }}
+              onClose={() => {
+                tabs.setCompare(null);
+              }}
+            />
+          )}
+        </div>
 
         {findOpen && (
           <FindBar
@@ -512,29 +687,91 @@ function Shell() {
           />
         )}
 
-        <div className="relative min-h-0 flex-1">
-          {runtime?.error ? (
-            <Message text={runtime.error} />
-          ) : session.tabs.length === 0 ? (
-            <EmptyState
-              recentFiles={config.recentFiles}
-              onOpenFile={() => void openFile()}
-              onOpenFolder={() => void openFolder()}
-              onOpenRecent={(path) => tabs.open(path)}
-            />
-          ) : (
-            <DocumentDeck
-              session={session}
-              runtimes={docs.runtimes}
+        {/* Two panes, side by side, at a fixed half each. Not resizable yet:
+            the pane is here to find out whether comparison earns a permanent
+            place in a viewer, and a divider is easy to add afterwards and
+            impossible to remove once anyone has dragged it. */}
+        {/* `data-canvas-body` is read by `splitZoneOf` to find where the
+            documents start, so the drop region is the paper and never the
+            chrome above it. */}
+        <div data-canvas-body className="relative flex min-h-0 flex-1">
+          <div
+            className={cn(
+              "relative min-w-0 flex-1",
+              // Printing renders the DOM, so an open pane would otherwise put
+              // both documents in one PDF.
+              focusedPane !== "main" && "no-print",
+            )}
+            onFocusCapture={() => {
+              setFocusedPane("main");
+            }}
+            onPointerDownCapture={() => {
+              setFocusedPane("main");
+            }}
+          >
+            {runtime?.error ? (
+              <Message text={runtime.error} />
+            ) : session.tabs.length === 0 ? (
+              <EmptyState
+                recentFiles={config.recentFiles}
+                onOpenFile={() => void openFile()}
+                onOpenFolder={() => void openFolder()}
+                onOpenRecent={(path) => tabs.open(path)}
+              />
+            ) : (
+              <DocumentDeck
+                session={session}
+                runtimes={docs.runtimes}
+                theme={theme}
+                blockRemoteImages={config.blockRemoteImages}
+                onOpenDocument={followLink}
+                onAnchorConsumed={docs.clearPendingAnchor}
+                onScrollChange={docs.rememberScroll}
+                onScrollerReady={setMainScroller}
+                onSave={docs.save}
+                sourceTabs={sourceTabs}
+                onToggleSource={toggleSource}
+              />
+            )}
+          </div>
+
+          {comparePath !== null && compareId !== null && (
+            <ComparePane
+              // Keyed by path so a swapped file gets a clean view rather than
+              // one carrying the previous document's enhanced nodes.
+              key={compareId}
+              path={comparePath}
+              runtime={compareRuntime}
               theme={theme}
               blockRemoteImages={config.blockRemoteImages}
-              onOpenDocument={followLink}
-              onAnchorConsumed={docs.clearPendingAnchor}
-              onScrollChange={docs.rememberScroll}
-              onScrollerReady={setScroller}
-              onSave={docs.save}
-              sourceTabs={sourceTabs}
-              onToggleSource={toggleSource}
+              focused={focusedPane === "compare"}
+              onFocus={() => {
+                setFocusedPane("compare");
+              }}
+              onScrollerReady={setCompareScroller}
+              onScrollChange={(scrollTop) => {
+                docs.rememberScroll(compareId, scrollTop);
+              }}
+              onAnchorConsumed={() => {
+                docs.clearPendingAnchor(compareId);
+              }}
+              onOpenDocument={openFromCompare}
+            />
+          )}
+
+          {/* Where a dragged tab would land. Drawn over the right half rather
+              than as a ring around it, because the region is the message: the
+              reader is being told the document will occupy exactly this. Ember,
+              like every other "this is the target" mark in the chrome. It never
+              takes the pointer — the drag owns it through pointer capture, and
+              an overlay that could receive events would end the gesture. */}
+          {splitPreview && (
+            <div
+              aria-hidden
+              className={cn(
+                "pointer-events-none absolute inset-y-0 right-0 z-30 w-1/2",
+                "bg-ui-ember-wash shadow-[inset_2px_0_0_0_var(--ui-ember)]",
+              )}
             />
           )}
         </div>
@@ -575,7 +812,9 @@ function Shell() {
           }}
           tree={tree}
           folder={folder}
-          toc={document?.toc ?? []}
+          // The focused pane's headings, matching what the rail is showing —
+          // `@` in the palette and the outline are two routes to one list.
+          toc={reading?.toc ?? []}
           onJumpTo={jumpTo}
           customThemes={config.customThemes}
           onPickTheme={(themeId) => {
@@ -778,6 +1017,14 @@ function useKeyboardShortcuts(
         case "]":
           event.preventDefault();
           handlers.onForward();
+          break;
+        // VS Code's split chord, because that is the one people try. It opens
+        // the comparison pane here rather than splitting the editor, which is
+        // the same gesture aimed at the only thing a second pane is for in a
+        // viewer.
+        case "\\":
+          event.preventDefault();
+          handlers.onToggleCompare();
           break;
       }
     };

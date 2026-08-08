@@ -63,9 +63,28 @@ export interface Session {
   /** Order is meaningless here; a group's position comes from its members. */
   groups: TabGroup[];
   activeTabId: string | null;
+  /**
+   * The file open in the comparison pane, or null when that pane is closed.
+   *
+   * **A path, not a tab id, and that is the whole design of the pane.** The
+   * comparison pane holds one document beside the deck so two files can be read
+   * at once; it has no tab strip, no history and no editing. Keeping it a bare
+   * path is what stops any of the rules above applying to it — it is not part
+   * of the order, it cannot join a group, and the "a file is never open in two
+   * tabs" invariant does not reach it, so a file may sit in a tab *and* in the
+   * pane. Nothing goes wrong when it does: the pane is read-only, and
+   * `useTabDocuments` pushes a save into every runtime showing that path, so
+   * the two views cannot drift apart.
+   */
+  comparePath: string | null;
 }
 
-export const EMPTY_SESSION: Session = { tabs: [], groups: [], activeTabId: null };
+export const EMPTY_SESSION: Session = {
+  tabs: [],
+  groups: [],
+  activeTabId: null,
+  comparePath: null,
+};
 
 // --- reading ----------------------------------------------------------------
 
@@ -317,6 +336,18 @@ export function setTabPath(session: Session, id: string, path: string): Session 
     ...session,
     tabs: session.tabs.map((other) => (other.id === id ? { ...other, path } : other)),
   });
+}
+
+/**
+ * Opens a file in the comparison pane, or closes the pane with `null`.
+ *
+ * Deliberately the whole of the pane's model. There is nothing to reorder and
+ * nothing to keep contiguous, which is the point of holding it as a path rather
+ * than as a second deck of tabs.
+ */
+export function setComparePath(session: Session, path: string | null): Session {
+  if (session.comparePath === path) return session;
+  return normalize({ ...session, comparePath: path });
 }
 
 export function promotePreview(session: Session, id: string): Session {
@@ -586,7 +617,19 @@ export function normalize(session: Session): Session {
     );
   }
 
-  return { tabs, groups: liveGroups, activeTabId };
+  // Built as a fresh literal rather than spread from `session`, so **every
+  // field of `Session` has to be restated here or it is silently dropped** —
+  // every mutator ends in this function, so a field left out would survive
+  // being set and then vanish on the next unrelated tab operation.
+  return {
+    tabs,
+    groups: liveGroups,
+    activeTabId,
+    // An empty path is not a document. It cannot come from `setComparePath`,
+    // but `config.json` is a file a reader can edit, and `""` would otherwise
+    // open a pane that can never load anything.
+    comparePath: session.comparePath === "" ? null : session.comparePath,
+  };
 }
 
 /**

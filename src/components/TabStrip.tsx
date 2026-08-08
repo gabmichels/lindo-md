@@ -16,6 +16,7 @@ import {
   commitOf,
   displacementOf,
   isDragging,
+  isOverSplit,
   reduce,
   type DragEvent,
   type DragSnapshot,
@@ -77,6 +78,19 @@ export interface TabStripProps {
   onRevealInFolder?: (id: string) => void;
   /** Full path for the tooltip; the label itself is just the file name. */
   pathFor?: (tab: Tab) => string;
+  /**
+   * The region, in client coordinates, where dropping a tab opens it in the
+   * comparison pane — the canvas's right half.
+   *
+   * A function rather than a value because it is read once per gesture, at
+   * grab time, and measuring the canvas on every render would be work done
+   * for the overwhelming majority of renders where nobody is dragging.
+   */
+  splitZone?: () => { minX: number; minY: number } | null;
+  /** A tab was dropped in that region. */
+  onSplit?: (id: string) => void;
+  /** Whether a drop right now would split, so the canvas can show where. */
+  onSplitPreview?: (active: boolean) => void;
 }
 
 /** Left inset, so the tabs sit on the same margin as the toolbar's controls in
@@ -109,6 +123,9 @@ export function TabStrip({
   onCloseGroup,
   onRevealInFolder,
   pathFor,
+  splitZone,
+  onSplit,
+  onSplitPreview,
 }: TabStripProps) {
   const strip = useRef<HTMLDivElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
@@ -191,9 +208,13 @@ export function TabStrip({
         blockLength,
         grabOffset: pointerX - slots[slotIndex]!.left,
         trackWidth,
+        // Frozen with the rest of the geometry rather than read per move: the
+        // canvas is resized by the drag itself once the pane opens, and a zone
+        // that moved mid-gesture would move out from under the pointer.
+        splitZone: subject.kind === "tab" ? (splitZone?.() ?? null) : null,
       };
     },
-    [slots, session.tabs, trackWidth],
+    [slots, session.tabs, trackWidth, splitZone],
   );
 
   const trackPoint = useCallback((clientX: number, clientY: number) => {
@@ -222,7 +243,15 @@ export function TabStrip({
     (event: ReactPointerEvent) => {
       if (currentDrag.current.kind === "idle") return;
       const { x, y } = trackPoint(event.clientX, event.clientY);
-      dispatch({ type: "move", pointerId: event.pointerId, x, y, now: event.timeStamp });
+      dispatch({
+        type: "move",
+        pointerId: event.pointerId,
+        x,
+        y,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        now: event.timeStamp,
+      });
       if (isDragging(currentDrag.current)) dragged.current = true;
     },
     [dispatch, trackPoint],
@@ -232,17 +261,32 @@ export function TabStrip({
     (event: ReactPointerEvent) => {
       const state = currentDrag.current;
       const target = commitOf(state);
+      const split = isOverSplit(state);
       const subject = state.kind === "idle" ? null : state.snapshot.subject;
       dispatch({ type: "up", pointerId: event.pointerId });
 
-      if (!target || !subject) return;
+      if (!subject) return;
+      // A drop in the split zone is a split and nothing else — `commitOf`
+      // already returns null for it, so the two branches cannot both run.
+      if (split) {
+        if (subject.kind === "tab") onSplit?.(subject.id);
+        return;
+      }
+      if (!target) return;
       // Committed here and now, before any animation: under reduced motion
       // there is no transition to wait for, so nothing may depend on one.
       if (subject.kind === "group") onReorderGroup?.(subject.id, target.seam);
       else onReorder?.(subject.id, target.seam, target.intent);
     },
-    [dispatch, onReorder, onReorderGroup],
+    [dispatch, onReorder, onReorderGroup, onSplit],
   );
+
+  // The canvas draws the drop region, because that is where it lands — this
+  // component only knows whether the pointer is in it.
+  const splitting = isOverSplit(drag);
+  useEffect(() => {
+    onSplitPreview?.(splitting);
+  }, [splitting, onSplitPreview]);
 
   const cancel = useCallback(() => {
     dispatch({ type: "cancel" });

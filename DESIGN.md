@@ -108,6 +108,33 @@ One thing to know before editing `document.css`: block rules use `margin-block`,
 `margin: x 0` shorthand. The shorthand also resets the inline margins, which is a side effect no
 rule here should have to reason about.
 
+## The comparison pane
+
+A second document beside the deck, at a fixed half of the canvas each. Three visual decisions, all
+of them consequences of the rules above rather than new ones:
+
+- **The seam is `compare-edge`, identical to `canvas-edge`.** Two panes of the same paper under the
+  same theme, with nothing between them, read as one document with an inexplicable gutter down the
+  middle. The hairline plus inward shadow is what says "a second sheet", and like the rail's edge it
+  is drawn from `--ui-*` so it stays legible whether the paper is bone white or near-black.
+- **The pane's header is tool, not paper.** It sits inside `<main>`, as the titlebar and toolbar
+  already do, and reads `--ui-*` only. The rule that nothing may read `--ui-*` inside the document
+  canvas is about what is inside `.doc-scroller`, not about everything under `<main>`.
+- **Focus is marked in Ember, and has to be.** With two documents on screen, the outline, the find
+  bar and the paging keys act on the focused one — so which pane that is cannot be invisible, or
+  `Ctrl+F` looks like it is choosing a pane at random. It is an inset underline on the pane's
+  header rather than a ring around the whole pane, which would compete with the drop ring.
+
+The pane is **read-only**, and says so with the same lock badge the toolbar uses for a file that
+cannot be edited. Same component, different reason: there the file cannot be written, here this view
+is not where it is written.
+
+**Dragging a tab into the right half opens it there**, and the drop target is drawn as the *region*
+it would occupy — an Ember wash over exactly that half, with an Ember edge down its seam — rather
+than as a ring around it. The region is the message: the reader is being told the document will fill
+precisely this. It is the same Ember that marks the active file and the droppable window, used for
+the same thing it is always used for.
+
 ## Two settings surfaces, on purpose
 
 The **appearance drawer** is non-modal, has no scrim, and writes through on every change, because

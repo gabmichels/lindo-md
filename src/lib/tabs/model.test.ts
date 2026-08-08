@@ -14,6 +14,7 @@ import {
   openTab,
   promotePreview,
   removeFromGroup,
+  setComparePath,
   setGroupCollapsed,
   setTabPath,
   ungroup,
@@ -50,7 +51,7 @@ function build(spec: string): Session {
     if (closes) current = null;
   }
 
-  return normalize({ tabs, groups, activeTabId: tabs[0]?.id ?? null });
+  return normalize({ tabs, groups, activeTabId: tabs[0]?.id ?? null, comparePath: null });
 }
 
 function render(session: Session): string {
@@ -94,6 +95,7 @@ describe("normalize", () => {
       ],
       groups: [],
       activeTabId: "a",
+      comparePath: null,
     });
     expect(render(session)).toBe("a");
   });
@@ -103,6 +105,7 @@ describe("normalize", () => {
       tabs: [{ id: "a", path: "/a.md", groupId: "ghost", preview: false, openerId: null }],
       groups: [{ id: "G", name: "G", color: "clay", collapsed: false }],
       activeTabId: "a",
+      comparePath: null,
     });
     expect(render(session)).toBe("a");
     expect(session.groups).toEqual([]);
@@ -123,6 +126,7 @@ describe("normalize", () => {
         { id: "B", name: "B", color: "moss", collapsed: false },
       ],
       activeTabId: "a",
+      comparePath: null,
     });
     expect(render(session)).toBe("(A a c) (B b d)");
     expect(isContiguous(session)).toBe(true);
@@ -136,6 +140,7 @@ describe("normalize", () => {
       ],
       groups: [],
       activeTabId: "a",
+      comparePath: null,
     });
     expect(session.tabs.map((tab) => tab.preview)).toEqual([true, false]);
   });
@@ -148,13 +153,16 @@ describe("normalize", () => {
       ],
       groups: [],
       activeTabId: "a",
+      comparePath: null,
     });
     expect(session.tabs.map((tab) => tab.openerId)).toEqual([null, null]);
   });
 
   it("keeps the active tab real, and null only when nothing is open", () => {
     expect(normalize({ ...build("a b"), activeTabId: "gone" }).activeTabId).toBe("a");
-    expect(normalize({ tabs: [], groups: [], activeTabId: "a" }).activeTabId).toBe(null);
+    expect(
+      normalize({ tabs: [], groups: [], activeTabId: "a", comparePath: null }).activeTabId,
+    ).toBe(null);
   });
 
   it("expands a collapsed group that holds the active tab", () => {
@@ -180,6 +188,7 @@ describe("normalize", () => {
         },
       ],
       activeTabId: "a",
+      comparePath: null,
     });
     expect(session.groups[0]!.color).toBe("slate");
     expect(session.groups[0]!.name).toHaveLength(60);
@@ -201,8 +210,9 @@ describe("normalize", () => {
           { id: "unused", name: "", color: "teal", collapsed: false },
         ],
         activeTabId: "nope",
+        comparePath: null,
       },
-      { tabs: [], groups: [], activeTabId: "ghost" },
+      { tabs: [], groups: [], activeTabId: "ghost", comparePath: null },
     ];
 
     for (const session of hostile) {
@@ -438,5 +448,49 @@ describe("promotePreview", () => {
   it("pins a preview tab", () => {
     const previewing = openTab(build("a"), "/p.md", { id: "p", preview: true });
     expect(promotePreview(previewing, "p").tabs.find((t) => t.id === "p")!.preview).toBe(false);
+  });
+});
+
+describe("setComparePath", () => {
+  it("opens and closes the pane", () => {
+    const open = setComparePath(build("a"), "/compare.md");
+    expect(open.comparePath).toBe("/compare.md");
+    expect(setComparePath(open, null).comparePath).toBe(null);
+  });
+
+  it("leaves the tabs alone", () => {
+    // The pane is not part of the order, and the whole point of holding it as a
+    // path is that nothing about tabs has to know it exists.
+    const before = build("a b (G c d)");
+    const after = setComparePath(before, "/compare.md");
+    expect(render(after)).toBe(render(before));
+    expect(after.activeTabId).toBe(before.activeTabId);
+  });
+
+  it("allows a file that is also open in a tab", () => {
+    // Unlike two tabs on one file, this is fine: the pane is read-only, and a
+    // save is pushed into every view of that path, so they cannot diverge.
+    expect(setComparePath(build("a"), "/a.md").comparePath).toBe("/a.md");
+  });
+
+  it("returns the same session when nothing changes", () => {
+    const before = setComparePath(build("a"), "/compare.md");
+    expect(setComparePath(before, "/compare.md")).toBe(before);
+  });
+
+  it("survives an unrelated tab operation", () => {
+    // `normalize` rebuilds the session from a fresh literal, so a field it
+    // forgets to restate is set successfully and then silently lost on the next
+    // thing the reader does. This is the test that says so.
+    const session = setComparePath(build("a b"), "/compare.md");
+    expect(closeTab(session, "b").comparePath).toBe("/compare.md");
+    expect(activateRelative(session, 1).comparePath).toBe("/compare.md");
+    expect(moveTab(session, "a", 2).comparePath).toBe("/compare.md");
+  });
+
+  it("normalizes an empty path to a closed pane", () => {
+    // Only reachable from a hand-edited config.json, where it would otherwise
+    // open a pane that can never load anything.
+    expect(normalize({ ...build("a"), comparePath: "" }).comparePath).toBe(null);
   });
 });

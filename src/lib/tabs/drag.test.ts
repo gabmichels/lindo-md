@@ -6,6 +6,7 @@ import {
   commitOf,
   displacementOf,
   isDragging,
+  isOverSplit,
   reduce,
   type DragSnapshot,
   type DragState,
@@ -29,10 +30,15 @@ function scene(group?: [number, number]): Session {
     })),
     groups: from < 0 ? [] : [{ id: "G", name: "Specs", color: "clay" as const, collapsed: false }],
     activeTabId: "a",
+    comparePath: null,
   });
 }
 
-function snapshotFor(session: Session, subjectId: string): DragSnapshot {
+function snapshotFor(
+  session: Session,
+  subjectId: string,
+  splitZone: DragSnapshot["splitZone"] = null,
+): DragSnapshot {
   const { slots, trackWidth } = layoutTabs({
     session,
     stripWidth: 900,
@@ -50,6 +56,7 @@ function snapshotFor(session: Session, subjectId: string): DragSnapshot {
     // Grabbed in the middle of the tab, which is what a real pointer does.
     grabOffset: slots[slotIndex]!.width / 2,
     trackWidth,
+    splitZone,
   };
 }
 
@@ -62,9 +69,18 @@ function press(snapshot: DragSnapshot, x: number): DragState {
   return reduce(IDLE, { type: "down", pointerId: 1, x, y: 0, snapshot });
 }
 
-/** A move along the strip: a reorder. */
-function move(state: DragState, x: number, y = 0): DragState {
-  return reduce(state, { type: "move", pointerId: 1, x, y, now: 0 });
+/** A move along the strip: a reorder. The client position defaults to the
+ *  strip's own row, which is outside any split zone. */
+function move(state: DragState, x: number, y = 0, client = { x: 0, y: 0 }): DragState {
+  return reduce(state, {
+    type: "move",
+    pointerId: 1,
+    x,
+    y,
+    clientX: client.x,
+    clientY: client.y,
+    now: 0,
+  });
 }
 
 describe("press versus drag", () => {
@@ -83,7 +99,15 @@ describe("press versus drag", () => {
   it("ignores a second pointer entirely", () => {
     const snapshot = snapshotFor(scene(), "a");
     const pressed = press(snapshot, 50);
-    const other = reduce(pressed, { type: "move", pointerId: 2, x: 900, y: 0, now: 0 });
+    const other = reduce(pressed, {
+      type: "move",
+      pointerId: 2,
+      x: 900,
+      y: 0,
+      clientX: 0,
+      clientY: 0,
+      now: 0,
+    });
     expect(other).toBe(pressed);
   });
 });
@@ -192,5 +216,66 @@ describe("giving up", () => {
     const snapshot = snapshotFor(scene(), "a");
     const dragging = move(press(snapshot, centerOf(snapshot, "a")), 500);
     expect(reduce(dragging, { type: "invalidate", removedIds: ["d"] })).toBe(dragging);
+  });
+});
+
+/**
+ * Dragging into the canvas's right half, which opens the comparison pane.
+ *
+ * The zone is in client coordinates and lives well below the strip, which is
+ * the whole reason this second outcome is safe where tab-onto-tab grouping was
+ * not: there, two different intentions shared a pointer position. Here they are
+ * separated by the entire toolbar.
+ */
+const ZONE = { minX: 600, minY: 100 };
+
+describe("dragging into the split zone", () => {
+  it("is not a split while the pointer is still in the strip", () => {
+    const snapshot = snapshotFor(scene(), "a", ZONE);
+    const state = move(press(snapshot, centerOf(snapshot, "a")), 500, 0, { x: 900, y: 20 });
+    expect(isOverSplit(state)).toBe(false);
+    expect(commitOf(state)).not.toBe(null);
+  });
+
+  it("is not a split in the left half of the canvas", () => {
+    const snapshot = snapshotFor(scene(), "a", ZONE);
+    const state = move(press(snapshot, centerOf(snapshot, "a")), 500, 0, { x: 400, y: 400 });
+    expect(isOverSplit(state)).toBe(false);
+  });
+
+  it("splits in the right half, below the chrome", () => {
+    const snapshot = snapshotFor(scene(), "a", ZONE);
+    const state = move(press(snapshot, centerOf(snapshot, "a")), 500, 0, { x: 900, y: 400 });
+    expect(isOverSplit(state)).toBe(true);
+  });
+
+  it("refuses to also reorder, so one drop cannot do two things", () => {
+    const snapshot = snapshotFor(scene(), "a", ZONE);
+    const state = move(press(snapshot, centerOf(snapshot, "a")), 500, 0, { x: 900, y: 400 });
+    expect(commitOf(state)).toBe(null);
+  });
+
+  it("goes back to the reorder it interrupted when the pointer leaves", () => {
+    // Not to a seam of zero: the reader was mid-drag, and coming back out of
+    // the zone has to return them to where the tab was going.
+    const snapshot = snapshotFor(scene(), "a", ZONE);
+    const along = move(press(snapshot, centerOf(snapshot, "a")), 500);
+    const inside = move(along, 500, 0, { x: 900, y: 400 });
+    const back = move(inside, 500, 0, { x: 900, y: 20 });
+    expect(isOverSplit(back)).toBe(false);
+    expect(commitOf(back)).toEqual(commitOf(along));
+  });
+
+  it("never splits when there is no zone, which is how a group is refused", () => {
+    // `TabStrip` passes null for a group: a pane holds one document, so there
+    // is nothing for a group to become.
+    const snapshot = snapshotFor(scene(), "a");
+    const state = move(press(snapshot, centerOf(snapshot, "a")), 500, 0, { x: 900, y: 400 });
+    expect(isOverSplit(state)).toBe(false);
+  });
+
+  it("is never a split before the press has become a drag", () => {
+    const snapshot = snapshotFor(scene(), "a", ZONE);
+    expect(isOverSplit(press(snapshot, 50))).toBe(false);
   });
 });

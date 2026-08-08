@@ -87,7 +87,18 @@ export interface TabDocuments {
   canRedo: (id: string) => boolean;
 }
 
-export function useTabDocuments(session: Session, folder: string | null): TabDocuments {
+/**
+ * @param pinnedId A runtime that is live without being a tab — the comparison
+ *   pane's document. It is kept out of `session.tabs` on purpose (the pane is a
+ *   path, not a tab; see `Session.comparePath`), so without naming it here the
+ *   collector below would drop it on the next tab change and the watcher would
+ *   never see the file it holds.
+ */
+export function useTabDocuments(
+  session: Session,
+  folder: string | null,
+  pinnedId: string | null = null,
+): TabDocuments {
   const [runtimes, setRuntimes] = useState<Record<string, TabRuntime>>({});
 
   const current = useRef(runtimes);
@@ -303,23 +314,26 @@ export function useTabDocuments(session: Session, folder: string | null): TabDoc
   // hold every document it ever showed.
   useEffect(() => {
     const live = new Set(session.tabs.map((tab) => tab.id));
+    if (pinnedId) live.add(pinnedId);
     setRuntimes((runtimes) => {
       const keys = Object.keys(runtimes);
       if (keys.every((key) => live.has(key))) return runtimes;
       return Object.fromEntries(Object.entries(runtimes).filter(([key]) => live.has(key)));
     });
-  }, [session.tabs]);
+  }, [session.tabs, pinnedId]);
 
   // Every hydrated tab is watched, not just the visible one, so a file edited
-  // outside the app reloads in the background too. Joined into a string because
-  // the array is rebuilt on every render and would re-run the effect forever.
+  // outside the app reloads in the background too — and the comparison pane
+  // with them, which is what makes it useful for watching a file an agent is
+  // rewriting. Joined into a string because the array is rebuilt on every
+  // render and would re-run the effect forever.
   const watchKey = useMemo(
     () =>
-      session.tabs
-        .map((tab) => runtimes[tab.id]?.document?.path)
+      [...session.tabs.map((tab) => tab.id), ...(pinnedId ? [pinnedId] : [])]
+        .map((id) => runtimes[id]?.document?.path)
         .filter((path): path is string => Boolean(path))
         .join(" "),
-    [session.tabs, runtimes],
+    [session.tabs, runtimes, pinnedId],
   );
 
   useEffect(() => {

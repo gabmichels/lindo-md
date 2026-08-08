@@ -282,6 +282,7 @@ export interface PaletteActions {
   onRedo: () => void;
   onExport: () => void;
   onPrint: () => void;
+  onToggleCompare: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onZoomReset: () => void;
@@ -299,6 +300,9 @@ export interface PaletteState {
    *  the same gate the keyboard shortcuts apply, for the same reason. */
   editable: boolean;
   sourceMode: boolean;
+  /** Whether the comparison pane is showing a second document, which decides
+   *  whether the one row offers to open it or to close it. */
+  compareOpen: boolean;
   canGoBack: boolean;
   canGoForward: boolean;
   railCollapsed: boolean;
@@ -438,6 +442,17 @@ export function commandItems(actions: PaletteActions, state: PaletteState): Pale
       group: "Commands",
       when: state.hasDocument,
       run: actions.onPrint,
+    },
+    {
+      // One row rather than an open/close pair, because the chord is a toggle
+      // and a palette that offers "Close…" while the pane is shut is offering a
+      // row that does nothing.
+      id: "cmd:compare",
+      label: state.compareOpen ? "Close the comparison pane" : "Compare with another file…",
+      chord: `${mod}+\\`,
+      keywords: "split side by side second pane diff",
+      group: "Commands",
+      run: actions.onToggleCompare,
     },
     {
       id: "cmd:reveal",
