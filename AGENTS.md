@@ -600,6 +600,18 @@ existing group's run does still join it, and that is ordinary reordering with a 
   why it is in the ammonia allowlist. comrak also skips its own dangerous-URL check on these
   hrefs whenever `unsafe_` is on, which it permanently is, so `[[javascript:…]]` is stopped by the
   sanitizer's scheme list and by nothing else.
+- **A wikilink is an atom in `srcmap`, and the reason generalizes to any construct added after it.**
+  `scan_forward` takes the earliest match at or after the cursor, and the safety argument written
+  above it is that runs appear in the source in the order they appear in the output. `[[target|label]]`
+  was the first construct here where *hidden source precedes the visible text it renders* — in
+  `[label](url)` the label comes first, and image alt text is skipped outright — so a label echoing
+  its own target matched inside the target. `[[Roadmap#Q3|Roadmap]]` mapped the visible word to the
+  target's bytes, `align_block` reported `Exact` because a match *was* found, and typing after the
+  label rewrote the link. `[[Note#Heading|Note]]` and `[[folder/Note|Note]]` are the ordinary
+  Obsidian idioms, so this was the common case, not an edge one. `is_skipped` now covers
+  `NodeValue::WikiLink`. **Before adding an inline extension, ask where its non-rendered source
+  sits relative to its rendered text** — and note that `produces()` in the tests cannot answer it,
+  since the wrong "Roadmap" spells "Roadmap" too. Only an assertion on the offset can.
 - **The window is frameless on Windows and Linux** (`decorations: false`), but **decorated on
   macOS**. `body` sets `user-select: none` because dragging the titlebar would otherwise start a text
   selection; the document canvas re-enables selection for itself. Controls are drawn per-platform in

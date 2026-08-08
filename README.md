@@ -161,9 +161,13 @@ Everything GitHub renders:
   allowlist
 - YAML frontmatter, relative image paths, and relative links between documents
 
-Plus one thing GitHub does not: **`[[wikilinks]]`**, so a folder of notes carried out of Obsidian,
-Foam or Logseq still links to itself. `[[Note]]`, `[[Note|read as this]]` and `[[Note#Heading]]` all
-open the file they name, extension and all left off as written.
+Plus one thing GitHub does not: **`[[wikilinks]]`**. `[[Note]]`, `[[Note|read as this]]` and
+`[[Note#Heading]]` open the file they name, with the extension left off as written.
+
+The target is resolved **relative to the document it is written in**, exactly as `[a](../b.md)`
+would be — `[[Note]]` beside the file, `[[folder/Note]]` below it. That covers a flat folder of
+notes and any vault that links by path. It is deliberately not Obsidian's vault-wide search for a
+note by name, which needs an index of every file in a vault, and lindo-md has no vault to index.
 
 Heading anchors carry no `user-content-` prefix, so a `file.md#anchor` link works exactly as typed.
 

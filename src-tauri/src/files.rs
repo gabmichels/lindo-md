@@ -967,14 +967,40 @@ mod tests {
         std::fs::write(&path, b"# Ours\r\n\r\nA line.\r\n").unwrap();
 
         let as_read = hash("# Ours\n\nA line.\n");
-        assert!(
-            ensure_unchanged(&path, &as_read).is_ok(),
-            "the stale-write guard must speak the same string the editor does"
-        );
+        let form = ensure_unchanged(&path, &as_read)
+            .expect("the stale-write guard must speak the same string the editor does");
+
+        // The form travelling from disk to `encode` is the wiring the whole feature
+        // rests on, and nothing else pins it: `text.rs` proves `encode` honours a
+        // form it is handed, not that `save` hands it the file's own. Stub this to
+        // a default and every other test in the crate still passes, while every
+        // CRLF file quietly saves back as LF.
+        assert_eq!(form.line_ending, text::LineEnding::Crlf);
+        assert_eq!(form.bom, text::Bom::None);
 
         let state = WatchState::default();
         state.expect_write(&path, &as_read);
         assert!(state.is_our_write(&path));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The record has to come off again when the write it describes did not happen,
+    /// or it sits there waiting to be spent on somebody else's change.
+    #[test]
+    fn a_write_that_failed_leaves_no_claim_behind() {
+        let dir = std::env::temp_dir().join("lindo-md-forget-write-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("note.md");
+        std::fs::write(&path, "# Ours\n").unwrap();
+
+        let state = WatchState::default();
+        state.expect_write(&path, &hash("# Ours\n"));
+        state.forget_write(&path);
+        assert!(
+            !state.is_our_write(&path),
+            "a claim outlived the write it was describing"
+        );
 
         std::fs::remove_dir_all(&dir).ok();
     }

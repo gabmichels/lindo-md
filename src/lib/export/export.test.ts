@@ -113,6 +113,23 @@ describe("cleanedMarkup", () => {
     expect(markup).toContain("Body");
   });
 
+  it("turns a wikilink into the link it would have been written as", () => {
+    const element = article(
+      `<a href="Design%20Notes" data-wikilink="true">Design Notes</a>` +
+        `<a href="Design%20Notes#colour" data-wikilink="true">Colour</a>` +
+        `<a href="README.md" data-wikilink="true">Readme</a>`,
+    );
+    const markup = _cleanedMarkup(element);
+
+    // The attribute is app-only bookkeeping, like data-sourcepos beside it — but
+    // dropping it alone would leave an href with no extension, pointing at
+    // nothing once the file is opened anywhere else.
+    expect(markup).not.toContain("data-wikilink");
+    expect(markup).toContain(`href="Design%20Notes.md"`);
+    expect(markup).toContain(`href="Design%20Notes.md#colour"`);
+    expect(markup).toContain(`href="README.md"`);
+  });
+
   it("keeps rendered diagrams as markup rather than as something to re-run", () => {
     const element = article(
       `<figure class="mermaid" data-rendered="house-light" data-source="graph TD"><svg><g/></svg></figure>`,

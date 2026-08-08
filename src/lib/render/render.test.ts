@@ -137,7 +137,11 @@ describe("linkTarget, for wikilinks", () => {
   });
 
   it("resolves a target that names a folder", () => {
-    expect(linkTarget("/docs", "guides/Setup", true).kind).toBe("document");
+    expect(linkTarget("/docs", "guides/Setup", true)).toEqual({
+      kind: "document",
+      path: "/docs/guides/Setup.md",
+      fragment: "",
+    });
   });
 
   /** A version number is not an extension. See `wikilinkPath`. */
@@ -164,7 +168,10 @@ describe("linkTarget, for wikilinks", () => {
    * drift into one.
    */
   it("still hands plain text to the OS", () => {
-    expect(linkTarget("/docs", "notes.txt", true).kind).toBe("handoff");
+    expect(linkTarget("/docs", "notes.txt", true)).toEqual({
+      kind: "handoff",
+      path: "/docs/notes.txt",
+    });
   });
 
   it("is inert on an ordinary link", () => {
