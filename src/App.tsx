@@ -386,20 +386,20 @@ function Shell() {
   );
 
   const host = useHostPlatform();
-  // Memoized because it is a dependency of the palette's item list, which is
-  // rebuilt whenever it changes identity.
-  const paletteState: PaletteState = useMemo(
-    () => ({
-      hasDocument: document !== null,
-      editable: document?.editable === true,
-      sourceMode: active ? sourceTabs.has(active.id) : false,
-      canGoBack: active ? docs.canGoBack(active.id) : false,
-      canGoForward: active ? docs.canGoForward(active.id) : false,
-      railCollapsed: config.railCollapsed,
-      mod: host === "macos" ? "⌘" : "Ctrl",
-    }),
-    [active, config.railCollapsed, docs, document, host, sourceTabs],
-  );
+  // Not memoized. It used to be, with a comment claiming the palette's item list
+  // depended on its identity — but `docs` is a fresh object literal on every
+  // render, so the memo never held and the comment described a property the code
+  // did not have. The palette rebuilds its list per render regardless, and
+  // deliberately: see the note above `buildItems` in `CommandPalette`.
+  const paletteState: PaletteState = {
+    hasDocument: document !== null,
+    editable: document?.editable === true,
+    sourceMode: active ? sourceTabs.has(active.id) : false,
+    canGoBack: active ? docs.canGoBack(active.id) : false,
+    canGoForward: active ? docs.canGoForward(active.id) : false,
+    railCollapsed: config.railCollapsed,
+    mod: host === "macos" ? "⌘" : "Ctrl",
+  };
 
   return (
     <div className="flex h-full">

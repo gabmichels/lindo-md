@@ -170,6 +170,54 @@ check("the document's --doc-* tokens reach the page", async (cdp) => {
   }
 });
 
+/**
+ * The command palette, which is here for two reasons a unit test cannot reach.
+ *
+ * The caret: `CommandPalette` focuses its own field from a `requestAnimationFrame`,
+ * after Radix's focus scope, and Chromium *selects the whole value* when an input is
+ * focused from script. That made the `>` the box opens with disappear on the first
+ * keystroke — Ctrl+Shift+P then "theme" landed in quick-open and searched for a file
+ * called theme. It was caught by looking at a screenshot, and nothing else would have.
+ *
+ * The suspension: every shortcut is registered on `window`, so the only way to observe
+ * that they stop firing while a modal owns the keyboard is to press one.
+ */
+check("the command palette opens with its caret after the prefix", async (cdp) => {
+  const key = (init) =>
+    `window.dispatchEvent(new KeyboardEvent('keydown', {bubbles: true, cancelable: true, ${init}}))`;
+
+  await cdp.evaluate(key(`key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true`));
+  await settle(400);
+
+  const field = await cdp.evaluate(`(() => {
+    const box = document.querySelector('[role="combobox"]');
+    return box && { value: box.value, caret: box.selectionStart, focused: box === document.activeElement };
+  })()`);
+
+  if (!field) throw new Error("Ctrl+Shift+P opened no palette");
+  if (!field.focused) throw new Error("the palette opened without focus in its field");
+  if (field.value !== ">")
+    throw new Error(`expected the box to hold ">", got ${JSON.stringify(field.value)}`);
+  if (field.caret !== 1) {
+    throw new Error(
+      `caret at ${field.caret}, not after the prefix — the first keystroke will replace it`,
+    );
+  }
+
+  // Ctrl+F must not reach the window handler while this is open.
+  await cdp.evaluate(key(`key: 'f', code: 'KeyF', ctrlKey: true`));
+  await settle(300);
+  if (await cdp.evaluate(`!!document.querySelector('[role="search"]')`)) {
+    throw new Error("Ctrl+F opened the find bar behind the palette; shortcuts are not suspended");
+  }
+
+  await cdp.evaluate(key(`key: 'Escape', code: 'Escape'`));
+  await settle(300);
+  if (await cdp.evaluate(`!!document.querySelector('[role="combobox"]')`)) {
+    throw new Error("Escape left the palette open");
+  }
+});
+
 check("the page logged no errors", async (cdp) => {
   if (cdp.consoleErrors.length > 0) {
     throw new Error(`console errors:\n  ${cdp.consoleErrors.join("\n  ")}`);

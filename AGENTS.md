@@ -577,8 +577,12 @@ logic is pure and lives in `src/lib/palette/`; `CommandPalette.tsx` is a list an
 Four decisions worth not re-litigating:
 
 - **`App.tsx` builds one `actions` object and hands it to both front-ends.** The keyboard hook and
-  the palette are two views onto the same set, so a command cannot exist with no chord shown beside
-  it, and a chord cannot drift from the row that advertises it. The two panels are the deliberate
+  the palette are two views onto the same set, so an action cannot exist for one and not the other.
+  **It does not pin the chord**, and an earlier version of this paragraph claimed it did: the chord
+  is a literal string in `items.ts`, a `case` in `App.tsx`'s switch, and a row in `AboutDialog`'s
+  `SHORTCUTS`, and nothing relates the three. `advertises exactly these chords` freezes the set so a
+  change is a visible line in a diff, which is a net rather than a proof. The real fix is a shared
+  chord table both sides read; until someone writes it, this is discipline. The two panels are the deliberate
   exception: `Ctrl+,` toggles Settings while the palette row only ever opens it, because a row
   labelled "Settings…" that closes Settings is a row whose label was true a moment ago. Availability
   is gated in `commandItems` on the same conditions the keyboard applies — a palette row reaches
@@ -594,8 +598,13 @@ Four decisions worth not re-litigating:
   and neither is worth an entry in a tree that ships inside a downloaded binary (see
   [Dependencies](#dependencies)) for sixty lines. `match.ts` tries every place the query's first
   character occurs, because anchoring on the first one alone puts `mer` on `mock`'s `m` in
-  `src/mock/render/mermaid.ts` and never reaches the word it was aiming at. Both halves of that —
-  the per-start scan and the backward tightening — have a test named after the case they fix.
+  `src/mock/render/mermaid.ts` and never reaches the word it was aiming at. Each half — the
+  per-start scan, the backward tightening, and the *pin* that stops tightening from eating the
+  start it came from — has a test named after the case it fixes, and each of those cases was a
+  real wrong answer before the test existed. Two other things there look like tuning and are not:
+  the adjacency bonus **must** exceed the word-boundary bonus, or `n-o-t-e-0.md` outranks
+  `note.md` for `note`; and case folding is per character, because `toLowerCase()` on a whole
+  string is not length-preserving and every index is handed back as an index into the original.
 
 ## Gotchas
 

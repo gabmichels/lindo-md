@@ -49,8 +49,8 @@ export function fuzzyMatch(query: string, text: string): FuzzyMatch | null {
   const haystack = text.length > MAX_LENGTH ? text.slice(text.length - MAX_LENGTH) : text;
   const offset = text.length - haystack.length;
 
-  const lowerQuery = query.toLowerCase();
-  const lowerText = haystack.toLowerCase();
+  const lowerQuery = fold(query);
+  const lowerText = fold(haystack);
 
   let best: number[] | null = null;
   let bestScore = -Infinity;
@@ -68,7 +68,7 @@ export function fuzzyMatch(query: string, text: string): FuzzyMatch | null {
     // No later start can succeed if this one could not, so the scan is over.
     if (end === null) break;
 
-    const positions = tighten(lowerQuery, lowerText, end);
+    const positions = tighten(lowerQuery, lowerText, from, end);
     if (positions === null) break;
 
     const candidate = score(query, haystack, lowerText, positions);
@@ -88,6 +88,32 @@ export function fuzzyMatch(query: string, text: string): FuzzyMatch | null {
   return { score: bestScore, ranges: toRanges(best, offset) };
 }
 
+/**
+ * Case-folded, one character out for every character in.
+ *
+ * `toLowerCase()` over a whole string is **not** length-preserving — `İ`
+ * (U+0130) lowercases to two code units — and every index this module produces
+ * is handed back as an index into the *original* string. One such character
+ * anywhere in a filename shifts every range after it, so `notes` in
+ * `İstanbul-notes.md` highlighted `otes.`. The fast path is one native call and
+ * covers everything else; the slow path keeps the original character wherever
+ * folding it would change the length, which means `i` does not match `İ`. That
+ * is the right trade: a highlight pointing at the wrong characters is a bug,
+ * and one Turkish capital not matching a lowercase `i` is a limitation.
+ */
+function fold(text: string): string {
+  const lower = text.toLowerCase();
+  if (lower.length === text.length) return lower;
+
+  let out = "";
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text.charAt(i);
+    const folded = char.toLowerCase();
+    out += folded.length === 1 ? folded : char;
+  }
+  return out;
+}
+
 /** The index at which a greedy forward scan from `from` finishes, or `null`. */
 function forwardEnd(query: string, text: string, from: number): number | null {
   let q = 0;
@@ -101,24 +127,35 @@ function forwardEnd(query: string, text: string, from: number): number | null {
 }
 
 /**
- * The tightest positions for `query` ending at `end`.
+ * The tightest positions for `query` that begin at `from` and end at `end`.
  *
- * The last query character is pinned to `end`, then each earlier one to the
- * latest position that still precedes it. Written as a bounded scan rather than
- * a `while` that walks backward until it finds a hit: the caller has proved
- * every character is reachable, but an unbounded loop in a per-keystroke path
- * is a hang waiting for the proof to stop holding.
+ * Everything after the first character is pulled back as far as it will go; the
+ * first is **pinned to `from`**, and that pin is load-bearing. Tightening the
+ * anchor too means a query whose first character repeats later loses the
+ * earlier, better-placed one: `rt` against `render/theme.ts` slid its `r` from
+ * index 0 to index 5, giving up the start-of-string bonus and losing to
+ * `assorted.md`. Since the caller already tries every occurrence as a `from`,
+ * pinning here costs no coverage — it only stops each start from collapsing
+ * onto the same interior match.
+ *
+ * Written as a bounded scan rather than a `while` that walks backward until it
+ * finds a hit: the caller has proved every character is reachable, but an
+ * unbounded loop in a per-keystroke path is a hang waiting for the proof to
+ * stop holding.
  */
-function tighten(query: string, text: string, end: number): number[] | null {
+function tighten(query: string, text: string, from: number, end: number): number[] | null {
   const positions: number[] = [];
   let q = query.length - 1;
-  for (let cursor = end; cursor >= 0 && q >= 0; cursor -= 1) {
+  for (let cursor = end; cursor > from && q >= 1; cursor -= 1) {
     if (text[cursor] === query[q]) {
       positions.unshift(cursor);
       q -= 1;
     }
   }
-  return positions.length === query.length ? positions : null;
+  if (q !== 0) return null;
+
+  positions.unshift(from);
+  return positions;
 }
 
 function score(query: string, text: string, lowerText: string, positions: number[]): number {
@@ -132,7 +169,13 @@ function score(query: string, text: string, lowerText: string, positions: number
       const gap = at - previous - 1;
       // A run of adjacent characters is what "this is the word I meant" looks
       // like; a gap is tolerated but never free.
-      if (gap === 0) total += 12;
+      //
+      // This has to outweigh the boundary bonus below, and that is not obvious
+      // until you see what happens when it does not: every character of
+      // `n-o-t-e-0.md` sits after a separator, so with adjacency at 12 and a
+      // boundary at 14 the query `note` scored it *above* `note.md`. A word
+      // broken into single letters cannot beat the word.
+      if (gap === 0) total += 18;
       else total -= Math.min(gap, 12);
     }
 

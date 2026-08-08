@@ -143,6 +143,22 @@ export function recentItems(
     }));
 }
 
+/**
+ * `path` with the open folder taken off the front, if it is genuinely under it.
+ *
+ * The prefix has to end at a separator. `startsWith` alone lets the folder `/w`
+ * claim `/works/notes.md` and report its folder as `rks`, and a drive root —
+ * where `folder` is `C:\` and already ends in one — loses the first character
+ * of every filename to the same off-by-one.
+ */
+function relativeTo(path: string, folder: string | null): string {
+  if (folder === null || !path.startsWith(folder)) return path;
+
+  const rest = path.slice(folder.length);
+  if (rest.startsWith("/") || rest.startsWith("\\")) return rest.slice(1);
+  return /[/\\]$/.test(folder) ? rest : path;
+}
+
 /** Every document in the open folder, shown by its path relative to it. */
 export function fileItems(
   tree: TreeNode[],
@@ -159,11 +175,9 @@ export function fileItems(
         continue;
       }
       if (seen.has(node.path)) continue;
-      const relative =
-        folder && node.path.startsWith(folder) ? node.path.slice(folder.length + 1) : node.path;
       // `dirname` answers with an empty string for a bare filename, and an
       // empty detail would draw a separator with nothing after it.
-      const parent = dirname(relative);
+      const parent = dirname(relativeTo(node.path, folder));
       items.push({
         id: `file:${node.path}`,
         label: node.name,
@@ -227,7 +241,11 @@ export function themeItems(
 
   for (const custom of customThemes) {
     items.push({
-      id: `theme:${custom.id}`,
+      // Its own namespace, because `config.json` is a file the reader edits and
+      // a custom theme called `house` would otherwise collide with the preset —
+      // two rows with one id is a duplicate React key and an `aria-activedescendant`
+      // pointing at whichever the DOM found first.
+      id: `theme:custom:${custom.id}`,
       label: `Theme: ${custom.name}`,
       detail: "Your theme",
       group: "Theme",

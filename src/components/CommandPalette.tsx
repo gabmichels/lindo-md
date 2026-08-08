@@ -1,5 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { Heading, TreeNode } from "@/lib/ipc";
 import {
@@ -73,28 +73,24 @@ export function CommandPalette(props: CommandPaletteProps) {
 
   const { mode, query } = parseQuery(raw);
 
-  const items = useMemo(
-    () => buildItems(mode, props),
-    // Rebuilt whenever anything a row is made of changes. Every dependency is
-    // either a value or a callback the shell already holds steady; the actions
-    // object is not one of them, so it is read through `props` and left out
-    // deliberately — its identity changes every render and its contents do not.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-    [
-      mode,
-      props.tabs,
-      props.activeTabId,
-      props.recentFiles,
-      props.openPaths,
-      props.tree,
-      props.folder,
-      props.toc,
-      props.customThemes,
-      props.state,
-    ],
-  );
-
-  const results = useMemo(() => rank(items, query, MAX_RESULTS), [items, query]);
+  /**
+   * Rebuilt and re-ranked on every render, deliberately.
+   *
+   * This was a `useMemo` over a hand-written dependency list, and it was correct
+   * only by accident: every row closes over shell state — `onBack` reaches
+   * `runtime`, `onExport` reaches `scroller` and `theme` — and none of that is
+   * in `PaletteState`. What kept the closures fresh was that `useTabDocuments`
+   * returns a bare object literal, so `state` changed identity every render and
+   * the memo never held. Memoizing that unrelated hook, an obvious performance
+   * fix in a file that already imports `useMemo`, would have started serving
+   * stale actions from a list that looked right.
+   *
+   * The memo was buying nothing anyway: it invalidated on every render. Ranking
+   * five thousand candidates measures 0.6 ms, and this only renders on a
+   * keystroke or an arrow key, so the honest version is also the fast one.
+   */
+  const items = buildItems(mode, props);
+  const results = rank(items, query, MAX_RESULTS);
   const current = results[selected];
 
   // A new query is a new list, and keeping the old index would leave the
@@ -168,6 +164,14 @@ export function CommandPalette(props: CommandPaletteProps) {
               // means to the fingers that pressed it.
               event.preventDefault();
               props.onClose();
+            } else if ((event.ctrlKey || event.metaKey) && event.key === "P") {
+              // Ctrl+Shift+P with the box already open switches it to commands
+              // rather than doing nothing: reaching for the chord you know is
+              // not a mistake to be ignored. Matched on the capital `P`, since
+              // Shift changes the character rather than only setting the flag —
+              // the unshifted `p` is the emacs-style "previous row" above.
+              event.preventDefault();
+              setRaw((value) => (value.startsWith(">") ? value : ">"));
             }
           }}
         >
@@ -183,7 +187,13 @@ export function CommandPalette(props: CommandPaletteProps) {
             role="combobox"
             aria-expanded
             aria-controls="palette-results"
-            aria-activedescendant={current ? `palette-${current.item.id}` : undefined}
+            // Keyed off the row's position, never its id: a file row's id
+            // carries the filesystem path, and `C:\Users\gab\My Documents\x.md`
+            // is an ordinary one. An HTML id may not contain whitespace and
+            // `aria-activedescendant` is a whitespace-delimited IDREF, so the
+            // reference would silently resolve to nothing and a screen reader
+            // would announce no selection while everything visual kept working.
+            aria-activedescendant={current ? `palette-row-${selected}` : undefined}
             aria-label={PLACEHOLDER[mode]}
             placeholder={PLACEHOLDER[mode]}
             value={raw}
@@ -213,6 +223,7 @@ export function CommandPalette(props: CommandPaletteProps) {
               results.map((result, index) => (
                 <Row
                   key={result.item.id}
+                  index={index}
                   result={result}
                   selected={index === selected}
                   onSelect={() => {
@@ -258,11 +269,13 @@ function emptySource(mode: PaletteMode): string {
 }
 
 function Row({
+  index,
   result,
   selected,
   onSelect,
   onRun,
 }: {
+  index: number;
   result: PaletteResult;
   selected: boolean;
   onSelect: () => void;
@@ -274,7 +287,7 @@ function Row({
     // rule has nothing real to object to.
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- keyboard lives on the combobox input
     <div
-      id={`palette-${result.item.id}`}
+      id={`palette-row-${index}`}
       role="option"
       aria-selected={selected}
       tabIndex={-1}
