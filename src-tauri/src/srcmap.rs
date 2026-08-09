@@ -901,7 +901,12 @@ mod tests {
 
         let block = blocks
             .iter()
-            .find(|block| block.runs.iter().any(|run| run.text.contains("highlighted")))
+            .find(|block| {
+                block
+                    .runs
+                    .iter()
+                    .any(|run| run.text.contains("highlighted"))
+            })
             .expect("the paragraph reached the webview");
 
         // The words inside the tags are addressable, which is what marking one
