@@ -1,19 +1,26 @@
 import { PanelRightClose, Share, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { filterGroups, oneLine, pinCurrent, type DocumentGroup } from "@/lib/annotate/list";
+import { filterAnnotations, oneLine } from "@/lib/annotate/list";
 import type { Annotation } from "@/lib/ipc";
 import type { MarkSlot } from "@/lib/theme/apply";
-import { cn, dragRegion } from "@/lib/utils";
+import { basename, cn, dragRegion } from "@/lib/utils";
 
 /**
- * Everything the reader has marked, in one column beside the document.
+ * What the reader has marked **in the document they are reading**, in one column
+ * beside it.
  *
  * The payoff the annotation store was built for: a highlight you cannot find
- * again is a highlight you did not make. The list spans every folder, because
- * the question is "what did I flag about X" and the answer is mostly in files
- * that are not open — which is also why a row shows its stored quote rather than
- * going to the document for one. Nothing here resolves an anchor.
+ * again is a highlight you did not make. The list follows the active tab —
+ * switch tabs and it switches, close the last one and it empties — because the
+ * panel sits against the page and everything in it can be clicked back into the
+ * words it points at. A list that also carried other files would be answering a
+ * question the tab bar says you are not asking.
+ *
+ * A row shows its **stored** quote rather than going to the document for one,
+ * and nothing here resolves an anchor: a mark whose words have since been
+ * deleted still has a row, and that row is the only thing left that remembers
+ * what it was on.
  *
  * **Chrome, not paper.** It sits outside `<main>`, so it reads `--ui-*` and the
  * `--doc-*` tokens are not in scope for it — they are written onto the canvas
@@ -25,10 +32,12 @@ import { cn, dragRegion } from "@/lib/utils";
  */
 
 interface NotesPanelProps {
-  groups: DocumentGroup[];
+  /** The active document's marks. Empty both for a document with none and for
+   *  no document at all; the panel tells those apart from `currentPath`. */
+  annotations: readonly Annotation[];
   loaded: boolean;
   error: string | null;
-  /** The document on screen, whose group is pinned to the top. */
+  /** The document on screen, and so the one this list is about. */
   currentPath: string | null;
   markColors: Record<MarkSlot, string>;
   onClose: () => void;
@@ -50,7 +59,7 @@ interface NotesPanelProps {
 }
 
 export function NotesPanel({
-  groups,
+  annotations,
   loaded,
   error,
   currentPath,
@@ -67,10 +76,7 @@ export function NotesPanel({
 }: NotesPanelProps) {
   const [query, setQuery] = useState("");
 
-  const shown = useMemo(
-    () => pinCurrent(filterGroups(groups, query), currentPath),
-    [groups, query, currentPath],
-  );
+  const shown = useMemo(() => filterAnnotations(annotations, query), [annotations, query]);
 
   // A filter left over from earlier would hide the row the reader just asked to
   // write a note on, and they would be looking at an empty panel wondering where
@@ -79,7 +85,14 @@ export function NotesPanel({
     if (editing !== null) setQuery("");
   }, [editing]);
 
-  const total = groups.reduce((count, group) => count + group.annotations.length, 0);
+  // The same trap one document over: a query typed against one file's notes
+  // means nothing about the next one's, and left in place it would greet a tab
+  // switch with an empty list.
+  useEffect(() => {
+    setQuery("");
+  }, [currentPath]);
+
+  const total = annotations.length;
 
   return (
     <aside
@@ -92,8 +105,20 @@ export function NotesPanel({
       <div {...dragRegion("h-[var(--ui-titlebar-h)] shrink-0")} aria-hidden />
 
       <div className="flex h-[var(--ui-toolbar-h)] items-center gap-1 px-[var(--ui-pad)]">
-        <h2 className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ui-text-strong">
+        {/* The file name sits in the heading rather than over the rows, because
+            the list is now one document's and a heading above it would say the
+            same thing twice. Full path in the tooltip — a tab bar of `index.md`
+            is a tab bar of identical names. */}
+        <h2
+          title={currentPath ?? undefined}
+          className="flex min-w-0 flex-1 items-baseline gap-1.5 truncate text-[12.5px] font-medium text-ui-text-strong"
+        >
           Notes
+          {currentPath !== null && (
+            <span className="min-w-0 truncate text-[11px] font-normal text-ui-text-muted">
+              {basename(currentPath)}
+            </span>
+          )}
         </h2>
         {onExport && (
           <button
@@ -187,79 +212,37 @@ export function NotesPanel({
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-[var(--ui-pad)] pb-2">
-        {!loaded ? null : shown.length === 0 ? (
+        {/* The no-document case is answered before `loaded`, since there is
+            nothing to wait for: with no tab open the list is empty no matter
+            what the store comes back with. */}
+        {currentPath === null ? (
+          <p className="px-1 py-2 text-[12px] leading-relaxed text-ui-text-muted">
+            Open a document to see the highlights and notes you made in it.
+          </p>
+        ) : !loaded ? null : shown.length === 0 ? (
           <p className="px-1 py-2 text-[12px] leading-relaxed text-ui-text-muted">
             {total === 0
               ? "Highlight some words and they will be listed here, with any notes you add."
               : "No notes match that."}
           </p>
         ) : (
-          shown.map((group) => (
-            <Group
-              key={group.path}
-              group={group}
-              current={group.path === currentPath}
-              markColors={markColors}
-              onReveal={onReveal}
-              onSetNote={onSetNote}
-              onRemove={onRemove}
-              editing={editing}
-              onEditingHandled={onEditingHandled}
-            />
-          ))
+          <ul>
+            {shown.map((annotation) => (
+              <Row
+                key={annotation.id}
+                annotation={annotation}
+                color={markColors[annotation.color as MarkSlot]}
+                onReveal={onReveal}
+                onSetNote={onSetNote}
+                onRemove={onRemove}
+                editing={editing === annotation.id}
+                onEditingHandled={onEditingHandled}
+              />
+            ))}
+          </ul>
         )}
       </div>
     </aside>
-  );
-}
-
-function Group({
-  group,
-  current,
-  markColors,
-  onReveal,
-  onSetNote,
-  onRemove,
-  editing,
-  onEditingHandled,
-}: {
-  group: DocumentGroup;
-  current: boolean;
-  markColors: Record<MarkSlot, string>;
-  onReveal: (annotation: Annotation) => void;
-  onSetNote: (annotation: Annotation, body: string) => void;
-  onRemove: (id: number) => void;
-  editing: number | null;
-  onEditingHandled?: () => void;
-}) {
-  return (
-    <section className="mb-3">
-      {/* The name, with the full path as the tooltip: a list of twenty
-          `index.md` rows is a list of twenty identical rows. */}
-      <h3
-        title={group.path}
-        className={cn(
-          "sticky top-0 z-10 truncate bg-ui-base py-1 text-[11px] font-medium uppercase tracking-wide",
-          current ? "text-ui-text-strong" : "text-ui-text-muted",
-        )}
-      >
-        {group.name}
-      </h3>
-      <ul>
-        {group.annotations.map((annotation) => (
-          <Row
-            key={annotation.id}
-            annotation={annotation}
-            color={markColors[annotation.color as MarkSlot]}
-            onReveal={onReveal}
-            onSetNote={onSetNote}
-            onRemove={onRemove}
-            editing={editing === annotation.id}
-            onEditingHandled={onEditingHandled}
-          />
-        ))}
-      </ul>
-    </section>
   );
 }
 

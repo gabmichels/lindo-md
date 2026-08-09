@@ -380,22 +380,6 @@ export function deleteAnnotation(id: number): Promise<void> {
   return call("delete_annotation", NothingSchema, { id });
 }
 
-/**
- * Every annotation in the database, across every folder — what the panel's
- * cross-document list is built from.
- *
- * Parsed through the same forgiving list schema as one document's marks, and for
- * a sharper reason here: this call spans every file the reader has ever marked,
- * so it is the one most likely to meet a row some future build wrote. One
- * unreadable row must not empty the whole panel.
- *
- * Rust orders these newest-first; `byDocument` re-orders them for display and
- * does not depend on that.
- */
-export function allAnnotations(): Promise<Annotation[]> {
-  return call("all_annotations", AnnotationListSchema, {});
-}
-
 /** Changes the colour slot, the note, or both, and hands back the row as it now
  *  stands — including the `updatedAt` that decides where its document sits in
  *  the panel. Where a mark *points* changes only through `reanchorAnnotations`. */

@@ -2,12 +2,16 @@ import type { Annotation } from "@/lib/ipc";
 import type { SourceRange } from "@/lib/edit/selection";
 
 /**
- * Turning stored annotations into the two lists the panel shows.
+ * Turning one document's stored annotations into the list the panel shows.
  *
  * Everything here is pure and works on plain rows, which is the point: the panel
  * itself is then a list and a text box, and the decisions that are easy to get
- * wrong — what order marks come in, what an orphan does to that order, what the
- * cross-document view can honestly claim — are testable without a DOM.
+ * wrong — what order marks come in, what an orphan does to that order, what a
+ * one-line quote may throw away — are testable without a DOM.
+ *
+ * Which document's rows these are is not decided here. That is a question about
+ * paths, the store answers it, and the frontend has no business comparing a path
+ * it was handed against a canonicalized one — see `useDocumentNotes`.
  */
 
 /** An annotation with wherever it currently resolves to, or null for an orphan.
@@ -36,109 +40,36 @@ export function inDocumentOrder<T extends Placed & Annotation>(marks: readonly T
   return [...placed, ...orphans];
 }
 
-/** One document's worth of the cross-document list. */
-export interface DocumentGroup {
-  path: string;
-  /** The file's own name, for the heading. The panel shows this and keeps the
-   *  full path for the tooltip — a list of twenty `index.md` rows is a list of
-   *  twenty identical rows. */
-  name: string;
-  annotations: Annotation[];
-  /** The most recent `updatedAt` in the group, which is what orders the groups. */
-  touchedAt: number;
-}
-
 /**
- * Every annotation in the database, grouped by the document it belongs to.
+ * Whether a mark answers a query.
  *
- * **Groups are ordered by the most recently touched mark in each, not
- * alphabetically.** The question this list answers is "what have I been
- * flagging", and the answer decays with age; a-to-z would put whatever folder
- * starts with `a` in front of the note made a minute ago.
+ * Searches the note and the quote — the two things a reader would say out loud
+ * about a mark. **Not the file name**, which every row in a document-scoped list
+ * shares: matching on it would mean typing the name of the file you are reading
+ * selects everything, which looks like a broken filter rather than a clever one.
  *
- * Within a group, marks are ordered by their **stored** offsets. That is the
- * only order available here and it is an honest one to offer: resolving an
- * anchor needs the document's source, and the whole point of this view is to
- * show marks from files that are not open. A mark that has moved since is
- * listed a little out of place, which costs nothing, and its quote — stored for
- * exactly this — is still the words it was put on.
- */
-export function byDocument(annotations: readonly Annotation[]): DocumentGroup[] {
-  const groups = new Map<string, DocumentGroup>();
-  for (const annotation of annotations) {
-    const existing = groups.get(annotation.path);
-    if (existing) {
-      existing.annotations.push(annotation);
-      existing.touchedAt = Math.max(existing.touchedAt, annotation.updatedAt);
-      continue;
-    }
-    groups.set(annotation.path, {
-      path: annotation.path,
-      name: fileName(annotation.path),
-      annotations: [annotation],
-      touchedAt: annotation.updatedAt,
-    });
-  }
-
-  const ordered = [...groups.values()];
-  for (const group of ordered) {
-    group.annotations.sort((a, b) => a.startOffset - b.startOffset || a.id - b.id);
-  }
-  ordered.sort((a, b) => b.touchedAt - a.touchedAt || a.path.localeCompare(b.path));
-  return ordered;
-}
-
-/**
- * Moves the document being read to the front of the list.
- *
- * Recency is the right order for the *question* the panel answers, and the wrong
- * one for the document that is on screen: the panel sits beside it, its marks
- * are the ones the reader can act on, and a file opened without being marked
- * today would otherwise sink under everything touched since. Reading and
- * annotating are the same session.
- *
- * Everything below keeps the recency order it had, so this is one group moving
- * rather than a second sort. A path with no marks — the common case on a fresh
- * document — changes nothing.
- */
-export function pinCurrent(groups: readonly DocumentGroup[], path: string | null): DocumentGroup[] {
-  if (path === null) return [...groups];
-  const at = groups.findIndex((group) => group.path === path);
-  const current = groups[at];
-  if (at <= 0 || !current) return [...groups];
-  return [current, ...groups.slice(0, at), ...groups.slice(at + 1)];
-}
-
-/**
- * Whether a mark answers a query, which is the "everything I flagged about X"
- * the whole store exists for.
- *
- * Searches the note, the quote **and the file name** — the three things a reader
- * would say out loud. Case-insensitive and substring rather than fuzzy: the
- * palette's matcher earns its complexity by ranking a hundred paths against
- * three keystrokes, and this is filtering a list already on screen, where a
- * surprising match is worse than a missing one.
+ * Case-insensitive and substring rather than fuzzy: the palette's matcher earns
+ * its complexity by ranking a hundred paths against three keystrokes, and this
+ * is filtering a list already on screen, where a surprising match is worse than
+ * a missing one.
  */
 export function matches(annotation: Annotation, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (needle.length === 0) return true;
   return (
     annotation.body.toLowerCase().includes(needle) ||
-    annotation.quote.toLowerCase().includes(needle) ||
-    fileName(annotation.path).toLowerCase().includes(needle)
+    annotation.quote.toLowerCase().includes(needle)
   );
 }
 
-/** Drops groups left with nothing, so filtering never shows a file heading with
- *  no rows under it. */
-export function filterGroups(groups: readonly DocumentGroup[], query: string): DocumentGroup[] {
-  if (query.trim().length === 0) return [...groups];
-  return groups
-    .map((group) => ({
-      ...group,
-      annotations: group.annotations.filter((annotation) => matches(annotation, query)),
-    }))
-    .filter((group) => group.annotations.length > 0);
+/** The marks that answer a query, in the order they came in. A copy either way,
+ *  so a caller can hold the result across a render. */
+export function filterAnnotations(
+  annotations: readonly Annotation[],
+  query: string,
+): readonly Annotation[] {
+  if (query.trim().length === 0) return [...annotations];
+  return annotations.filter((annotation) => matches(annotation, query));
 }
 
 /**
@@ -161,12 +92,4 @@ export function oneLine(quote: string, limit = 120): string {
   // `slice(0, -1)` quietly drops a character instead of falling through.
   const boundary = space !== -1 && space > limit - 24;
   return `${boundary ? cut.slice(0, space) : cut}…`;
-}
-
-/** The last segment of a path, on either separator. `lib/utils.ts` has
- *  `basename`, which is the same idea for the same reason; this file keeps its
- *  own so the list logic has no import that is not about lists. */
-function fileName(path: string): string {
-  const at = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-  return at === -1 ? path : path.slice(at + 1);
 }
