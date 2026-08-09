@@ -227,6 +227,7 @@ export const AppConfigSchema = z.object({
   railWidth: z.number(),
   railCollapsed: z.boolean(),
   railTreeCollapsed: z.boolean(),
+  notesOpen: z.boolean(),
   recentFiles: z.array(z.string()),
   lastFolder: z
     .string()
@@ -372,10 +373,28 @@ export function deleteAnnotation(id: number): Promise<void> {
   return call("delete_annotation", NothingSchema, { id });
 }
 
-// `all_annotations` and `update_annotation` are registered in Rust and reached
-// by nothing yet — the cross-document panel and the note editor are the next two
-// PRs. Their wrappers land with the code that calls them, because `pnpm knip`
-// refuses an export nothing reaches and it is right to.
+/**
+ * Every annotation in the database, across every folder — what the panel's
+ * cross-document list is built from.
+ *
+ * Parsed through the same forgiving list schema as one document's marks, and for
+ * a sharper reason here: this call spans every file the reader has ever marked,
+ * so it is the one most likely to meet a row some future build wrote. One
+ * unreadable row must not empty the whole panel.
+ *
+ * Rust orders these newest-first; `byDocument` re-orders them for display and
+ * does not depend on that.
+ */
+export function allAnnotations(): Promise<Annotation[]> {
+  return call("all_annotations", AnnotationListSchema, {});
+}
+
+/** Changes the colour slot, the note, or both, and hands back the row as it now
+ *  stands — including the `updatedAt` that decides where its document sits in
+ *  the panel. Where a mark *points* changes only through `reanchorAnnotations`. */
+export function updateAnnotation(id: number, color: string, body: string): Promise<Annotation> {
+  return call("update_annotation", AnnotationSchema, { id, color, body });
+}
 
 // --- system integration -----------------------------------------------------
 

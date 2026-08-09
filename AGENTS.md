@@ -801,6 +801,40 @@ replacing it, and the difference between them is the difference between describi
 and rewriting one: a selection spanning two blocks covers the markup between them, so
 *formatting* it is refused, while *marking* it costs the document nothing.
 
+### The notes panel
+
+`Ctrl/⌘+Shift+A`, the toolbar's highlighter, or the palette. It lists **every mark in the
+store**, grouped by document — not the open tabs' marks — because the question it answers is
+"everything I flagged about X" and the answer is mostly in files that are not open. That is
+also why a row shows its **stored quote** rather than fetching one: resolving an anchor needs
+the document's source, and nothing in `useAllAnnotations` or `lib/annotate/list.ts` resolves
+anything. Groups are ordered by their most recently touched mark, with the document being read
+pinned to the front — recency is right for the question and wrong for the file on screen.
+
+**It is a sibling of `<main>`, not a third column inside it.** `splitZoneOf` measures
+`[data-canvas-body]` to decide where a dragged tab opens the comparison pane, so a column added
+in there would move the drop region every time the panel opened. Being outside also keeps
+`--doc-*` out of scope: those tokens are written onto the canvas element and nowhere else, so a
+`--doc-*` reference in this panel would silently render House Light's value under every theme.
+The one document colour it shows is the mark swatch, handed in as `markColors` and set inline —
+the same arrangement `FormatMenu` uses, because a swatch that ignored the theme would lie about
+its row. Like the rail, it reserves the titlebar band as a drag region (DESIGN.md rule 6).
+
+**Two surfaces now write annotations, and each has to notice the other.**
+`useAnnotationRevision` is a counter and nothing else: whoever writes bumps it, whoever cares
+re-reads the store. Lifting `useAnnotations` to the shell would make one hook responsible for
+every mounted view's marks when its whole design is one document's, and passing callbacks would
+have left the reverse direction missing. **What travels is the fact of a change, never the
+data** — SQLite decides ids and `updated_at`, and `updated_at` is what orders the panel, so a
+row updated from an optimistic local copy is a row that disagrees with its own database.
+
+Revealing a mark rides `pendingMark` on the tab runtime, deliberately *beside* `pendingAnchor`
+rather than folded into it. The two are consumed at different moments: an anchor is an element
+id, reachable as soon as the HTML is in the DOM, while a mark is a pair of source offsets that
+only becomes a place on screen once its annotation has loaded and re-anchored — a round trip
+later. One field would mean whichever consumer ran first clearing the other's work. An orphan
+is consumed without scrolling, since there is nowhere honest to go.
+
 Annotations are keyed by canonicalized path, so renaming or moving a file cuts them loose.
 `annotations::relink` is what finds them again, and the evidence it goes on is the **content
 hash** every annotation already carries as `anchored_hash`. It acts only when this path has no

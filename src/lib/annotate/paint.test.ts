@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { BlockMap } from "@/lib/ipc";
-import { highlightName, paintRanges } from "./paint";
+import { domRangeOf, highlightName, paintRanges } from "./paint";
 
 function article(html: string): HTMLElement {
   const element = document.createElement("article");
@@ -30,6 +30,30 @@ function twoParagraphs(): HTMLElement {
     `<p data-sourcepos="1:1-1:11">Hello world</p><p data-sourcepos="3:1-3:11">second para</p>`,
   );
 }
+
+describe("domRangeOf", () => {
+  // Tested apart from painting because the panel scrolls to a mark through this
+  // and never paints one. The refusals are the part worth pinning: a caller that
+  // rebuilt them would get the happy path right and differ on the failures.
+
+  it("places a range over the words the offsets name", () => {
+    expect(domRangeOf(twoParagraphs(), blocks, { start: 6, end: 11 })?.toString()).toBe("world");
+  });
+
+  it("works without a shared sweep, so a single lookup needs no batch", () => {
+    // The panel asks for exactly one range at a time; requiring an index would
+    // make every caller build one to throw it away.
+    expect(domRangeOf(twoParagraphs(), blocks, { start: 0, end: 5 })?.toString()).toBe("Hello");
+  });
+
+  it("refuses a range that lands past everything the block map covers", () => {
+    expect(domRangeOf(twoParagraphs(), blocks, { start: 900, end: 950 })).toBeNull();
+  });
+
+  it("refuses an empty range rather than returning a point picked by a fallback", () => {
+    expect(domRangeOf(twoParagraphs(), blocks, { start: 6, end: 6 })).toBeNull();
+  });
+});
 
 describe("paintRanges", () => {
   it("turns a source range into a DOM range over the right words", () => {

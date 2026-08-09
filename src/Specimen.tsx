@@ -78,6 +78,7 @@ const SPECIMEN_CONFIG: AppConfig = {
   railWidth: 264,
   railCollapsed: false,
   railTreeCollapsed: false,
+  notesOpen: false,
   recentFiles: [],
   lastFolder: null,
   blockRemoteImages: true,

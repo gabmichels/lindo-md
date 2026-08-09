@@ -47,6 +47,12 @@ pub struct AppConfig {
     #[serde(default)]
     pub rail_tree_collapsed: bool,
 
+    /// Whether the notes panel is open. Remembered for the same reason the
+    /// rail's own state is: a reader who works with their highlights beside the
+    /// page is doing that across sessions, not for one window.
+    #[serde(default)]
+    pub notes_open: bool,
+
     /// Most-recently-opened documents, newest first, capped at `MAX_RECENTS`.
     #[serde(default)]
     pub recent_files: Vec<String>,
@@ -160,6 +166,7 @@ impl Default for AppConfig {
             rail_width: default_rail_width(),
             rail_collapsed: false,
             rail_tree_collapsed: false,
+            notes_open: false,
             recent_files: Vec::new(),
             last_folder: None,
             block_remote_images: true,

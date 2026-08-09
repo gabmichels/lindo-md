@@ -57,20 +57,8 @@ export function paintRanges(
   const index = indexBySourcepos(article);
 
   for (const mark of marks) {
-    const start = domPositionOf(article, blocks, mark.range.start, index);
-    const end = domPositionOf(article, blocks, mark.range.end, index);
-    if (!start || !end) continue;
-
-    const range = article.ownerDocument.createRange();
-    try {
-      range.setStart(start.node, start.offset);
-      range.setEnd(end.node, end.offset);
-    } catch {
-      // The two ends came back in the wrong order, which `setEnd` refuses. Only
-      // reachable if the block map and the DOM disagree about document order.
-      continue;
-    }
-    if (range.collapsed) continue;
+    const range = domRangeOf(article, blocks, mark.range, index);
+    if (!range) continue;
 
     const name = highlightName(isSlot(mark.color) ? mark.color : MARK_SLOTS[0]);
     const existing = grouped.get(name);
@@ -79,6 +67,43 @@ export function paintRanges(
   }
 
   return grouped;
+}
+
+/**
+ * One source range as a DOM range, or null where it cannot honestly be placed.
+ *
+ * Split out of `paintRanges` because the panel needs the same answer for a
+ * different purpose — scrolling to a mark the reader clicked — and the refusals
+ * are the valuable part. A caller that rebuilt this would get the happy path
+ * right and quietly differ on the three ways it can go wrong.
+ *
+ * `index` is a sweep of the article shared across a batch; without one, each
+ * call sweeps for itself, which is fine for a single lookup and quadratic for a
+ * document's worth.
+ */
+export function domRangeOf(
+  article: HTMLElement,
+  blocks: BlockMap[],
+  source: SourceRange,
+  index?: ReturnType<typeof indexBySourcepos>,
+): Range | null {
+  const sweep = index ?? indexBySourcepos(article);
+  const start = domPositionOf(article, blocks, source.start, sweep);
+  const end = domPositionOf(article, blocks, source.end, sweep);
+  if (!start || !end) return null;
+
+  const range = article.ownerDocument.createRange();
+  try {
+    range.setStart(start.node, start.offset);
+    range.setEnd(end.node, end.offset);
+  } catch {
+    // The two ends came back in the wrong order, which `setEnd` refuses. Only
+    // reachable if the block map and the DOM disagree about document order.
+    return null;
+  }
+  // A collapsed range paints nothing and scrolls to a point that was picked by a
+  // fallback rather than by the mark, so it is refused in both directions.
+  return range.collapsed ? null : range;
 }
 
 /** A colour this build knows how to paint. A row naming a slot from a later

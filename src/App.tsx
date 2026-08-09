@@ -9,6 +9,7 @@ import { DocumentDeck } from "@/components/DocumentDeck";
 import { DropOverlay } from "@/components/DropOverlay";
 import { EmptyState } from "@/components/EmptyState";
 import { FindBar } from "@/components/FindBar";
+import { NotesPanel } from "@/components/NotesPanel";
 import { Rail } from "@/components/Rail";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
@@ -17,6 +18,8 @@ import { TabStrip } from "@/components/TabStrip";
 import { TitleBar } from "@/components/TitleBar";
 import { Toolbar } from "@/components/Toolbar";
 import { UpdateDialog } from "@/components/Updates";
+import { useAllAnnotations } from "@/hooks/useAllAnnotations";
+import { AnnotationRevisionProvider } from "@/hooks/useAnnotationRevision";
 import { ConfigProvider, useConfig } from "@/hooks/useConfig";
 import { useFileDrop } from "@/hooks/useFileDrop";
 import { useFileTree } from "@/hooks/useFileTree";
@@ -29,7 +32,7 @@ import { useTabDocuments } from "@/hooks/useTabDocuments";
 import { useTabs } from "@/hooks/useTabs";
 import { useTheme } from "@/hooks/useTheme";
 import { useUpdater } from "@/hooks/useUpdater";
-import { writeHtmlFile } from "@/lib/ipc";
+import { writeHtmlFile, type Annotation } from "@/lib/ipc";
 import { buildStandaloneHtml } from "@/lib/export/html";
 import type { PaletteActions, PaletteState } from "@/lib/palette/items";
 import { stepZoom } from "@/lib/zoom";
@@ -46,7 +49,12 @@ import {
 export default function App() {
   return (
     <ConfigProvider>
-      <Shell />
+      {/* Wraps the whole shell because both sides of it write annotations — the
+          document's context menu and the panel beside it — and each has to
+          notice what the other did. See the provider's own docs. */}
+      <AnnotationRevisionProvider>
+        <Shell />
+      </AnnotationRevisionProvider>
     </ConfigProvider>
   );
 }
@@ -81,6 +89,10 @@ function Shell() {
   const [aboutOpen, setAboutOpen] = useState(false);
   /** The group whose name is being asked for, just after it was created. */
   const [namingGroup, setNamingGroup] = useState<string | null>(null);
+  /** A mark whose note the reader asked to write from the document's context
+   *  menu, so the panel opens with that row's editor already showing. Cleared as
+   *  soon as the panel has acted on it: it is a request, not a selection. */
+  const [noteTarget, setNoteTarget] = useState<number | null>(null);
   /** The command palette's starting query, or `null` when it is closed — the
    *  same box opens on documents or on commands depending on the chord. */
   const [paletteQuery, setPaletteQuery] = useState<string | null>(null);
@@ -181,6 +193,35 @@ function Shell() {
 
   const outline = useOutline(reading?.toc ?? [], scroller);
   const find = useFind(scroller);
+
+  // Asks for nothing while the panel is shut: the query walks every row the
+  // reader has ever written, and a closed panel has nothing to show it in.
+  const notes = useAllAnnotations(config.notesOpen);
+
+  /**
+   * Show me this mark.
+   *
+   * Activating an existing tab rather than opening a second one, for the reason
+   * `followLink` gives: two copies of a document fight over the same live
+   * reload. The scroll itself is left to the view — it is the only thing that
+   * knows where a pair of source offsets lands on screen, and on a file that was
+   * not open it cannot know until the document and its marks have both arrived.
+   */
+  const revealMark = useCallback(
+    (annotation: Annotation) => {
+      const open = session.tabs.find((tab) => tab.path === annotation.path);
+      let id: string;
+      if (open) {
+        tabs.activate(open.id);
+        id = open.id;
+      } else {
+        id = tabs.open(annotation.path);
+      }
+      setFocusedPane("main");
+      docs.revealMark(id, annotation.id);
+    },
+    [docs, session.tabs, tabs],
+  );
 
   // Find highlights are ranges into the DOM of one document, so they cannot
   // survive a switch to another tab's DOM — nor a switch to the other pane's,
@@ -448,6 +489,9 @@ function Shell() {
     onToggleRail: () => {
       update({ railCollapsed: !config.railCollapsed });
     },
+    onToggleNotes: () => {
+      update({ notesOpen: !config.notesOpen });
+    },
     onRevealInFolder: () => {
       if (document) void revealItemInDir(document.path).catch(() => undefined);
     },
@@ -547,6 +591,7 @@ function Shell() {
     canGoBack: active ? docs.canGoBack(active.id) : false,
     canGoForward: active ? docs.canGoForward(active.id) : false,
     railCollapsed: config.railCollapsed,
+    notesOpen: config.notesOpen,
     mod: host === "macos" ? "⌘" : "Ctrl",
   };
 
@@ -661,6 +706,10 @@ function Shell() {
               }}
               compareOpen={comparePath !== null}
               onToggleCompare={toggleCompare}
+              notesOpen={config.notesOpen}
+              onToggleNotes={() => {
+                update({ notesOpen: !config.notesOpen });
+              }}
             />
           </div>
 
@@ -727,6 +776,11 @@ function Shell() {
                 blockRemoteImages={config.blockRemoteImages}
                 onOpenDocument={followLink}
                 onAnchorConsumed={docs.clearPendingAnchor}
+                onRevealConsumed={docs.clearPendingMark}
+                onRequestNote={(annotationId) => {
+                  update({ notesOpen: true });
+                  setNoteTarget(annotationId);
+                }}
                 onScrollChange={docs.rememberScroll}
                 onScrollerReady={setMainScroller}
                 onSave={docs.save}
@@ -777,6 +831,35 @@ function Shell() {
           )}
         </div>
       </main>
+
+      {/* A sibling of `<main>`, not a third column inside it. `splitZoneOf`
+          measures `[data-canvas-body]` to decide where a dragged tab opens the
+          comparison pane, so a column added in there would move the drop region
+          every time this panel opened. Outside it, the canvas is exactly the
+          paper and this is exactly chrome — which is also what keeps `--doc-*`
+          out of scope here. */}
+      {config.notesOpen && (
+        <NotesPanel
+          groups={notes.groups}
+          loaded={notes.loaded}
+          error={notes.error}
+          // The active tab's file, not the focused pane's: the pane has no
+          // annotations of its own — `DocumentView` turns them off there — so
+          // pinning its document would pin a group nothing on screen can add to.
+          currentPath={document?.path ?? null}
+          markColors={theme.colors.mark}
+          onClose={() => {
+            update({ notesOpen: false });
+          }}
+          onReveal={revealMark}
+          onSetNote={notes.setNote}
+          onRemove={notes.remove}
+          editing={noteTarget}
+          onEditingHandled={() => {
+            setNoteTarget(null);
+          }}
+        />
+      )}
 
       <TabGroupDialog
         group={
@@ -961,6 +1044,15 @@ function useKeyboardShortcuts(
           event.preventDefault();
           if (event.shiftKey) handlers.onExport();
           else handlers.onToggleSource();
+          break;
+        case "a":
+          // Only the shifted chord. Bare Ctrl+A is Select All, which a reader
+          // uses on a document they are about to copy, and taking it would be
+          // taking something that already works.
+          if (event.shiftKey) {
+            event.preventDefault();
+            handlers.onToggleNotes();
+          }
           break;
         case "f":
           event.preventDefault();
