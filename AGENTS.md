@@ -140,7 +140,7 @@ src-tauri/src/
 ```
 
 Flat on purpose: no `features/`, no barrel `index.ts`. Tests sit next to the code they test —
-`src/lib/theme/apply.test.ts`, and `#[cfg(test)] mod tests` at the bottom of each Rust module.
+`src/lib/theme/theme.test.ts`, and `#[cfg(test)] mod tests` at the bottom of each Rust module.
 
 ## Data flow
 
@@ -771,6 +771,17 @@ The context menu's swatches take their colour from the `theme` prop rather than 
 `--doc-mark-*`. DESIGN.md's rule is that chrome must not read the paper's *tokens*, which is
 what stops a bright paper theme washing out the rail; it is not a rule against chrome ever
 showing a colour from the document, or the settings drawer's colour pickers could not exist.
+
+**A paragraph whose source and rendered text differ in length cannot be marked at all, and the
+menu says so rather than failing quietly.** `sourceOffsetOf` snaps any position inside a run
+where `sourceEnd - sourceStart !== text.length` to whichever end it is nearer — correct for
+formatting, where a `**` landing inside `&amp;` would corrupt the file, and blunt for a mark,
+which writes nothing. comrak merges adjacent text, so `Fish &amp; chips` is one such run for the
+whole paragraph and every selection inside it collapses to a single point; `annotationRange`
+returns null and the Highlight row is disabled. The same applies to a paragraph containing `\*`,
+`&hellip;`, or — with smart punctuation on — an `--` or `...`. The real fix is finer runs from
+`srcmap`, split at the boundaries where source and text stop advancing together; until then this
+is a known limitation rather than a silent one.
 
 `annotationRange` in `lib/edit/selection.ts` sits beside `selectionRange` rather than
 replacing it, and the difference between them is the difference between describing a range

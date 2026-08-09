@@ -1,4 +1,4 @@
-import { DEFAULT_VIEW, docTokens, viewTokens, type DocView } from "../theme/apply";
+import { DEFAULT_VIEW, docTokens, markTokens, viewTokens, type DocView } from "../theme/apply";
 import { isSafeCssValue, type Theme } from "../theme/schema";
 import { isOpenablePath, splitFragment } from "../utils";
 
@@ -44,7 +44,7 @@ export function buildStandaloneHtml(options: ExportOptions): string {
   // token value would end the element and start running markup. A token that cannot
   // be written safely is dropped rather than escaped: the value has no legitimate
   // meaning, and a half-escaped colour is not worth reconstructing.
-  const tokens = Object.entries({ ...docTokens(theme), ...viewTokens(view) })
+  const tokens = Object.entries({ ...docTokens(theme), ...viewTokens(view), ...markTokens(theme) })
     .filter(([, value]) => isSafeCssValue(value))
     .map(([property, value]) => `      ${property}: ${value};`)
     .join("\n");

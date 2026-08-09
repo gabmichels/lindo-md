@@ -89,6 +89,11 @@ export function useAnnotations(
    */
   const describes = useRef<string | null>(null);
 
+  /** The current document's block map, for the load effect to read without
+   *  taking a dependency on an array identity that changes for free. */
+  const blocks = useRef(doc?.blocks ?? []);
+  blocks.current = doc?.blocks ?? [];
+
   // Only where `data-sourcepos` is trustworthy. `files.rs` builds no block map
   // for plain text or MDX, so there is nothing to anchor against — the same
   // boundary that makes those two read-only.
@@ -142,10 +147,22 @@ export function useAnnotations(
       }
       if (!live.current) return;
 
+      // Where a caret can go, taken from the block map. Without it the search
+      // re-finds a quote inside a link target or a fence and then freezes there.
+      //
+      // Read through a ref rather than named as a dependency: `blocks` is a fresh
+      // array on every `Document`, so depending on it would re-run the whole load
+      // for a reload that changed nothing. It always describes the same document
+      // as the `source` and `contentHash` this run was started for, because all
+      // three come off one object that is replaced atomically.
+      const covered = blocks.current.flatMap((block) =>
+        block.runs.map((run) => ({ start: run.sourceStart, end: run.sourceEnd })),
+      );
+
       const resolved: ResolvedAnnotation[] = [];
       const moved: Reanchor[] = [];
       for (const annotation of stored) {
-        const outcome = resolveAnchor(source, contentHash, annotation);
+        const outcome = resolveAnchor(source, contentHash, annotation, covered);
         if (outcome.status === "orphaned") {
           resolved.push({ ...annotation, range: null });
           continue;

@@ -209,7 +209,7 @@ export function nodeAt(
  * A sourcepos is compared as an attribute value rather than built into a
  * selector, which keeps it out of the selector grammar entirely.
  */
-function indexBySourcepos(article: HTMLElement): Map<string, HTMLElement> {
+export function indexBySourcepos(article: HTMLElement): Map<string, HTMLElement> {
   const index = new Map<string, HTMLElement>();
   for (const element of article.querySelectorAll<HTMLElement>("[data-sourcepos]")) {
     const sourcepos = element.getAttribute("data-sourcepos");

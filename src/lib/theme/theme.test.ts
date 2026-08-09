@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -506,6 +506,32 @@ describe("the two token namespaces stay apart", () => {
   it("defines both namespaces in styles.css", () => {
     expect(css).toContain("--ui-base:");
     expect(css).toContain("--doc-bg:");
+  });
+
+  it("keeps the paper out of the tool and the tool out of the paper", () => {
+    // DESIGN.md says this rule is "enforced, not merely intended" and names a
+    // file that does not exist. Nothing checked it, which is how a swatch reading
+    // a `--doc-*` token got as far as review. Two directions, both cheap:
+    //
+    //  - the document stylesheet must never read a `--ui-*` token, or a paper
+    //    theme would inherit whatever the chrome happens to be;
+    //  - a component must never read a `--doc-*` token, or switching to a bright
+    //    paper theme washes out the rail.
+    //
+    // `styles.css` is deliberately exempt on the first count: it *owns* the House
+    // defaults, so defining one `--doc-*` in terms of another is its job.
+    expect(readFileSync("src/document.css", "utf8")).not.toContain("var(--ui-");
+
+    const components = readdirSync("src/components", { recursive: true, encoding: "utf8" })
+      .filter((name) => name.endsWith(".tsx"))
+      .map((name) => `src/components/${name.replaceAll("\\", "/")}`);
+    expect(components.length).toBeGreaterThan(10);
+    for (const file of components) {
+      // Prose about the rule is not a breach of it; a `var()` reaching CSS is.
+      expect(readFileSync(file, "utf8"), `${file} reads a --doc-* token`).not.toContain(
+        "var(--doc-",
+      );
+    }
   });
 
   it("gives styles.css a House default for every token applyTheme writes", () => {

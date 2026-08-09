@@ -1,4 +1,4 @@
-import { domPositionOf, type SourceRange } from "@/lib/edit/selection";
+import { domPositionOf, indexBySourcepos, type SourceRange } from "@/lib/edit/selection";
 import type { BlockMap } from "@/lib/ipc";
 import { MARK_SLOTS, type MarkSlot } from "@/lib/theme/apply";
 
@@ -49,9 +49,16 @@ export function paintRanges(
   const grouped = new Map<string, Range[]>();
   if (marks.length === 0) return grouped;
 
+  // One sweep of the article, shared by every lookup. `domPositionOf` takes this
+  // for exactly this reason — its own comment records that one sweep per lookup
+  // inside a loop was the most expensive thing an edit did, and this effect
+  // re-runs on every keystroke because `doc.html` is one of its dependencies.
+  // Two lookups per mark meant 2 × marks full sweeps per render.
+  const index = indexBySourcepos(article);
+
   for (const mark of marks) {
-    const start = domPositionOf(article, blocks, mark.range.start);
-    const end = domPositionOf(article, blocks, mark.range.end);
+    const start = domPositionOf(article, blocks, mark.range.start, index);
+    const end = domPositionOf(article, blocks, mark.range.end, index);
     if (!start || !end) continue;
 
     const range = article.ownerDocument.createRange();

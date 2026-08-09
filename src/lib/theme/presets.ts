@@ -479,7 +479,7 @@ const CVD_ALERTS = {
 } as const;
 
 /** The nine colors a palette actually has to state. The rest are derived, which
- *  is what keeps 28 themes consistent instead of 28 independent guesses. */
+ *  is what keeps twenty presets consistent instead of twenty independent guesses. */
 interface Palette {
   bg: string;
   surface: string;

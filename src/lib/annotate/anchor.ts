@@ -87,7 +87,25 @@ export function createAnchor(
  * version with a different idea of what the offsets counted — and searching finds
  * the right words where trusting the numbers would paint the wrong ones.
  */
-export function resolveAnchor(source: string, contentHash: string, anchor: Anchor): Resolution {
+export function resolveAnchor(
+  source: string,
+  contentHash: string,
+  anchor: Anchor,
+  /**
+   * The stretches of `source` a run covers, in order — the text a reader can
+   * actually put a caret in. Omitted, the search may land anywhere.
+   *
+   * It matters because `search` is a plain `indexOf` over the whole file with no
+   * idea what is prose and what is not. A mark on the words `Roadmap#Q3` whose
+   * sentence is later deleted will happily re-find them inside
+   * `[[Roadmap#Q3|Roadmap]]` — a link target no run covers. That would be wrong
+   * once, except `useAnnotations` then persists the new offsets and hash, after
+   * which `anchoredHash` matches and `source.slice(...)` spells the quote, so it
+   * resolves `exact` for ever and is never searched again. The mark ends up
+   * permanently bound to bytes nothing can paint.
+   */
+  covered?: readonly SourceRange[],
+): Resolution {
   if (anchor.quote.length === 0) return { status: "orphaned" };
 
   if (
@@ -97,9 +115,21 @@ export function resolveAnchor(source: string, contentHash: string, anchor: Ancho
     return { status: "exact", range: { start: anchor.startOffset, end: anchor.endOffset } };
   }
 
-  const found = search(source, anchor);
+  const found = search(source, anchor, covered);
   if (found === null) return { status: "orphaned" };
   return { status: "moved", range: { start: found, end: found + anchor.quote.length } };
+}
+
+/** Whether a whole candidate sits inside one addressable stretch. Spanning two
+ *  is not enough: what lies between them is markup, which is precisely where a
+ *  mark must not be re-anchored. */
+function addressable(
+  covered: readonly SourceRange[] | undefined,
+  start: number,
+  end: number,
+): boolean {
+  if (!covered) return true;
+  return covered.some((run) => start >= run.start && end <= run.end);
 }
 
 /**
@@ -113,7 +143,7 @@ export function resolveAnchor(source: string, contentHash: string, anchor: Ancho
  * distance are genuinely indistinguishable, and guessing between them would put a
  * reader's note on a sentence they never marked.
  */
-function search(source: string, anchor: Anchor): number | null {
+function search(source: string, anchor: Anchor, covered?: readonly SourceRange[]): number | null {
   let best: { at: number; score: number; distance: number } | null = null;
   let ambiguous = false;
 
@@ -122,6 +152,7 @@ function search(source: string, anchor: Anchor): number | null {
     at !== -1;
     at = source.indexOf(anchor.quote, at + 1)
   ) {
+    if (!addressable(covered, at, at + anchor.quote.length)) continue;
     const score =
       commonSuffix(source.slice(Math.max(0, at - CONTEXT), at), anchor.prefix) +
       commonPrefix(
