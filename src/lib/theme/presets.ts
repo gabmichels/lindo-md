@@ -729,7 +729,7 @@ export const PRESETS: ThemePreset[] = [
     components: {
       ...DRAWN,
       heading: { rule: "none", tracking: -0.01, leading: 1.25, minor: "uppercase" },
-      quote: "plain",
+      quote: "bar",
       rule: "short",
       image: { radius: 4, frame: true },
     },
@@ -1258,11 +1258,11 @@ export const PRESETS: ThemePreset[] = [
     note: "Ink and pigment after Hokusai — Lotus by day, Wave by night",
     typography: KANAGAWA_TYPE,
     // A woodblock print has no boxes in it. Quiet furniture throughout, but not
-    // Rosé Pine's: quotations sit plain, breaks are short rules, code is framed.
+    // Rosé Pine's: quotations are tinted blocks, breaks short rules, code framed.
     components: {
       ...PLAIN,
       heading: { rule: "none", tracking: -0.008, leading: 1.22, minor: "small-caps" },
-      quote: "plain",
+      quote: "card",
       rule: "short",
       code: { block: "framed", inline: "bare" },
       alert: "minimal",
@@ -1312,7 +1312,7 @@ export const PRESETS: ThemePreset[] = [
       // The rule under h2 is the only line on the page, which is what lets
       // everything else stay unmarked.
       heading: { rule: "h2", tracking: -0.01, leading: 1.2, minor: "small-caps" },
-      quote: "plain",
+      quote: "card",
       rule: "short",
       code: { block: "flush", inline: "bare" },
       alert: "minimal",

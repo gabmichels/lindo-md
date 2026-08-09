@@ -133,7 +133,7 @@ A theme now also owns `components` — the page's furniture:
 | `heading.rule` | none, h1, h2, h1-h2 — GitHub's underline, the most recognisable tell there is |
 | `heading.tracking` / `.leading` | numbers, previously constants in `document.css` |
 | `heading.minor` | uppercase, small-caps, normal (h6) |
-| `quote` | bar, hang, card, plain |
+| `quote` | bar, card, hang (tinted, in the margin), plain — the first three are marked, and only `plain` is not |
 | `rule` | line, short, asterism, space |
 | `code.block` / `.inline` | card / framed / flush, tint / outline / bare |
 | `alert` | bar, card, minimal |

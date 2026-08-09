@@ -104,9 +104,9 @@ const MONO_FONTS: SelectOption[] = [...fontOptions("mono"), SYSTEM_MONO];
  */
 const QUOTE_STYLES: SelectOption[] = [
   { value: "bar", label: "Rule and indent" },
-  { value: "hang", label: "Hanging, no rule" },
   { value: "card", label: "Tinted block" },
-  { value: "plain", label: "Italic only" },
+  { value: "hang", label: "Tinted, in the margin" },
+  { value: "plain", label: "Italic only, unmarked" },
 ];
 
 const RULE_STYLES: SelectOption[] = [

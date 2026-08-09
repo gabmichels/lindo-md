@@ -283,17 +283,21 @@ describe("structural tokens", () => {
     );
   });
 
-  it("draws vertical rules only for a grid, and pads the last column with them", () => {
+  it("draws vertical rules only for a grid, and pads every cell that gets one", () => {
     const table = house.light.layout.table;
     const hairline = withLayout({ table: { ...table, rules: "hairline" } });
     expect(hairline["--doc-table-rule"]).toBe("transparent");
     // Flush to the text edge, which is what makes a hairline table read as part
     // of the page rather than as a box on it.
-    expect(hairline["--doc-table-pad-last"]).toBe("0px");
+    expect(hairline["--doc-table-pad-edge"]).toBe("0px");
+    expect(hairline["--doc-table-pad-start"]).toBe("0px");
 
     const grid = withLayout({ table: { ...table, rules: "grid" } });
     expect(grid["--doc-table-rule"]).not.toBe("transparent");
-    expect(grid["--doc-table-pad-last"]).not.toBe("0px");
+    expect(grid["--doc-table-pad-edge"]).not.toBe("0px");
+    // The one this test used to miss. Only the outer two cells were padded, so
+    // every column after the first sat hard against its own rule.
+    expect(grid["--doc-table-pad-start"]).not.toBe("0px");
   });
 
   it("resolves the stripe to transparent when it is off, never to nothing", () => {

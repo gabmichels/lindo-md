@@ -199,9 +199,16 @@ export const ThemeComponentsSchema = z.object({
     })
     .default({ rule: "none", tracking: -0.02, leading: 1.22, minor: "uppercase" }),
 
-  /** `bar` is the rule-and-hang the app has always drawn. `hang` drops the rule
-   *  and sets the quote larger in the margin, which is the book and the Medium
-   *  answer. `card` is the tinted block a wiki uses. `plain` is italic alone. */
+  /**
+   * `bar` is the rule-and-hang the app has always drawn. `hang` is the book and
+   * Medium answer — pulled into the margin and set larger — and `card` is the
+   * tinted block a wiki uses. Both of those carry a fill, and `bar` carries a
+   * rule, because a quotation that is only larger italic text reads as an
+   * emphatic paragraph rather than as someone else speaking.
+   *
+   * `plain` is italic and nothing else. It is kept because a reader may want a
+   * page with no marks on it at all, and deliberately used by no preset.
+   */
   quote: z.enum(["bar", "hang", "card", "plain"]).default("bar"),
 
   /** A thematic break. `asterism` (⁂) is the typographic form a book uses for a

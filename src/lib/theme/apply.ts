@@ -107,7 +107,11 @@ export function docTokens(theme: Theme): Record<string, string> {
     // Hairline rules the rows only; a grid adds the vertical rules, and with
     // them the last column stops hanging flush to the text edge.
     "--doc-table-rule": layout.table.rules === "grid" ? "var(--doc-border)" : "transparent",
-    "--doc-table-pad-last": layout.table.rules === "grid" ? "var(--doc-table-pad-inline)" : "0px",
+    // A grid draws a rule to the left of every cell but the first, so every cell
+    // needs the gutter — not only the outer two, which is all this used to give
+    // and why a gridded table read as text jammed up against a line.
+    "--doc-table-pad-start": layout.table.rules === "grid" ? "var(--doc-table-pad-inline)" : "0px",
+    "--doc-table-pad-edge": layout.table.rules === "grid" ? "var(--doc-table-pad-inline)" : "0px",
     "--doc-table-stripe": layout.table.zebra
       ? "color-mix(in oklab, var(--doc-surface) 60%, transparent)"
       : "transparent",
@@ -221,10 +225,15 @@ function componentTokens(theme: Theme): Record<string, string> {
     },
     hang: {
       outdent: "-1.2em",
-      inset: "0em 0em 0em 1.2em",
+      // Tinted, despite the displacement being the mark. A quotation set only in
+      // larger italic and pulled a little left does not read as a quotation — it
+      // reads as an emphatic paragraph, and the reader has to work out which from
+      // the words. The tint is what says "this is not the author talking"; the
+      // outdent and the size are what keep it from being the card.
+      inset: "0.9em 1.1em 0.9em 1.2em",
       rule: "0px",
-      radius: "0px",
-      fill: "transparent",
+      radius: "6px",
+      fill: "var(--doc-surface)",
       ink: "var(--doc-text)",
       style: "italic",
       size: "1.08em",

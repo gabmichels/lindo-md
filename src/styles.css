@@ -130,7 +130,8 @@
   --doc-table-pad-block: 0.55em;
   --doc-table-pad-inline: 0.9em;
   --doc-table-rule: transparent;
-  --doc-table-pad-last: 0px;
+  --doc-table-pad-start: 0px;
+  --doc-table-pad-edge: 0px;
   --doc-table-stripe: transparent;
   --doc-code-wrap: pre;
 

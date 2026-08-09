@@ -635,29 +635,33 @@
   text-transform: var(--doc-th-transform);
   color: var(--doc-th-ink);
   text-align: start;
-  padding: var(--doc-table-pad-block) var(--doc-table-pad-inline) var(--doc-table-pad-block) 0;
+  padding-block: var(--doc-table-pad-block);
+  padding-inline: var(--doc-table-pad-start) var(--doc-table-pad-inline);
   border-bottom: 1px solid var(--doc-border);
   border-right: 1px solid var(--doc-table-rule);
 }
 
 .doc td {
-  padding: var(--doc-table-pad-block) var(--doc-table-pad-inline) var(--doc-table-pad-block) 0;
+  padding-block: var(--doc-table-pad-block);
+  padding-inline: var(--doc-table-pad-start) var(--doc-table-pad-inline);
   border-bottom: 1px solid color-mix(in oklab, var(--doc-border) 55%, transparent);
   border-right: 1px solid var(--doc-table-rule);
 }
 
-/* With hairline rules the last column hangs flush to the text edge, which is
-   what makes the table read as part of the page. A grid has a rule there, so
-   the padding comes back. */
+/* The gutter on the side a rule is drawn on.
+   Hairline tables rule the rows only, so a cell needs no space on its left and
+   the outer columns hang flush to the text edge — which is what makes the table
+   read as part of the page rather than as an object on it. A grid draws a rule
+   down every column, and text set hard against a rule reads as broken, so with
+   the rules comes the padding: on both edges, and on the left of every cell,
+   not only the first. */
 .doc :is(th, td):last-child {
-  padding-right: var(--doc-table-pad-last);
+  padding-right: var(--doc-table-pad-edge);
   border-right: 0;
 }
 
-/* A grid needs the vertical rules to reach the header, and the first column to
-   be inset from the edge the same as every other cell. */
 .doc :is(th, td):first-child {
-  padding-left: var(--doc-table-pad-last);
+  padding-left: var(--doc-table-pad-edge);
 }
 
 .doc tbody tr:nth-child(even) {
