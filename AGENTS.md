@@ -121,6 +121,8 @@ src/
                  drag.ts (the gesture), schema.ts (what gets persisted)
     render/      mirror.ts puts a re-render on screen; the rest are post-render
                  enhancement passes (shiki, mermaid, katex, links, images)
+    annotate/    anchor.ts: does a highlight still point at the words it was put
+                 on, and where did they move to
     theme/       Theme schema, presets, applyTheme, import/export
     export/      standalone HTML + print
 src-tauri/src/
@@ -132,6 +134,7 @@ src-tauri/src/
   files.rs       open/read/scan/watch; the extension lists and what they each mean
   text.rs        bytes ⇄ text: BOM and line endings off on the way in, back on the way out
   config.rs      settings persistence
+  annotations.rs the highlights and margin notes, in SQLite beside config.json
   defaults.rs    which app owns .md (read-only — Windows blocks writing it)
   error.rs       LindoError, serialized to the frontend as a plain string
 ```
@@ -644,6 +647,61 @@ reorder. Leaving the zone returns to the reorder that was in progress rather tha
 **A dropped tab stays a tab.** VS Code moves the editor; that part is deliberately not copied,
 because the pane is read-only and moving a tab into it would quietly take away the ability to edit
 that file — not a thing a drag should decide.
+
+## Annotations
+
+Highlights and margin notes, kept in **`annotations.db` beside `config.json` in app data**
+rather than in a sidecar file next to each document. Two reasons, and the second is the
+feature's whole point: a sidecar adds a filesystem write surface, with the path-scoping
+decision that comes with it, and it drops stray files into repositories the reader does not
+own. Cross-folder "everything I marked about X" is then one query instead of parsing every
+sidecar that exists.
+
+**Rust stores anchors and never resolves one.** `annotations.rs` is CRUD over one table;
+whether a mark still points at the words it was put on is decided in
+`src/lib/annotate/anchor.ts`, against the document's own `source`. The split is the one
+`config.rs` already makes for themes and the tab session — the side that validates a shape
+owns it — and it means the interesting logic is `vitest`-testable without a Tauri harness.
+
+Three things are load-bearing, and each is invisible at the point where it would be got wrong:
+
+- **Offsets are UTF-16 code units into the LF-normalized source.** Not bytes, not code
+  points, and not offsets into the file as it sits on disk. This is the same unit
+  `srcmap::TextRun` already hands the webview, for the same reason: the frontend holds
+  `source` as a JavaScript string. Any document with an em-dash or an emoji makes UTF-16 and
+  bytes different numbers, and a CRLF file makes normalized and on-disk offsets drift by one
+  per preceding line — a mark near the bottom of a long document would land a paragraph away.
+- **The anchor is stored twice on purpose.** Offsets are exact and free to resolve, and any
+  edit above them invalidates every one. The quote with ~32 characters of context either side
+  survives that, costs a search, and is ambiguous when a phrase repeats. So `resolveAnchor`
+  trusts the offsets while `anchoredHash` still matches the document's `contentHash`, and
+  searches otherwise. Two candidates that tie on both context and proximity are **orphaned**,
+  not guessed at: the annotation is still listed and still exportable, it is simply not
+  painted. Painting a reader's note onto a sentence they never marked is the worse failure.
+- **Annotations exist exactly where `data-sourcepos` is trustworthy, and that is not a
+  coincidence.** `files.rs` builds `blocks` only for `Kind::Markdown`, so plain text and MDX
+  have no source map and no annotation can be created against them. It is the same boundary
+  that makes them read-only, so there is no second predicate to keep in step.
+
+Two more that shape what can be built on top:
+
+- **Painting must use the CSS Custom Highlight API**, as `useFind` already does. It paints
+  ranges without inserting a node, so `mirror`'s positional block tracking, `enhance()`'s
+  per-node bookkeeping and `restamp`'s `data-sourcepos` pairing are all untouched. Wrapping a
+  selection in `<mark>` would quietly break all three — see the entry under Gotchas about
+  anything the app adds to the canvas.
+- **`color` is a theme slot name, not a colour.** A theme rewrites every `--doc-*` token, so
+  storing `#ffee00` would freeze a mark to a colour that clashes with whatever the reader
+  picks next.
+
+`annotationRange` in `lib/edit/selection.ts` sits beside `selectionRange` rather than
+replacing it, and the difference between them is the difference between describing a range
+and rewriting one: a selection spanning two blocks covers the markup between them, so
+*formatting* it is refused, while *marking* it costs the document nothing.
+
+Annotations are keyed by canonicalized path, so **renaming a file loses the link to its
+marks**. They are still in the database and `anchoredHash` is enough to offer to re-link
+them, but nothing does that yet.
 
 ## The command palette
 

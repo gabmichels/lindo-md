@@ -310,3 +310,51 @@ export function selectionRange(
 
   return { start, end };
 }
+
+/**
+ * The range of the file a selection covers, **allowing the two ends to sit in
+ * different blocks**.
+ *
+ * The one-block rule `selectionRange` enforces is a rule about *writing*: a
+ * selection spanning two paragraphs covers the blank line, list bullet or fence
+ * between them, and wrapping that in `**` produces something nobody asked for.
+ * Marking that same span costs nothing, because an annotation writes to its own
+ * database and never to the document — and dragging across a paragraph break is
+ * how people highlight. So this exists beside `selectionRange` rather than
+ * replacing it, and the difference between them is the difference between
+ * describing a range and rewriting one.
+ *
+ * The end still has to come after the start in the *source*, which is not implied
+ * by coming after it on screen: a footnote definition renders at the foot of the
+ * document from a definition that may sit anywhere in the file, so a selection
+ * running from a paragraph into one can be backwards in the file while being
+ * forwards in the DOM. That is refused rather than silently reversed.
+ */
+export function annotationRange(
+  blocks: BlockMap[],
+  selection: Selection | null,
+): SourceRange | null {
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
+  const range = selection.getRangeAt(0);
+
+  // `getRangeAt` reports its ends in document order regardless of which way the
+  // reader dragged, so `startContainer` is always the earlier one on screen.
+  const from = endpoint(blocks, range.startContainer, range.startOffset, "start");
+  const to = endpoint(blocks, range.endContainer, range.endOffset, "end");
+  if (from === null || to === null || to <= from) return null;
+
+  return { start: from, end: to };
+}
+
+function endpoint(
+  blocks: BlockMap[],
+  node: Node,
+  offset: number,
+  bias: "start" | "end",
+): number | null {
+  const block = blockFor(blocks, node);
+  if (!block) return null;
+  const text = textOffsetOf(block.element, node, offset);
+  if (text === null) return null;
+  return sourceOffsetOf(block.map, text, bias);
+}

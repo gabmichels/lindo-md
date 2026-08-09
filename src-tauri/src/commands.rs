@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, State};
 
+use crate::annotations::{self, Annotation, NewAnnotation, Reanchor};
 use crate::assoc;
 use crate::config::{self, AppConfig};
 use crate::defaults::{self, DefaultAppStatus};
@@ -154,4 +155,75 @@ pub fn get_default_app_status() -> DefaultAppStatus {
 #[tauri::command]
 pub fn request_default_app(app: AppHandle) -> LindoResult<()> {
     defaults::request_default(&app)
+}
+
+// --- annotations -------------------------------------------------------------
+// Storage only. Whether an annotation's offsets still describe the file, and
+// where it moved to if they do not, is decided in `src/lib/annotate/anchor.ts` —
+// see the module docs in `annotations.rs` for why that side owns it.
+
+#[tauri::command]
+pub fn list_annotations(
+    app: AppHandle,
+    store: State<'_, annotations::Store>,
+    path: String,
+) -> LindoResult<Vec<Annotation>> {
+    store.with(&app, |connection| annotations::list(connection, &path))
+}
+
+/// Every annotation in the database, across every folder. The "everything I
+/// marked about X" view; filtering is the frontend's.
+#[tauri::command]
+pub fn all_annotations(
+    app: AppHandle,
+    store: State<'_, annotations::Store>,
+) -> LindoResult<Vec<Annotation>> {
+    store.with(&app, |connection| annotations::all(connection))
+}
+
+#[tauri::command]
+pub fn create_annotation(
+    app: AppHandle,
+    store: State<'_, annotations::Store>,
+    annotation: NewAnnotation,
+) -> LindoResult<Annotation> {
+    store.with(&app, |connection| {
+        annotations::create(connection, &annotation)
+    })
+}
+
+#[tauri::command]
+pub fn update_annotation(
+    app: AppHandle,
+    store: State<'_, annotations::Store>,
+    id: i64,
+    color: String,
+    body: String,
+) -> LindoResult<Annotation> {
+    store.with(&app, |connection| {
+        annotations::update(connection, id, &color, &body)
+    })
+}
+
+/// Writes back offsets the frontend re-found after the document changed. Batched
+/// and transactional: a document reloads with all of its annotations resolved at
+/// once, and half of them agreeing with the new file is worse than none.
+#[tauri::command]
+pub fn reanchor_annotations(
+    app: AppHandle,
+    store: State<'_, annotations::Store>,
+    updates: Vec<Reanchor>,
+) -> LindoResult<()> {
+    store.with(&app, |connection| {
+        annotations::reanchor(connection, &updates)
+    })
+}
+
+#[tauri::command]
+pub fn delete_annotation(
+    app: AppHandle,
+    store: State<'_, annotations::Store>,
+    id: i64,
+) -> LindoResult<()> {
+    store.with(&app, |connection| annotations::delete(connection, id))
 }

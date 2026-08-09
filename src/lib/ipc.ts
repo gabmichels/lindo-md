@@ -252,6 +252,54 @@ export function writeHtmlFile(path: string, contents: string): Promise<void> {
   return call("write_html_file", z.void(), { path, contents });
 }
 
+// --- annotations -------------------------------------------------------------
+// Storage only. Whether an annotation still points at the words it was put on is
+// decided in `lib/annotate/anchor.ts`, against the document's own source — Rust
+// never resolves an anchor. See the module docs in `src-tauri/src/annotations.rs`.
+
+export const AnnotationSchema = z.object({
+  id: z.number().int(),
+  path: z.string(),
+  /** Which of the theme's highlight slots paints this mark — not a colour value.
+   *  A theme rewrites every `--doc-*` token, so a stored `#ffee00` would freeze a
+   *  mark to a colour that clashes with the next theme the reader picks. */
+  color: z.string(),
+  /** The margin note. Empty for a bare highlight; there is no separate kind. */
+  body: z.string(),
+  quote: z.string(),
+  prefix: z.string(),
+  suffix: z.string(),
+  /** Indices into `Document.source` as a JavaScript string — UTF-16 code units
+   *  into the LF-normalized text, the same numbers `BlockMap` runs use. Not
+   *  bytes, and not offsets into the file as it sits on disk. */
+  startOffset: z.number().int().nonnegative(),
+  endOffset: z.number().int().nonnegative(),
+  /** The `contentHash` those offsets were computed against. */
+  anchoredHash: z.string(),
+  createdAt: z.number().int(),
+  updatedAt: z.number().int(),
+});
+export type Annotation = z.infer<typeof AnnotationSchema>;
+
+/**
+ * Drops an annotation this build cannot read rather than rejecting the whole
+ * list, for the reason `StoredCustomThemesSchema` gives next door: these rows are
+ * the reader's own notes, they outlive any single release, and tightening this
+ * schema — adding a colour-slot enum, say — is a normal thing to want to do. One
+ * unreadable row must not take out the rest of a document's marks.
+ */
+export const AnnotationListSchema = z.unknown().transform((value): Annotation[] => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const parsed = AnnotationSchema.safeParse(entry);
+    return parsed.success ? [parsed.data] : [];
+  });
+});
+
+// The `invoke` wrappers for the six annotation commands land with the code that
+// calls them. `pnpm knip` refuses an export nothing reaches, and it is right to:
+// a binding written a release before its caller is a binding nobody has run.
+
 // --- system integration -----------------------------------------------------
 
 export const DefaultAppStatusSchema = z.object({
