@@ -102,11 +102,12 @@ const MONO_FONTS: SelectOption[] = [...fontOptions("mono"), SYSTEM_MONO];
  * indent" and not "hang" — because the setting is invisible until it is picked,
  * and the document behind this panel is the only preview there is.
  */
+/** All four are tinted — the choice is what the tint is joined by. */
 const QUOTE_STYLES: SelectOption[] = [
-  { value: "bar", label: "Rule and indent" },
-  { value: "card", label: "Tinted block" },
-  { value: "hang", label: "Tinted, in the margin" },
-  { value: "plain", label: "Italic only, unmarked" },
+  { value: "bar", label: "Rule down the side" },
+  { value: "card", label: "Rounded block" },
+  { value: "hang", label: "Out in the margin" },
+  { value: "plain", label: "Flat band" },
 ];
 
 const RULE_STYLES: SelectOption[] = [

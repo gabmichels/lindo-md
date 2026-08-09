@@ -149,10 +149,10 @@
   --doc-h6-tracking: 0.04em;
 
   --doc-quote-outdent: 0em;
-  --doc-quote-inset: 0em 0em 0em 1.1em;
+  --doc-quote-inset: 0.8em 1.1em;
   --doc-quote-rule: 2px;
-  --doc-quote-radius: 0px;
-  --doc-quote-fill: transparent;
+  --doc-quote-radius: 0 6px 6px 0;
+  --doc-quote-fill: var(--doc-surface);
   --doc-quote-ink: var(--doc-text-muted);
   --doc-quote-style: italic;
   --doc-quote-size: 1em;

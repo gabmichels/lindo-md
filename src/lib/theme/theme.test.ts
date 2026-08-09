@@ -300,6 +300,23 @@ describe("structural tokens", () => {
     expect(grid["--doc-table-pad-start"]).not.toBe("0px");
   });
 
+  it("tints a quotation whichever style it is", () => {
+    // A rule about quotations, not a property of one style: a quotation marked
+    // only by being italic, or larger, or slightly outdented reads as an
+    // emphatic paragraph. The styles differ in what joins the tint — a rule, a
+    // radius, a displacement — never in whether there is one.
+    for (const quote of ["bar", "card", "hang", "plain"] as const) {
+      const tokens = docTokens({
+        ...house.light,
+        components: { ...house.light.components, quote },
+      });
+      expect(tokens["--doc-quote-fill"], quote).not.toBe("transparent");
+      // A fill with the text against its edge is worse than no fill, so every
+      // style has to pad on all four sides — a one- or two-value `inset` does.
+      expect(tokens["--doc-quote-inset"]!.split(/\s+/).length, `${quote} inset`).toBeGreaterThan(1);
+    }
+  });
+
   it("resolves the stripe to transparent when it is off, never to nothing", () => {
     // An empty value would make the row inherit whatever came before it.
     const table = house.light.layout.table;

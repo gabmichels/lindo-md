@@ -200,14 +200,14 @@ export const ThemeComponentsSchema = z.object({
     .default({ rule: "none", tracking: -0.02, leading: 1.22, minor: "uppercase" }),
 
   /**
-   * `bar` is the rule-and-hang the app has always drawn. `hang` is the book and
-   * Medium answer — pulled into the margin and set larger — and `card` is the
-   * tinted block a wiki uses. Both of those carry a fill, and `bar` carries a
-   * rule, because a quotation that is only larger italic text reads as an
-   * emphatic paragraph rather than as someone else speaking.
+   * Every one of these is tinted; they differ in what the tint is joined by.
+   * `bar` adds a rule down the side, `card` a radius, `hang` a displacement into
+   * the margin and a size up, and `plain` adds nothing — a flat band.
    *
-   * `plain` is italic and nothing else. It is kept because a reader may want a
-   * page with no marks on it at all, and deliberately used by no preset.
+   * The tint is not per-style, and `componentTokens` writes it once for that
+   * reason. A quotation marked only by being italic, or larger, or slightly
+   * outdented reads as an emphatic paragraph, and the reader has to work out
+   * which from the words.
    */
   quote: z.enum(["bar", "hang", "card", "plain"]).default("bar"),
 

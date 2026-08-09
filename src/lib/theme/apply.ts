@@ -210,30 +210,48 @@ function componentTokens(theme: Theme): Record<string, string> {
     normal: { transform: "none", caps: "normal", tracking: "0em" },
   }[heading.minor];
 
-  // padding is `block inline-end block inline-start`, so a barred quote pads only
-  // on the side its rule is on and a card pads all four.
+  /**
+   * Every quotation is tinted, whichever style it is.
+   *
+   * That is a rule about quotations rather than a property of any one style, so
+   * it is written once here instead of four times in the table below — four
+   * copies of a rule is four places for it to stop being true. The styles differ
+   * in what they add to the tint: a rule, a radius, a displacement.
+   *
+   * The reasoning is the same one that put a fill on the hanging quote first. A
+   * quotation marked only by being italic, or larger, or slightly outdented, does
+   * not read as a quotation — it reads as an emphatic paragraph, and the reader
+   * has to work out which from the words. The tint is what says "this is not the
+   * author talking", and it should not be optional.
+   *
+   * `--doc-surface` rather than a mix of the text colour: every palette already
+   * defines a raised plane distinct from its page, and it is what the callout,
+   * the details block and the diagram frame all sit on.
+   */
+  const QUOTE_FILL = "var(--doc-surface)";
+
+  // `inset` is `block inline`, or `block inline-end block inline-start` where the
+  // two sides differ. Every style now pads on all four, because a tint with text
+  // against its edge is worse than no tint.
   const QUOTE = {
     bar: {
       outdent: "0em",
-      inset: "0em 0em 0em 1.1em",
+      inset: "0.8em 1.1em",
       rule: "2px",
-      radius: "0px",
-      fill: "transparent",
+      // Square against the rule, rounded away from it — the rule is an edge, so
+      // rounding it would leave a bar with two little tails.
+      radius: "0 6px 6px 0",
       ink: "var(--doc-text-muted)",
       style: "italic",
       size: "1em",
     },
     hang: {
+      // The tint says "a quotation"; the outdent and the size are what keep this
+      // from being the card.
       outdent: "-1.2em",
-      // Tinted, despite the displacement being the mark. A quotation set only in
-      // larger italic and pulled a little left does not read as a quotation — it
-      // reads as an emphatic paragraph, and the reader has to work out which from
-      // the words. The tint is what says "this is not the author talking"; the
-      // outdent and the size are what keep it from being the card.
       inset: "0.9em 1.1em 0.9em 1.2em",
       rule: "0px",
       radius: "6px",
-      fill: "var(--doc-surface)",
       ink: "var(--doc-text)",
       style: "italic",
       size: "1.08em",
@@ -243,17 +261,17 @@ function componentTokens(theme: Theme): Record<string, string> {
       inset: "0.9em 1.1em",
       rule: "0px",
       radius: "8px",
-      fill: "var(--doc-surface)",
       ink: "var(--doc-text-muted)",
       style: "normal",
       size: "1em",
     },
+    // A flat band: the tint and nothing else. No rule, no corners, no
+    // displacement — the quiet end of the range, but still marked.
     plain: {
       outdent: "0em",
-      inset: "0em",
+      inset: "0.8em 1.1em",
       rule: "0px",
       radius: "0px",
-      fill: "transparent",
       ink: "var(--doc-text-muted)",
       style: "italic",
       size: "1em",
@@ -358,7 +376,7 @@ function componentTokens(theme: Theme): Record<string, string> {
     "--doc-quote-inset": QUOTE.inset,
     "--doc-quote-rule": QUOTE.rule,
     "--doc-quote-radius": QUOTE.radius,
-    "--doc-quote-fill": QUOTE.fill,
+    "--doc-quote-fill": QUOTE_FILL,
     "--doc-quote-ink": QUOTE.ink,
     "--doc-quote-style": QUOTE.style,
     "--doc-quote-size": QUOTE.size,
