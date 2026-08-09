@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { byDocument, filterGroups, inDocumentOrder, matches, oneLine, pinCurrent } from "./list";
+import { filterAnnotations, inDocumentOrder, matches, oneLine } from "./list";
 import type { Annotation } from "@/lib/ipc";
 import type { SourceRange } from "@/lib/edit/selection";
 
@@ -75,112 +75,6 @@ describe("inDocumentOrder", () => {
   });
 });
 
-describe("byDocument", () => {
-  it("groups by path and names each group after the file", () => {
-    const groups = byDocument([
-      annotation({ id: 1, path: "C:/notes/one.md" }),
-      annotation({ id: 2, path: "C:/notes/two.md" }),
-      annotation({ id: 3, path: "C:/notes/one.md" }),
-    ]);
-
-    expect(groups).toHaveLength(2);
-    expect(groups.map((group) => group.name).sort()).toEqual(["one.md", "two.md"]);
-    expect(
-      groups
-        .flatMap((group) => group.annotations)
-        .map((row) => row.id)
-        .sort(),
-    ).toEqual([1, 2, 3]);
-  });
-
-  it("orders groups by their most recently touched mark, not alphabetically", () => {
-    const groups = byDocument([
-      annotation({ id: 1, path: "C:/notes/aardvark.md", updatedAt: 1_000 }),
-      annotation({ id: 2, path: "C:/notes/zebra.md", updatedAt: 9_000 }),
-    ]);
-
-    expect(groups.map((group) => group.name)).toEqual(["zebra.md", "aardvark.md"]);
-  });
-
-  it("takes a group's recency from its newest mark, not from the one listed first", () => {
-    const groups = byDocument([
-      annotation({ id: 1, path: "C:/notes/one.md", updatedAt: 2_000 }),
-      annotation({ id: 2, path: "C:/notes/one.md", updatedAt: 8_000 }),
-      annotation({ id: 3, path: "C:/notes/two.md", updatedAt: 5_000 }),
-    ]);
-
-    expect(groups.map((group) => group.name)).toEqual(["one.md", "two.md"]);
-    expect(groups[0]!.touchedAt).toBe(8_000);
-  });
-
-  it("orders marks within a group by their stored offsets", () => {
-    const groups = byDocument([
-      annotation({ id: 1, startOffset: 500 }),
-      annotation({ id: 2, startOffset: 10 }),
-    ]);
-
-    expect(groups[0]!.annotations.map((row) => row.id)).toEqual([2, 1]);
-  });
-
-  it("reads a name off either separator, since paths come from two platforms", () => {
-    const groups = byDocument([
-      annotation({ id: 1, path: "C:\\notes\\windows.md" }),
-      annotation({ id: 2, path: "/home/reader/posix.md" }),
-    ]);
-
-    expect(groups.map((group) => group.name).sort()).toEqual(["posix.md", "windows.md"]);
-  });
-
-  it("has nothing to say about nothing", () => {
-    expect(byDocument([])).toEqual([]);
-  });
-});
-
-describe("pinCurrent", () => {
-  const groups = byDocument([
-    annotation({ id: 1, path: "C:/notes/newest.md", updatedAt: 9_000 }),
-    annotation({ id: 2, path: "C:/notes/middle.md", updatedAt: 5_000 }),
-    annotation({ id: 3, path: "C:/notes/oldest.md", updatedAt: 1_000 }),
-  ]);
-
-  it("brings the document being read to the front", () => {
-    expect(pinCurrent(groups, "C:/notes/oldest.md").map((group) => group.name)).toEqual([
-      "oldest.md",
-      "newest.md",
-      "middle.md",
-    ]);
-  });
-
-  it("leaves the recency order of everything else alone", () => {
-    // One group moving, not a second sort — the rest of the list still answers
-    // "what have I been flagging".
-    const pinned = pinCurrent(groups, "C:/notes/middle.md");
-
-    expect(pinned.slice(1).map((group) => group.name)).toEqual(["newest.md", "oldest.md"]);
-  });
-
-  it("changes nothing when the document is already first", () => {
-    expect(pinCurrent(groups, "C:/notes/newest.md").map((group) => group.name)).toEqual(
-      groups.map((group) => group.name),
-    );
-  });
-
-  it("changes nothing for a document with no marks, or no document at all", () => {
-    const names = groups.map((group) => group.name);
-
-    expect(pinCurrent(groups, "C:/notes/unmarked.md").map((group) => group.name)).toEqual(names);
-    expect(pinCurrent(groups, null).map((group) => group.name)).toEqual(names);
-  });
-
-  it("does not reorder the array it was given", () => {
-    const names = groups.map((group) => group.name);
-
-    pinCurrent(groups, "C:/notes/oldest.md");
-
-    expect(groups.map((group) => group.name)).toEqual(names);
-  });
-});
-
 describe("matches", () => {
   const row = annotation({
     id: 1,
@@ -197,13 +91,11 @@ describe("matches", () => {
     expect(matches(row, "autumn")).toBe(true);
   });
 
-  it("finds a mark by the file it is in", () => {
-    expect(matches(row, "roadmap")).toBe(true);
-  });
-
-  it("does not search the folders above the file", () => {
-    // Otherwise every mark in a folder matches its own folder's name, which
-    // makes a query for a project name return everything in it.
+  it("does not search the path at all", () => {
+    // Every row in the list is from the same file, so a file name that matched
+    // would match all of them — typing the name of what you are reading would
+    // look like a filter that had stopped working.
+    expect(matches(row, "roadmap")).toBe(false);
     expect(matches(row, "notes")).toBe(false);
   });
 
@@ -216,45 +108,34 @@ describe("matches", () => {
     expect(matches(row, "   ")).toBe(true);
   });
 
-  it("refuses a query that is in none of the three", () => {
+  it("refuses a query that is in neither", () => {
     expect(matches(row, "kangaroo")).toBe(false);
   });
 });
 
-describe("filterGroups", () => {
-  const groups = byDocument([
-    annotation({ id: 1, path: "C:/notes/one.md", body: "about badgers" }),
-    annotation({ id: 2, path: "C:/notes/one.md", body: "about otters" }),
-    annotation({ id: 3, path: "C:/notes/two.md", body: "about badgers" }),
-  ]);
+describe("filterAnnotations", () => {
+  const rows = [
+    annotation({ id: 1, body: "about badgers" }),
+    annotation({ id: 2, body: "about otters" }),
+  ];
 
   it("keeps only the marks that answer the query", () => {
-    const filtered = filterGroups(groups, "otters");
-
-    expect(filtered).toHaveLength(1);
-    expect(filtered[0]!.annotations.map((row) => row.id)).toEqual([2]);
+    expect(filterAnnotations(rows, "otters").map((row) => row.id)).toEqual([2]);
   });
 
-  it("drops a group left with nothing rather than showing an empty heading", () => {
-    expect(
-      filterGroups(groups, "badgers")
-        .map((group) => group.name)
-        .sort(),
-    ).toEqual(["one.md", "two.md"]);
-    expect(filterGroups(groups, "otters").map((group) => group.name)).toEqual(["one.md"]);
+  it("returns everything for an empty query", () => {
+    expect(filterAnnotations(rows, "  ").map((row) => row.id)).toEqual([1, 2]);
   });
 
-  it("returns everything for an empty query, without touching the groups given", () => {
-    const filtered = filterGroups(groups, "  ");
-
-    expect(filtered).toEqual([...groups]);
-    expect(groups[0]!.annotations).toHaveLength(2);
+  it("has nothing to show for a document with no marks", () => {
+    expect(filterAnnotations([], "otters")).toEqual([]);
   });
 
-  it("leaves the groups it was given alone", () => {
-    filterGroups(groups, "otters");
+  it("hands back a copy, so a caller can hold it across a render", () => {
+    const filtered = filterAnnotations(rows, "");
 
-    expect(groups[0]!.annotations.map((row) => row.id)).toEqual([1, 2]);
+    expect(filtered).not.toBe(rows);
+    expect(rows.map((row) => row.id)).toEqual([1, 2]);
   });
 });
 

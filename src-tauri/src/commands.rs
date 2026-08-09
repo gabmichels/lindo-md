@@ -179,16 +179,6 @@ pub fn list_annotations(
     store.with(&app, |connection| annotations::list(connection, &path))
 }
 
-/// Every annotation in the database, across every folder. The "everything I
-/// marked about X" view; filtering is the frontend's.
-#[tauri::command]
-pub fn all_annotations(
-    app: AppHandle,
-    store: State<'_, annotations::Store>,
-) -> LindoResult<Vec<Annotation>> {
-    store.with(&app, |connection| annotations::all(connection))
-}
-
 /// Looks for this document's marks under the path it used to have.
 ///
 /// Called when a load found none, which is the only time it can do anything. See

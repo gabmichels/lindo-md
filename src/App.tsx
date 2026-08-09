@@ -18,7 +18,7 @@ import { TabStrip } from "@/components/TabStrip";
 import { TitleBar } from "@/components/TitleBar";
 import { Toolbar } from "@/components/Toolbar";
 import { UpdateDialog } from "@/components/Updates";
-import { useAllAnnotations } from "@/hooks/useAllAnnotations";
+import { useDocumentNotes } from "@/hooks/useDocumentNotes";
 import { AnnotationRevisionProvider } from "@/hooks/useAnnotationRevision";
 import { ConfigProvider, useConfig } from "@/hooks/useConfig";
 import { useFileDrop } from "@/hooks/useFileDrop";
@@ -203,7 +203,11 @@ function Shell() {
 
   // Asks for nothing while the panel is shut: the query walks every row the
   // reader has ever written, and a closed panel has nothing to show it in.
-  const notes = useAllAnnotations(config.notesOpen);
+  //
+  // Scoped to the active tab's document, not the focused pane's: the comparison
+  // pane has no annotations of its own — `DocumentView` turns them off there —
+  // so following it would show a list nothing on screen can add to.
+  const notes = useDocumentNotes(config.notesOpen, document?.path ?? null);
 
   /**
    * Show me this mark.
@@ -915,12 +919,9 @@ function Shell() {
           out of scope here. */}
       {config.notesOpen && (
         <NotesPanel
-          groups={notes.groups}
+          annotations={notes.annotations}
           loaded={notes.loaded}
           error={notes.error}
-          // The active tab's file, not the focused pane's: the pane has no
-          // annotations of its own — `DocumentView` turns them off there — so
-          // pinning its document would pin a group nothing on screen can add to.
           currentPath={document?.path ?? null}
           markColors={theme.colors.mark}
           onClose={() => {

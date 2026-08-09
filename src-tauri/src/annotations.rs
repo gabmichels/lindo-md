@@ -313,15 +313,6 @@ pub fn list(connection: &Connection, path: &str) -> LindoResult<Vec<Annotation>>
     )
 }
 
-/// Every annotation in the database, newest first — the cross-folder view.
-pub fn all(connection: &Connection) -> LindoResult<Vec<Annotation>> {
-    query(
-        connection,
-        &format!("SELECT {COLUMNS} FROM annotation ORDER BY updated_at DESC, id DESC"),
-        &[],
-    )
-}
-
 /// Moves a document's marks to the path it now lives at, if they can be found.
 ///
 /// Annotations are filed under a path, so renaming or moving a file cuts them
@@ -790,12 +781,42 @@ mod tests {
         assert_eq!(list(&connection, "notes.md").unwrap().len(), 1);
     }
 
+    /// The reason the panel asks the store which marks a document has instead of
+    /// filtering the whole list against the path it is holding.
+    ///
+    /// A row is filed under the *canonical* path — on Windows that is the
+    /// verbatim `\\?\C:\...` form, which no path the frontend ever sees looks
+    /// like. Both directions are pinned here: the same document spelled two ways
+    /// finds its marks, and the string that comes back is not the string that
+    /// went in, so comparing them anywhere else is a bug waiting to happen.
     #[test]
-    fn the_cross_document_view_spans_folders() {
-        let connection = store();
-        create(&connection, &sample("a/notes.md")).unwrap();
-        create(&connection, &sample("b/other.md")).unwrap();
+    fn marks_are_filed_under_the_canonical_path_not_the_one_given() {
+        let dir = std::env::temp_dir().join("lindo-md-annotation-key-test");
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        let file = dir.join("keyed.md");
+        std::fs::write(&file, "# Keyed").unwrap();
 
-        assert_eq!(all(&connection).unwrap().len(), 2);
+        let connection = store();
+        let mut new = sample(file.to_str().unwrap());
+        new.path = file.display().to_string();
+        let made = create(&connection, &new).unwrap();
+
+        // Same file, reached the long way round.
+        let detour = dir.join("sub").join("..").join("keyed.md");
+        assert_eq!(
+            list(&connection, detour.to_str().unwrap()).unwrap().len(),
+            1
+        );
+
+        assert!(made.path.ends_with("keyed.md"), "path was {}", made.path);
+        if cfg!(windows) {
+            assert_ne!(
+                made.path,
+                file.display().to_string(),
+                "a stored path that equals the given one would hide this",
+            );
+        }
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

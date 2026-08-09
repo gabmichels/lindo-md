@@ -803,13 +803,19 @@ and rewriting one: a selection spanning two blocks covers the markup between the
 
 ### The notes panel
 
-`Ctrl/⌘+Shift+A`, the toolbar's highlighter, or the palette. It lists **every mark in the
-store**, grouped by document — not the open tabs' marks — because the question it answers is
-"everything I flagged about X" and the answer is mostly in files that are not open. That is
-also why a row shows its **stored quote** rather than fetching one: resolving an anchor needs
-the document's source, and nothing in `useAllAnnotations` or `lib/annotate/list.ts` resolves
-anything. Groups are ordered by their most recently touched mark, with the document being read
-pinned to the front — recency is right for the question and wrong for the file on screen.
+`Ctrl/⌘+Shift+A`, the toolbar's highlighter, or the palette. It lists **the marks on the
+document being read**, and nothing else: switch tabs and the list switches, close the last tab
+and it empties. A row still shows its **stored quote** rather than fetching one, because a mark
+whose words have been deleted still has a row and the page can say nothing about it — nothing
+in `useDocumentNotes` or `lib/annotate/list.ts` resolves an anchor.
+
+**Which rows belong to this document is a question only the store can answer.** An annotation is
+filed under the *canonical* path (`\\?\C:\notes\a.md` on Windows), and what the frontend holds
+is the path the file was opened by; the two are the same file and different strings. The first
+version of this panel read every row and compared paths in TypeScript, which is why it sat empty
+beside a document full of marks. It asks `list_annotations` for one path instead, which
+canonicalizes before it looks — `marks_are_filed_under_the_canonical_path_not_the_one_given`
+pins both halves of that.
 
 **It is a sibling of `<main>`, not a third column inside it.** `splitZoneOf` measures
 `[data-canvas-body]` to decide where a dragged tab opens the comparison pane, so a column added
