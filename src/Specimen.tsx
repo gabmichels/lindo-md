@@ -4,6 +4,7 @@ import { DropOverlay } from "@/components/DropOverlay";
 import { FormatMenu } from "@/components/FormatMenu";
 import { Rail } from "@/components/Rail";
 import { SettingsDialog } from "@/components/SettingsDialog";
+import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { TabStrip } from "@/components/TabStrip";
 import { useUpdater } from "@/hooks/useUpdater";
 import {
@@ -95,6 +96,7 @@ export default function Specimen() {
   const [collapsed, setCollapsed] = useState(false);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   // Disabled on purpose: the specimen runs in a browser, where a launch check
   // could only fail, and the state worth reviewing here is the resting one.
   const updater = useUpdater(false);
@@ -120,7 +122,9 @@ export default function Specimen() {
         activeHeadingId="installing"
         progress={0.42}
         onJumpTo={() => undefined}
-        onOpenAppearance={() => undefined}
+        onOpenAppearance={() => {
+          setDrawerOpen(true);
+        }}
         onOpenSettings={() => {
           setSettingsOpen(true);
         }}
@@ -180,8 +184,24 @@ export default function Specimen() {
         onOpenChange={setSettingsOpen}
         config={SPECIMEN_CONFIG}
         onUpdateConfig={() => undefined}
-        onOpenAppearance={() => undefined}
+        onOpenAppearance={() => {
+          setDrawerOpen(true);
+        }}
         updater={updater}
+      />
+
+      {/* DESIGN.md has always listed the appearance drawer among the states this
+          page renders, and it was not among them — so the one surface with the
+          most controls in the app was the one nobody could review without running
+          Tauri. Its edits are inert here: `onUpdateConfig` is a no-op, so the
+          panel shows House's settings and every control is in its resting state,
+          which is what a specimen is for. */}
+      <SettingsDrawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        config={SPECIMEN_CONFIG}
+        theme={PRESETS[0]![appearance]}
+        onUpdateConfig={() => undefined}
       />
     </div>
   );
@@ -409,8 +429,18 @@ const SPECIMEN_SESSIONS = [
   },
 ];
 
-/** A theme applied to a real element, so what is on screen is what `applyTheme`
- *  produces rather than an approximation of it. */
+/**
+ * A theme applied to a real element, so what is on screen is what `applyTheme`
+ * produces rather than an approximation of it.
+ *
+ * The body below is a real `.doc`, and that matters more than it used to. This
+ * card was hand-built markup — a `border-l-2` blockquote, a rounded code chip —
+ * which was an honest picture of a theme back when a theme was a palette. Now
+ * that a theme also chooses whether a quotation has a bar at all, hand-built
+ * markup shows every preset looking the same and hides exactly the differences
+ * the reviewer is here to judge. Anything drawn from `document.css` is drawn by
+ * `document.css`.
+ */
 function PaperCard({
   name,
   note,
@@ -430,37 +460,59 @@ function PaperCard({
     <div ref={ref} className="overflow-hidden rounded-ui-lg">
       <div className="bg-doc-bg p-5">
         <p className="rail-label mb-2">{name}</p>
-        <h2
-          className="font-doc-heading text-doc-heading"
-          style={{ fontSize: "var(--doc-h3)", fontWeight: "var(--doc-heading-weight)" }}
+        {/* `--doc-page` and the gutters come from the card, not the theme: these
+            sit three to a row and a 66ch measure would overflow every one of
+            them. Everything else is the theme's. */}
+        <div
+          className="doc"
+          style={{ maxWidth: "none", padding: 0, fontSize: "calc(var(--doc-size) * 0.8)" }}
         >
-          Getting Started
-        </h2>
-        <p
-          className="mt-2 font-doc text-doc-text"
-          style={{
-            fontSize: "calc(var(--doc-size) * 0.8)",
-            lineHeight: "var(--doc-leading)",
-          }}
-        >
-          Ordinary paragraph text with a <span className="text-doc-link underline">link</span>, some{" "}
-          <code
-            className="rounded px-1 font-doc-mono"
-            style={{ background: "var(--doc-code-bg)", fontSize: "0.85em" }}
-          >
-            inline code
-          </code>
-          , and enough words to judge the colour of the ink.
-        </p>
-        <blockquote
-          className="mt-3 border-l-2 pl-3 font-doc text-doc-text-muted italic"
-          style={{
-            borderColor: "var(--doc-quote-bar)",
-            fontSize: "calc(var(--doc-size) * 0.75)",
-          }}
-        >
-          {note}
-        </blockquote>
+          <h2>Getting Started</h2>
+          <p>
+            Ordinary paragraph text with a <a href="#specimen">link</a>, some{" "}
+            <code>inline code</code>, an <em>italic</em>, and enough words to judge the colour of
+            the ink.
+          </p>
+          <blockquote>
+            <p>{note}</p>
+          </blockquote>
+          <hr />
+          <ul>
+            <li>A list marker, whichever kind the theme asks for</li>
+            <li>And a second line under it</li>
+          </ul>
+          <pre className="code-block">
+            <code>{"const theme = resolveTheme(id, appearance);"}</code>
+          </pre>
+          <table>
+            <thead>
+              <tr>
+                <th>Header</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Measure</td>
+                <td>{theme.typography.measure}ch</td>
+              </tr>
+              <tr>
+                <td>Body</td>
+                <td>{theme.typography.baseSize}px</td>
+              </tr>
+            </tbody>
+          </table>
+          {/* comrak's own markup for a `> [!NOTE]`, so the alert style the theme
+              chose is what gets drawn. */}
+          <div className="markdown-alert markdown-alert-note">
+            <p className="markdown-alert-title">Note</p>
+            <p>How this theme draws a callout.</p>
+          </div>
+          <h6>A minor heading</h6>
+        </div>
+        {/* The five alert hues as bare swatches, which is a check on the palette
+            rather than on the component — they have to stay apart from each other
+            whatever shape the callout above is drawn in. */}
         <div className="mt-3 flex gap-1">
           {(["note", "tip", "important", "warning", "caution"] as const).map((kind) => (
             <span

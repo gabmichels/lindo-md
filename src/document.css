@@ -171,8 +171,8 @@
   font-family: var(--doc-font-heading);
   font-weight: var(--doc-heading-weight);
   color: var(--doc-heading);
-  line-height: 1.22;
-  letter-spacing: -0.02em;
+  line-height: var(--doc-heading-leading);
+  letter-spacing: var(--doc-heading-tracking);
   text-align: start;
   text-wrap: balance;
   scroll-margin-top: 1.5rem;
@@ -181,11 +181,26 @@
 .doc h1 {
   font-size: var(--doc-h1);
   margin-block: 0 0.8em;
-  letter-spacing: -0.028em;
+  /* A display size carries the theme's tracking a little further — the larger
+     the type, the more the counters can afford to close up. */
+  letter-spacing: calc(var(--doc-heading-tracking) * 1.4);
 }
 .doc h2 {
   font-size: var(--doc-h2);
   margin-block: 1.9em 0.55em;
+}
+
+/* A rule under the top headings, when the theme asks for one. Drawn as a border
+   on the heading rather than as a pseudo-element so it spans the measure and not
+   the text, and sits below the heading's own descenders. */
+.doc h1 {
+  padding-bottom: var(--doc-h1-rule-gap);
+  border-bottom: var(--doc-h1-rule) solid var(--doc-border);
+}
+
+.doc h2:not(section[data-footnotes] h2) {
+  padding-bottom: var(--doc-h2-rule-gap);
+  border-bottom: var(--doc-h2-rule) solid var(--doc-border);
 }
 .doc h3 {
   font-size: var(--doc-h3);
@@ -199,12 +214,18 @@
   font-size: var(--doc-h5);
   margin-block: 1.5em 0.4em;
 }
+/* h6 is below the level anyone cites, so it is set as a label rather than as a
+   heading. How that label is drawn is the theme's call: uppercase is the app's
+   long-standing default and the right answer in a sans face, small caps is the
+   serif answer to the same problem, and `normal` leaves it alone for a theme
+   whose face has neither to offer. */
 .doc h6 {
   font-size: var(--doc-h6);
   margin-block: 1.5em 0.4em;
   color: var(--doc-text-muted);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: var(--doc-h6-tracking);
+  text-transform: var(--doc-h6-transform);
+  font-variant-caps: var(--doc-h6-caps);
 }
 
 /* Numbered headings, when the theme asks for them.
@@ -301,16 +322,64 @@
   color: var(--doc-heading);
 }
 
+/* A thematic break. The line is the web's answer; the asterism is the book's, and
+   reads as punctuation between passages rather than as a divider between panels.
+   `space` says the same thing with nothing but air, which only works on a page
+   whose rhythm is otherwise tight. */
 .doc hr {
   border: 0;
-  height: 1px;
-  background: var(--doc-border);
+  height: var(--doc-hr-height);
+  width: var(--doc-hr-width);
+  background: var(--doc-hr-fill);
   margin-block: 3em;
+  margin-inline: var(--doc-hr-align);
+  color: var(--doc-text-muted);
+  text-align: center;
+  font-size: 1.1em;
+  line-height: 1;
 }
 
+/* The asterism is one character, not three positioned glyphs: a real ⁂ is kerned
+   as a single mark and degrades gracefully in a face that lacks it. Every other
+   setting resolves this token to an empty string. */
+.doc hr::before {
+  content: var(--doc-hr-mark);
+}
+
+/* Tailwind's preflight strips the marker from every `ul` and `ol`, so a bullet
+   has to be asked for here rather than merely left alone — which is why unordered
+   lists in the document had no markers at all until this rule existed.
+
+   `dash` sets an en dash instead — quieter, and in a serif page a bullet is a
+   solid black dot in a field of thin strokes. `outdent` hangs the marker in the
+   gutter so the list's text edge lines up with the paragraphs above it, which
+   `list-style-position: outside` alone does not do: the padding is what the
+   marker hangs into. */
 .doc :is(ul, ol) {
   margin-block: 0 var(--doc-para-space);
-  padding-left: 1.4em;
+  padding-left: var(--doc-list-pad);
+  list-style-position: outside;
+}
+
+/* `list-style-type` takes a string, which is the whole implementation of the dash
+   setting: `"–  "` is a marker in exactly the way `disc` is, laid out and aligned
+   by the list itself. The first attempt drew it with an absolutely positioned
+   `::before`, which resolves against the nearest *positioned* ancestor — and an
+   ordinary `li` is not one, so every dash landed somewhere off in the page. */
+.doc ul {
+  list-style-type: var(--doc-list-style);
+}
+
+.doc ol {
+  list-style-type: decimal;
+}
+
+.doc :is(ul, ol) > li {
+  margin-left: var(--doc-list-hang);
+}
+
+.doc li::marker {
+  color: var(--doc-text-muted);
 }
 
 .doc li {
@@ -350,14 +419,30 @@
 }
 
 /* --- quotes ---------------------------------------------------------------
-   A rule and an optical hang into the margin, not a grey box. */
+   Four settings, because a quotation is where a page's voice is most audible.
+
+   `bar` is a rule and an optical hang into the margin, and was the only option
+   until themes started differing by more than palette. `hang` drops the rule and
+   pulls the quote out into the margin instead, which is what a book and what
+   Medium do — the displacement is the mark. `card` is the tinted block a wiki
+   uses. `plain` is italic and nothing else.
+
+   The italic is real, not synthesised: `scripts/fonts.mjs` ships the drawn italic
+   for every bundled family, which it did not before. */
 
 .doc blockquote {
   margin-block: 1.6em;
-  padding-left: 1.1em;
-  border-left: 2px solid var(--doc-quote-bar);
-  color: var(--doc-text-muted);
-  font-style: italic;
+  /* `hang` pulls the quotation out into the gutter and marks it with nothing but
+     that displacement, which is why it also takes a size up: the position has to
+     be unambiguous when there is no rule to read. */
+  margin-inline: var(--doc-quote-outdent) 0;
+  padding: var(--doc-quote-inset);
+  border-left: var(--doc-quote-rule) solid var(--doc-quote-bar);
+  border-radius: var(--doc-quote-radius);
+  background: var(--doc-quote-fill);
+  color: var(--doc-quote-ink);
+  font-style: var(--doc-quote-style);
+  font-size: var(--doc-quote-size);
 }
 
 .doc blockquote p:last-child {
@@ -366,12 +451,17 @@
 
 /* --- GitHub alerts --------------------------------------------------------- */
 
+/* `minimal` has no fill and no rule — the coloured title carries the whole
+   signal. That is safe because comrak writes the kind's name into the callout, so
+   the alert still says "Warning" in words with the colour taken away. */
 .doc .markdown-alert {
   margin-block: 1.6em;
-  padding: 0.9em 1.1em;
-  border-left: 3px solid var(--alert-color);
-  border-radius: 0 6px 6px 0;
-  background: color-mix(in oklab, var(--alert-color) 7%, var(--doc-bg));
+  padding: var(--doc-alert-inset);
+  border-left: var(--doc-alert-rule) solid var(--alert-color);
+  border-radius: var(--doc-alert-radius);
+  background: var(--doc-alert-fill);
+  box-shadow: inset 0 0 0 var(--doc-alert-ring)
+    color-mix(in oklab, var(--alert-color) 35%, transparent);
 }
 
 .doc .markdown-alert-note {
@@ -412,22 +502,30 @@
   font-variant-ligatures: none;
 }
 
+/* Inline code. An inset hairline rather than a border throughout: it does not add
+   to the box's size, so inline code cannot shift the line it sits on.
+
+   `bare` has neither fill nor frame and colours the text instead — right on a page
+   with a lot of inline code, where every identifier otherwise becomes a chip. */
 .doc :not(pre) > code {
-  padding: 0.15em 0.35em;
+  padding: var(--doc-code-inline-inset);
   border-radius: 4px;
-  background: var(--doc-code-bg);
-  /* An inset hairline instead of a border: it does not add to the box's size,
-     so inline code cannot shift the line it sits on. */
-  box-shadow: inset 0 0 0 1px var(--doc-code-border);
+  color: var(--doc-code-inline-ink);
+  background: var(--doc-code-inline-fill);
+  box-shadow: inset 0 0 0 var(--doc-code-inline-ring) var(--doc-code-border);
 }
 
+/* `flush` is a left rule and no fill. A technical document is mostly code blocks,
+   and a stack of filled cards makes the prose between them read as the
+   interruption rather than as the document. */
 .doc pre.code-block {
   position: relative;
   margin-block: 1.6em;
-  padding: 1em 1.1em;
-  border-radius: 8px;
-  background: var(--doc-code-bg);
-  box-shadow: inset 0 0 0 1px var(--doc-code-border);
+  padding: var(--doc-code-inset);
+  border-radius: var(--doc-code-radius);
+  border-left: var(--doc-code-rule) solid var(--doc-code-border);
+  background: var(--doc-code-fill);
+  box-shadow: inset 0 0 0 var(--doc-code-ring) var(--doc-code-border);
   overflow-x: auto;
   line-height: 1.55;
   text-align: start;
@@ -527,37 +625,43 @@
   hyphens: none;
 }
 
+/* Uppercase and tracked is right for a data table and loud in a serif page, where
+   it is the one shouting thing on an otherwise quiet spread — hence the setting. */
 .doc th {
   font-family: var(--doc-font-heading);
-  font-size: 0.85em;
+  font-size: var(--doc-th-size);
   font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--doc-text-muted);
+  letter-spacing: var(--doc-th-tracking);
+  text-transform: var(--doc-th-transform);
+  color: var(--doc-th-ink);
   text-align: start;
-  padding: var(--doc-table-pad-block) var(--doc-table-pad-inline) var(--doc-table-pad-block) 0;
+  padding-block: var(--doc-table-pad-block);
+  padding-inline: var(--doc-table-pad-start) var(--doc-table-pad-inline);
   border-bottom: 1px solid var(--doc-border);
   border-right: 1px solid var(--doc-table-rule);
 }
 
 .doc td {
-  padding: var(--doc-table-pad-block) var(--doc-table-pad-inline) var(--doc-table-pad-block) 0;
+  padding-block: var(--doc-table-pad-block);
+  padding-inline: var(--doc-table-pad-start) var(--doc-table-pad-inline);
   border-bottom: 1px solid color-mix(in oklab, var(--doc-border) 55%, transparent);
   border-right: 1px solid var(--doc-table-rule);
 }
 
-/* With hairline rules the last column hangs flush to the text edge, which is
-   what makes the table read as part of the page. A grid has a rule there, so
-   the padding comes back. */
+/* The gutter on the side a rule is drawn on.
+   Hairline tables rule the rows only, so a cell needs no space on its left and
+   the outer columns hang flush to the text edge — which is what makes the table
+   read as part of the page rather than as an object on it. A grid draws a rule
+   down every column, and text set hard against a rule reads as broken, so with
+   the rules comes the padding: on both edges, and on the left of every cell,
+   not only the first. */
 .doc :is(th, td):last-child {
-  padding-right: var(--doc-table-pad-last);
+  padding-right: var(--doc-table-pad-edge);
   border-right: 0;
 }
 
-/* A grid needs the vertical rules to reach the header, and the first column to
-   be inset from the edge the same as every other cell. */
 .doc :is(th, td):first-child {
-  padding-left: var(--doc-table-pad-last);
+  padding-left: var(--doc-table-pad-edge);
 }
 
 .doc tbody tr:nth-child(even) {
@@ -570,10 +674,14 @@
 
 /* --- images & figures ------------------------------------------------------ */
 
+/* The frame matters on a light theme: a photo or a screenshot with a white edge
+   otherwise bleeds into the paper and loses its own boundary. Inset so it cannot
+   change the image's box. */
 .doc img {
   max-width: 100%;
   height: auto;
-  border-radius: 6px;
+  border-radius: var(--doc-image-radius);
+  box-shadow: inset 0 0 0 1px var(--doc-image-frame);
 }
 
 .doc img[data-blocked],

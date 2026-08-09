@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import {
   ColorSwatch,
   Field,
+  Group,
   Row,
   Section,
   Segmented,
@@ -15,12 +16,14 @@ import {
   type SelectOption,
 } from "@/components/ui/controls";
 import { readThemeFile, writeThemeFile, type AppConfig, type AppearanceMode } from "@/lib/ipc";
+import { BUNDLED_FONTS, type BundledFont } from "@/lib/theme/fonts";
 import { PRESETS } from "@/lib/theme/presets";
 import { forkTheme, parseThemeFile, serializeTheme } from "@/lib/theme/io";
 import type {
   ContentWidth,
   Theme,
   ThemeColors,
+  ThemeComponents,
   ThemeLayout,
   ThemeTypography,
 } from "@/lib/theme/schema";
@@ -50,26 +53,100 @@ interface SettingsDrawerProps {
   onUpdateConfig: (patch: Partial<AppConfig>) => void;
 }
 
-const BODY_FONTS: SelectOption[] = [
-  { value: '"Source Serif 4 Variable", Georgia, serif', label: "Source Serif 4" },
-  { value: '"Literata Variable", Georgia, serif', label: "Literata" },
-  { value: '"Newsreader Variable", Georgia, serif', label: "Newsreader" },
-  { value: '"EB Garamond Variable", Georgia, serif', label: "EB Garamond" },
-  { value: '"Lora Variable", Georgia, serif', label: "Lora" },
-  { value: '"Inter Variable", system-ui, sans-serif', label: "Inter" },
-  { value: '"Inter Tight Variable", system-ui, sans-serif', label: "Inter Tight" },
-  { value: '"Source Sans 3 Variable", system-ui, sans-serif', label: "Source Sans 3" },
-  { value: '"IBM Plex Sans", system-ui, sans-serif', label: "IBM Plex Sans" },
-  { value: '"Atkinson Hyperlegible", system-ui, sans-serif', label: "Atkinson Hyperlegible" },
-  { value: "system-ui, sans-serif", label: "System UI" },
-].map((option) => ({ ...option, fontFamily: option.value }));
+/**
+ * The picker's lists, from `BUNDLED_FONTS` — which `scripts/fonts.mjs` writes
+ * from the same manifest that generates the `@font-face` rules. A family cannot
+ * be offered here without being bundled, or bundled without being offered.
+ *
+ * Every option previews in its own face. The system entries are last in each
+ * list and preview in whatever the OS supplies, which is the honest preview.
+ */
+const GROUP_LABEL: Record<BundledFont["role"], string> = {
+  serif: "Serif",
+  sans: "Sans",
+  mono: "Monospace",
+};
 
-const MONO_FONTS: SelectOption[] = [
-  { value: '"JetBrains Mono Variable", ui-monospace, monospace', label: "JetBrains Mono" },
-  { value: '"Source Code Pro Variable", ui-monospace, monospace', label: "Source Code Pro" },
-  { value: '"IBM Plex Mono", ui-monospace, monospace', label: "IBM Plex Mono" },
-  { value: "ui-monospace, monospace", label: "System Monospace" },
-].map((option) => ({ ...option, fontFamily: option.value }));
+function fontOptions(...roles: BundledFont["role"][]): SelectOption[] {
+  return roles.flatMap((role) =>
+    BUNDLED_FONTS.filter((font) => font.role === role).map((font) => ({
+      value: font.value,
+      label: font.label,
+      fontFamily: font.value,
+      group: GROUP_LABEL[role],
+    })),
+  );
+}
+
+const SYSTEM_SANS: SelectOption = {
+  value: "system-ui, sans-serif",
+  label: "System UI",
+  fontFamily: "system-ui, sans-serif",
+  group: "System",
+};
+
+const SYSTEM_MONO: SelectOption = {
+  value: "ui-monospace, monospace",
+  label: "System Monospace",
+  fontFamily: "ui-monospace, monospace",
+  group: "System",
+};
+
+const BODY_FONTS: SelectOption[] = [...fontOptions("serif", "sans"), SYSTEM_SANS];
+const MONO_FONTS: SelectOption[] = [...fontOptions("mono"), SYSTEM_MONO];
+
+/**
+ * The component vocabularies, as the drawer offers them.
+ *
+ * Each label says what the reader will see rather than naming the CSS — "Hanging
+ * indent" and not "hang" — because the setting is invisible until it is picked,
+ * and the document behind this panel is the only preview there is.
+ */
+/** All four are tinted — the choice is what the tint is joined by. */
+const QUOTE_STYLES: SelectOption[] = [
+  { value: "bar", label: "Rule down the side" },
+  { value: "card", label: "Rounded block" },
+  { value: "hang", label: "Out in the margin" },
+  { value: "plain", label: "Flat band" },
+];
+
+const RULE_STYLES: SelectOption[] = [
+  { value: "line", label: "Full line" },
+  { value: "short", label: "Short, centred" },
+  { value: "asterism", label: "Asterism (⁂)" },
+  { value: "space", label: "Space only" },
+];
+
+const ALERT_STYLES: SelectOption[] = [
+  { value: "bar", label: "Tinted, ruled" },
+  { value: "card", label: "Outlined card" },
+  { value: "minimal", label: "Title only" },
+];
+
+const LIST_STYLES: SelectOption[] = [
+  { value: "default", label: "Bullets" },
+  { value: "dash", label: "En dashes" },
+  { value: "outdent", label: "Hanging markers" },
+];
+
+const CODE_BLOCK_STYLES: SelectOption[] = [
+  { value: "card", label: "Filled card" },
+  { value: "framed", label: "Outlined" },
+  { value: "flush", label: "Left rule, no fill" },
+];
+
+const CODE_INLINE_STYLES: SelectOption[] = [
+  { value: "tint", label: "Tinted chip" },
+  { value: "outline", label: "Outlined" },
+  { value: "bare", label: "Coloured, bare" },
+];
+
+const HEADING_RULES: SelectOption[] = [
+  { value: "none", label: "Nothing" },
+  { value: "h1", label: "h1" },
+  { value: "h2", label: "h2" },
+  { value: "h1-h2", label: "h1 and h2" },
+];
 
 const COLOR_FIELDS: { key: keyof Omit<ThemeColors, "alert">; label: string }[] = [
   { key: "bg", label: "Page" },
@@ -174,6 +251,23 @@ export function SettingsDrawer({
     }));
   };
 
+  const editComponents = (patch: Partial<ThemeComponents>) => {
+    edit((current) => ({
+      ...current,
+      components: { ...current.components, ...patch },
+    }));
+  };
+
+  const editHeading = (patch: Partial<ThemeComponents["heading"]>) => {
+    edit((current) => ({
+      ...current,
+      components: {
+        ...current.components,
+        heading: { ...current.components.heading, ...patch },
+      },
+    }));
+  };
+
   const editColor = (key: keyof Omit<ThemeColors, "alert">, value: string) => {
     edit((current) => ({
       ...current,
@@ -196,6 +290,7 @@ export function SettingsDrawer({
 
   const type = theme.typography;
   const layout = theme.layout;
+  const parts = theme.components;
   const density = DENSITIES.find(
     (preset) =>
       preset.typography.lineHeight === type.lineHeight &&
@@ -263,330 +358,510 @@ export function SettingsDrawer({
                 and unlike everything below it. It writes to config rather than
                 forking the theme, so a theme shared with someone reading on a
                 laptop does not arrive full width. */}
-            <Section title="Width">
-              <Segmented<ContentWidth>
-                label="Content width"
-                value={config.contentWidth}
-                onChange={(contentWidth) => {
-                  onUpdateConfig({ contentWidth });
-                }}
-                options={WIDTHS}
-              />
-            </Section>
+            {/* Page, Type and Components below are collapsible: the drawer was
+                eight flat sections in one scroll before a theme could restyle its
+                own furniture, and eleven more controls in that shape is a wall.
+                Page and Type open because they are what a reader came to adjust;
+                Components and Colors are the deep end. */}
+            <Group title="Page" defaultOpen>
+              <Section title="Width">
+                <Segmented<ContentWidth>
+                  label="Content width"
+                  value={config.contentWidth}
+                  onChange={(contentWidth) => {
+                    onUpdateConfig({ contentWidth });
+                  }}
+                  options={WIDTHS}
+                />
+              </Section>
 
-            {/* Beside Width because it is the same kind of setting — the window's,
+              {/* Beside Width because it is the same kind of setting — the window's,
                 not the paper's — and because a reader who cannot read the page is
                 looking for a size control, not a typography section. Nothing is
                 highlighted when the zoom sits between the named sizes, which is
                 where the stepper and Ctrl+= leave it; the same shape as Density
                 below. */}
-            <Section title="Reading size">
-              <Segmented
-                label="Reading size"
-                value={READING_SIZES.find((size) => size.zoom === config.zoom)?.value ?? ""}
-                onChange={(value) => {
-                  const size = READING_SIZES.find((s) => s.value === value);
-                  if (size) onUpdateConfig({ zoom: size.zoom });
-                }}
-                options={READING_SIZES}
-              />
-            </Section>
-
-            <Section title="Type">
-              <Field label="Body">
-                <Select
-                  label="Body font"
-                  value={type.bodyFont}
-                  options={BODY_FONTS}
-                  onChange={(bodyFont) => {
-                    editType({ bodyFont });
-                  }}
-                />
-              </Field>
-              <Field label="Headings">
-                <Select
-                  label="Heading font"
-                  value={type.headingFont}
-                  options={BODY_FONTS}
-                  onChange={(headingFont) => {
-                    editType({ headingFont });
-                  }}
-                />
-              </Field>
-              <Field label="Code">
-                <Select
-                  label="Monospace font"
-                  value={type.monoFont}
-                  options={MONO_FONTS}
-                  onChange={(monoFont) => {
-                    editType({ monoFont });
-                  }}
-                />
-              </Field>
-              <Field label="Size" value={`${type.baseSize.toFixed(1)}px`}>
-                <Slider
-                  label="Body size"
-                  value={type.baseSize}
-                  min={13}
-                  max={28}
-                  step={0.5}
-                  onChange={(baseSize) => {
-                    editType({ baseSize });
-                  }}
-                />
-              </Field>
-              <Field label="Heading scale" value={type.scale.toFixed(2)}>
-                <Slider
-                  label="Heading scale"
-                  value={type.scale}
-                  min={1}
-                  max={1.5}
-                  step={0.01}
-                  onChange={(scale) => {
-                    editType({ scale });
-                  }}
-                />
-              </Field>
-              <Field label="Heading weight" value={String(type.headingWeight)}>
-                <Slider
-                  label="Heading weight"
-                  value={type.headingWeight}
-                  min={300}
-                  max={900}
-                  step={50}
-                  onChange={(headingWeight) => {
-                    editType({ headingWeight });
-                  }}
-                />
-              </Field>
-            </Section>
-
-            <Section title="Layout">
-              <Field label="Density">
+              <Section title="Reading size">
                 <Segmented
-                  label="Density"
-                  value={density?.value ?? ""}
+                  label="Reading size"
+                  value={READING_SIZES.find((size) => size.zoom === config.zoom)?.value ?? ""}
                   onChange={(value) => {
-                    const preset = DENSITIES.find((d) => d.value === value);
-                    if (preset) applyDensity(preset);
+                    const size = READING_SIZES.find((s) => s.value === value);
+                    if (size) onUpdateConfig({ zoom: size.zoom });
                   }}
-                  options={DENSITIES.map(({ value, label }) => ({ value, label }))}
+                  options={READING_SIZES}
                 />
-              </Field>
-              <Field label="Line height" value={type.lineHeight.toFixed(2)}>
-                <Slider
-                  label="Line height"
-                  value={type.lineHeight}
-                  min={1.2}
-                  max={2.2}
-                  step={0.01}
-                  onChange={(lineHeight) => {
-                    editType({ lineHeight });
-                  }}
-                />
-              </Field>
-              <Field label="Measure" value={`${Math.round(type.measure)} ch`}>
-                <Slider
-                  label="Line length"
-                  value={type.measure}
-                  min={40}
-                  max={120}
-                  step={1}
-                  onChange={(measure) => {
-                    editType({ measure });
-                  }}
-                />
-              </Field>
-              <Field label="Page margins" value={`${layout.pagePadding.toFixed(1)} rem`}>
-                <Slider
-                  label="Page margins"
-                  value={layout.pagePadding}
-                  min={0}
-                  max={8}
-                  step={0.5}
-                  onChange={(pagePadding) => {
-                    editLayout({ pagePadding });
-                  }}
-                />
-              </Field>
-              <Field label="Paragraphs">
-                <Segmented<ThemeTypography["paragraphStyle"]>
-                  label="Paragraph style"
-                  value={type.paragraphStyle}
-                  onChange={(paragraphStyle) => {
-                    editType({ paragraphStyle });
-                  }}
-                  options={[
-                    { value: "spaced", label: "Spaced", title: "A blank line between paragraphs" },
-                    {
-                      value: "indented",
-                      label: "Indented",
-                      title: "A first-line indent, as in a book",
-                    },
-                  ]}
-                />
-              </Field>
-              {type.paragraphStyle === "spaced" ? (
-                <Field label="Paragraph spacing" value={`${type.paragraphSpacing.toFixed(2)} em`}>
-                  <Slider
-                    label="Paragraph spacing"
-                    value={type.paragraphSpacing}
-                    min={0}
-                    max={3}
-                    step={0.05}
-                    onChange={(paragraphSpacing) => {
-                      editType({ paragraphSpacing });
+              </Section>
+            </Group>
+
+            <Group title="Type" defaultOpen>
+              <Section title="Faces">
+                <Field label="Body">
+                  <Select
+                    label="Body font"
+                    value={type.bodyFont}
+                    options={BODY_FONTS}
+                    onChange={(bodyFont) => {
+                      editType({ bodyFont });
                     }}
                   />
                 </Field>
-              ) : (
-                // The indent is what separates one paragraph from the next, so a
-                // blank line as well would say it twice. Saying so beats leaving
-                // a slider that visibly does nothing.
-                <p className="py-1.5 text-[11.5px] leading-snug text-ui-text-faint">
-                  An indent separates the paragraphs, so there is no space between them to set.
-                </p>
-              )}
-              <Field label="Letter spacing" value={`${type.letterSpacing.toFixed(3)} em`}>
-                <Slider
-                  label="Letter spacing"
-                  value={type.letterSpacing}
-                  min={-0.05}
-                  max={0.15}
-                  step={0.005}
-                  onChange={(letterSpacing) => {
-                    editType({ letterSpacing });
-                  }}
-                />
-              </Field>
-              <Row label="Justify text">
-                <Switch
-                  label="Justify text"
-                  checked={type.justify}
-                  onChange={(justify) => {
-                    editType({ justify });
-                  }}
-                />
-              </Row>
-              <Row label="Hyphenate">
-                <Switch
-                  label="Hyphenate"
-                  checked={type.hyphenate}
-                  onChange={(hyphenate) => {
-                    editType({ hyphenate });
-                  }}
-                />
-              </Row>
-              <Row label="Number headings">
-                <Switch
-                  label="Number headings"
-                  checked={layout.numberHeadings}
-                  onChange={(numberHeadings) => {
-                    editLayout({ numberHeadings });
-                  }}
-                />
-              </Row>
-              <Field label="Link underlines">
-                <Segmented<ThemeTypography["linkUnderline"]>
-                  label="Link underlines"
-                  value={type.linkUnderline}
-                  onChange={(linkUnderline) => {
-                    editType({ linkUnderline });
-                  }}
-                  options={[
-                    { value: "always", label: "Always" },
-                    { value: "hover", label: "On hover" },
-                    { value: "never", label: "Never" },
-                  ]}
-                />
-              </Field>
-            </Section>
+                <Field label="Headings">
+                  <Select
+                    label="Heading font"
+                    value={type.headingFont}
+                    options={BODY_FONTS}
+                    onChange={(headingFont) => {
+                      editType({ headingFont });
+                    }}
+                  />
+                </Field>
+                <Field label="Code">
+                  <Select
+                    label="Monospace font"
+                    value={type.monoFont}
+                    options={MONO_FONTS}
+                    onChange={(monoFont) => {
+                      editType({ monoFont });
+                    }}
+                  />
+                </Field>
+              </Section>
 
-            <Section title="Tables">
-              <Field label="Density">
-                <Segmented<ThemeLayout["table"]["density"]>
-                  label="Table density"
-                  value={layout.table.density}
-                  onChange={(density) => {
-                    editTable({ density });
-                  }}
-                  options={[
-                    { value: "comfortable", label: "Comfortable" },
-                    { value: "compact", label: "Compact" },
-                  ]}
-                />
-              </Field>
-              <Field label="Rules">
-                <Segmented<ThemeLayout["table"]["rules"]>
-                  label="Table rules"
-                  value={layout.table.rules}
-                  onChange={(rules) => {
-                    editTable({ rules });
-                  }}
-                  options={[
-                    {
-                      value: "hairline",
-                      label: "Hairline",
-                      title: "Rows only — the editorial default",
-                    },
-                    {
-                      value: "grid",
-                      label: "Grid",
-                      title: "Vertical rules too, for wide data tables",
-                    },
-                  ]}
-                />
-              </Field>
-              <Row label="Striped rows">
-                <Switch
-                  label="Striped rows"
-                  checked={layout.table.zebra}
-                  onChange={(zebra) => {
-                    editTable({ zebra });
-                  }}
-                />
-              </Row>
-            </Section>
+              <Section title="Scale">
+                <Field label="Size" value={`${type.baseSize.toFixed(1)}px`}>
+                  <Slider
+                    label="Body size"
+                    value={type.baseSize}
+                    min={13}
+                    max={28}
+                    step={0.5}
+                    onChange={(baseSize) => {
+                      editType({ baseSize });
+                    }}
+                  />
+                </Field>
+                <Field label="Heading scale" value={type.scale.toFixed(2)}>
+                  <Slider
+                    label="Heading scale"
+                    value={type.scale}
+                    min={1}
+                    max={1.5}
+                    step={0.01}
+                    onChange={(scale) => {
+                      editType({ scale });
+                    }}
+                  />
+                </Field>
+                <Field label="Heading weight" value={String(type.headingWeight)}>
+                  <Slider
+                    label="Heading weight"
+                    value={type.headingWeight}
+                    min={300}
+                    max={900}
+                    step={50}
+                    onChange={(headingWeight) => {
+                      editType({ headingWeight });
+                    }}
+                  />
+                </Field>
+              </Section>
+            </Group>
 
-            <Section title="Code">
-              <Row label="Line numbers">
-                <Switch
-                  label="Show line numbers"
-                  checked={theme.code.lineNumbers}
-                  onChange={(lineNumbers) => {
-                    edit((current) => ({
-                      ...current,
-                      code: { ...current.code, lineNumbers },
-                    }));
-                  }}
-                />
-              </Row>
-              <Row label="Wrap long lines">
-                <Switch
-                  label="Wrap long lines"
-                  checked={theme.code.wrap}
-                  onChange={(wrap) => {
-                    edit((current) => ({
-                      ...current,
-                      code: { ...current.code, wrap },
-                    }));
-                  }}
-                />
-              </Row>
-            </Section>
+            <Group title="Page furniture">
+              <Section title="Layout">
+                <Field label="Density">
+                  <Segmented
+                    label="Density"
+                    value={density?.value ?? ""}
+                    onChange={(value) => {
+                      const preset = DENSITIES.find((d) => d.value === value);
+                      if (preset) applyDensity(preset);
+                    }}
+                    options={DENSITIES.map(({ value, label }) => ({ value, label }))}
+                  />
+                </Field>
+                <Field label="Line height" value={type.lineHeight.toFixed(2)}>
+                  <Slider
+                    label="Line height"
+                    value={type.lineHeight}
+                    min={1.2}
+                    max={2.2}
+                    step={0.01}
+                    onChange={(lineHeight) => {
+                      editType({ lineHeight });
+                    }}
+                  />
+                </Field>
+                <Field label="Measure" value={`${Math.round(type.measure)} ch`}>
+                  <Slider
+                    label="Line length"
+                    value={type.measure}
+                    min={40}
+                    max={120}
+                    step={1}
+                    onChange={(measure) => {
+                      editType({ measure });
+                    }}
+                  />
+                </Field>
+                <Field label="Page margins" value={`${layout.pagePadding.toFixed(1)} rem`}>
+                  <Slider
+                    label="Page margins"
+                    value={layout.pagePadding}
+                    min={0}
+                    max={8}
+                    step={0.5}
+                    onChange={(pagePadding) => {
+                      editLayout({ pagePadding });
+                    }}
+                  />
+                </Field>
+                <Field label="Paragraphs">
+                  <Segmented<ThemeTypography["paragraphStyle"]>
+                    label="Paragraph style"
+                    value={type.paragraphStyle}
+                    onChange={(paragraphStyle) => {
+                      editType({ paragraphStyle });
+                    }}
+                    options={[
+                      {
+                        value: "spaced",
+                        label: "Spaced",
+                        title: "A blank line between paragraphs",
+                      },
+                      {
+                        value: "indented",
+                        label: "Indented",
+                        title: "A first-line indent, as in a book",
+                      },
+                    ]}
+                  />
+                </Field>
+                {type.paragraphStyle === "spaced" ? (
+                  <Field label="Paragraph spacing" value={`${type.paragraphSpacing.toFixed(2)} em`}>
+                    <Slider
+                      label="Paragraph spacing"
+                      value={type.paragraphSpacing}
+                      min={0}
+                      max={3}
+                      step={0.05}
+                      onChange={(paragraphSpacing) => {
+                        editType({ paragraphSpacing });
+                      }}
+                    />
+                  </Field>
+                ) : (
+                  // The indent is what separates one paragraph from the next, so a
+                  // blank line as well would say it twice. Saying so beats leaving
+                  // a slider that visibly does nothing.
+                  <p className="py-1.5 text-[11.5px] leading-snug text-ui-text-faint">
+                    An indent separates the paragraphs, so there is no space between them to set.
+                  </p>
+                )}
+                <Field label="Letter spacing" value={`${type.letterSpacing.toFixed(3)} em`}>
+                  <Slider
+                    label="Letter spacing"
+                    value={type.letterSpacing}
+                    min={-0.05}
+                    max={0.15}
+                    step={0.005}
+                    onChange={(letterSpacing) => {
+                      editType({ letterSpacing });
+                    }}
+                  />
+                </Field>
+                <Row label="Justify text">
+                  <Switch
+                    label="Justify text"
+                    checked={type.justify}
+                    onChange={(justify) => {
+                      editType({ justify });
+                    }}
+                  />
+                </Row>
+                <Row label="Hyphenate">
+                  <Switch
+                    label="Hyphenate"
+                    checked={type.hyphenate}
+                    onChange={(hyphenate) => {
+                      editType({ hyphenate });
+                    }}
+                  />
+                </Row>
+                <Row label="Number headings">
+                  <Switch
+                    label="Number headings"
+                    checked={layout.numberHeadings}
+                    onChange={(numberHeadings) => {
+                      editLayout({ numberHeadings });
+                    }}
+                  />
+                </Row>
+                <Field label="Link underlines">
+                  <Segmented<ThemeTypography["linkUnderline"]>
+                    label="Link underlines"
+                    value={type.linkUnderline}
+                    onChange={(linkUnderline) => {
+                      editType({ linkUnderline });
+                    }}
+                    options={[
+                      { value: "always", label: "Always" },
+                      { value: "hover", label: "On hover" },
+                      { value: "never", label: "Never" },
+                    ]}
+                  />
+                </Field>
+              </Section>
 
-            <Section title="Colors">
-              {COLOR_FIELDS.map(({ key, label }) => (
-                <ColorSwatch
-                  key={key}
-                  label={label}
-                  value={theme.colors[key]}
-                  onChange={(value) => {
-                    editColor(key, value);
-                  }}
-                />
-              ))}
-            </Section>
+              <Section title="Tables">
+                <Field label="Density">
+                  <Segmented<ThemeLayout["table"]["density"]>
+                    label="Table density"
+                    value={layout.table.density}
+                    onChange={(density) => {
+                      editTable({ density });
+                    }}
+                    options={[
+                      { value: "comfortable", label: "Comfortable" },
+                      { value: "compact", label: "Compact" },
+                    ]}
+                  />
+                </Field>
+                <Field label="Rules">
+                  <Segmented<ThemeLayout["table"]["rules"]>
+                    label="Table rules"
+                    value={layout.table.rules}
+                    onChange={(rules) => {
+                      editTable({ rules });
+                    }}
+                    options={[
+                      {
+                        value: "hairline",
+                        label: "Hairline",
+                        title: "Rows only — the editorial default",
+                      },
+                      {
+                        value: "grid",
+                        label: "Grid",
+                        title: "Vertical rules too, for wide data tables",
+                      },
+                    ]}
+                  />
+                </Field>
+                <Row label="Striped rows">
+                  <Switch
+                    label="Striped rows"
+                    checked={layout.table.zebra}
+                    onChange={(zebra) => {
+                      editTable({ zebra });
+                    }}
+                  />
+                </Row>
+              </Section>
+
+              <Section title="Code">
+                <Row label="Line numbers">
+                  <Switch
+                    label="Show line numbers"
+                    checked={theme.code.lineNumbers}
+                    onChange={(lineNumbers) => {
+                      edit((current) => ({
+                        ...current,
+                        code: { ...current.code, lineNumbers },
+                      }));
+                    }}
+                  />
+                </Row>
+                <Row label="Wrap long lines">
+                  <Switch
+                    label="Wrap long lines"
+                    checked={theme.code.wrap}
+                    onChange={(wrap) => {
+                      edit((current) => ({
+                        ...current,
+                        code: { ...current.code, wrap },
+                      }));
+                    }}
+                  />
+                </Row>
+              </Section>
+
+              {/* The page's furniture. Every one of these was a constant in
+                document.css until themes needed to differ by more than palette,
+                and every default reproduces what the app drew then. */}
+              <Section title="Elements">
+                <Field label="Quotations">
+                  <Select
+                    label="Blockquote style"
+                    value={parts.quote}
+                    options={QUOTE_STYLES}
+                    onChange={(quote) => {
+                      editComponents({ quote: quote as ThemeComponents["quote"] });
+                    }}
+                  />
+                </Field>
+                <Field label="Thematic break">
+                  <Select
+                    label="Horizontal rule style"
+                    value={parts.rule}
+                    options={RULE_STYLES}
+                    onChange={(rule) => {
+                      editComponents({ rule: rule as ThemeComponents["rule"] });
+                    }}
+                  />
+                </Field>
+                <Field label="Callouts">
+                  <Select
+                    label="Alert style"
+                    value={parts.alert}
+                    options={ALERT_STYLES}
+                    onChange={(alert) => {
+                      editComponents({ alert: alert as ThemeComponents["alert"] });
+                    }}
+                  />
+                </Field>
+                <Field label="List markers">
+                  <Select
+                    label="List marker style"
+                    value={parts.list}
+                    options={LIST_STYLES}
+                    onChange={(list) => {
+                      editComponents({ list: list as ThemeComponents["list"] });
+                    }}
+                  />
+                </Field>
+                <Field label="Code blocks">
+                  <Select
+                    label="Code block style"
+                    value={parts.code.block}
+                    options={CODE_BLOCK_STYLES}
+                    onChange={(block) => {
+                      editComponents({
+                        code: { ...parts.code, block: block as ThemeComponents["code"]["block"] },
+                      });
+                    }}
+                  />
+                </Field>
+                <Field label="Inline code">
+                  <Select
+                    label="Inline code style"
+                    value={parts.code.inline}
+                    options={CODE_INLINE_STYLES}
+                    onChange={(inline) => {
+                      editComponents({
+                        code: {
+                          ...parts.code,
+                          inline: inline as ThemeComponents["code"]["inline"],
+                        },
+                      });
+                    }}
+                  />
+                </Field>
+                <Field label="Table headers">
+                  <Segmented<ThemeComponents["tableHead"]>
+                    label="Table header style"
+                    value={parts.tableHead}
+                    onChange={(tableHead) => {
+                      editComponents({ tableHead });
+                    }}
+                    options={[
+                      { value: "uppercase", label: "Uppercase" },
+                      { value: "sentence", label: "Sentence" },
+                    ]}
+                  />
+                </Field>
+                <Field label="Image corners" value={`${parts.image.radius}px`}>
+                  <Slider
+                    label="Image corner radius"
+                    value={parts.image.radius}
+                    min={0}
+                    max={16}
+                    step={1}
+                    onChange={(radius) => {
+                      editComponents({ image: { ...parts.image, radius } });
+                    }}
+                  />
+                </Field>
+                <Row label="Frame images">
+                  <Switch
+                    label="Frame images"
+                    checked={parts.image.frame}
+                    onChange={(frame) => {
+                      editComponents({ image: { ...parts.image, frame } });
+                    }}
+                  />
+                </Row>
+              </Section>
+
+              {/* Heading metrics live beside the heading rule rather than up in
+                Type, because a reader adjusting one is looking at the other. */}
+              <Section title="Headings">
+                <Field label="Rule under">
+                  <Select
+                    label="Heading rule"
+                    value={parts.heading.rule}
+                    options={HEADING_RULES}
+                    onChange={(rule) => {
+                      editHeading({ rule: rule as ThemeComponents["heading"]["rule"] });
+                    }}
+                  />
+                </Field>
+                <Field label="Tracking" value={`${parts.heading.tracking.toFixed(3)}em`}>
+                  <Slider
+                    label="Heading letter spacing"
+                    value={parts.heading.tracking}
+                    min={-0.06}
+                    max={0.06}
+                    step={0.005}
+                    onChange={(tracking) => {
+                      editHeading({ tracking });
+                    }}
+                  />
+                </Field>
+                <Field label="Leading" value={parts.heading.leading.toFixed(2)}>
+                  <Slider
+                    label="Heading line height"
+                    value={parts.heading.leading}
+                    min={1}
+                    max={1.6}
+                    step={0.01}
+                    onChange={(leading) => {
+                      editHeading({ leading });
+                    }}
+                  />
+                </Field>
+                <Field label="h6">
+                  <Segmented<ThemeComponents["heading"]["minor"]>
+                    label="Minor heading style"
+                    value={parts.heading.minor}
+                    onChange={(minor) => {
+                      editHeading({ minor });
+                    }}
+                    options={[
+                      { value: "uppercase", label: "Caps" },
+                      { value: "small-caps", label: "Small caps" },
+                      { value: "normal", label: "Plain" },
+                    ]}
+                  />
+                </Field>
+              </Section>
+            </Group>
+
+            <Group title="Colors">
+              <Section title="Palette">
+                {COLOR_FIELDS.map(({ key, label }) => (
+                  <ColorSwatch
+                    key={key}
+                    label={label}
+                    value={theme.colors[key]}
+                    onChange={(value) => {
+                      editColor(key, value);
+                    }}
+                  />
+                ))}
+              </Section>
+            </Group>
 
             <Section title="Theme file">
               <div className="flex gap-2 pt-1">

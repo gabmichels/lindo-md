@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { applyTheme, docTokens, mermaidThemeVariables, viewTokens, type DocView } from "./apply";
 import { toHex } from "./color";
+import { BUNDLED_FONTS } from "./fonts";
 import { DEFAULT_PRESET_ID, PRESETS, findPreset, resolveTheme } from "./presets";
 import { ThemeFileSchema, ThemeSchema, type Theme } from "./schema";
 import { HOUSE_THEMES } from "./shiki-house";
@@ -10,6 +11,58 @@ import { HOUSE_THEMES } from "./shiki-house";
 const house = findPreset("house")!;
 
 describe("presets", () => {
+  it("gives every preset a voice no other preset already has", () => {
+    // The regression this guards is the state the theme gallery was in before:
+    // fifteen presets, four typography sets, eleven of them identical. Nothing
+    // was broken and every test passed — the themes were simply the same page in
+    // different colours, which is not something a schema can notice.
+    //
+    // The face, the size and the measure are the three that have to be chosen
+    // together, so they are what identity is measured on. Two presets may share
+    // one or two of them; sharing all three means one of them has nothing to say.
+
+    // The one deliberate exception. GitHub Dimmed is not a theme that resembles
+    // GitHub — it is github.com with the contrast taken off, which is how GitHub
+    // itself ships it. Giving the two different type would claim a difference
+    // that is not there. Listed rather than skipped so adding a third lookalike
+    // is a decision someone has to write down.
+    const SAME_PRODUCT = new Set(["github-dimmed"]);
+
+    const seen = new Map<string, string>();
+    for (const preset of PRESETS) {
+      const { bodyFont, baseSize, measure } = preset.light.typography;
+      const voice = `${bodyFont} @ ${baseSize}px / ${measure}ch`;
+      const owner = seen.get(voice);
+      if (!SAME_PRODUCT.has(preset.id)) {
+        expect(owner, `${preset.id} is set exactly like ${owner} — ${voice}`).toBeUndefined();
+      }
+      seen.set(voice, preset.id);
+    }
+  });
+
+  it("keeps both halves of a preset the same page", () => {
+    // Turning the lights off changes the palette. It does not change the measure,
+    // move the quotation marks or restyle the tables.
+    for (const preset of PRESETS) {
+      expect(preset.dark.typography, preset.id).toEqual(preset.light.typography);
+      expect(preset.dark.components, preset.id).toEqual(preset.light.components);
+      expect(preset.dark.layout, preset.id).toEqual(preset.light.layout);
+    }
+  });
+
+  it("names only bundled faces", () => {
+    // `face()` throws at module load, so this cannot fail through a preset — it
+    // is here for a custom or imported theme's sake, and to fail loudly if the
+    // generated list and the manifest ever stop agreeing.
+    const bundled = new Set(BUNDLED_FONTS.map((font) => font.value));
+    for (const preset of PRESETS) {
+      const { bodyFont, headingFont, monoFont } = preset.light.typography;
+      for (const font of [bodyFont, headingFont, monoFont]) {
+        expect(bundled.has(font), `${preset.id} names unbundled face "${font}"`).toBe(true);
+      }
+    }
+  });
+
   it("every half of every preset satisfies the schema", () => {
     for (const preset of PRESETS) {
       for (const half of ["light", "dark"] as const) {
@@ -38,34 +91,18 @@ describe("presets", () => {
     expect(findPreset(DEFAULT_PRESET_ID)).toBeDefined();
   });
 
-  it("names a Shiki theme that is either House's own or a bundled id", () => {
+  it("names a Shiki theme that is either House's own or a bundled id", async () => {
     // A typo here would silently fall back to plain text at runtime, which looks
     // like "highlighting is broken" rather than "the theme id is wrong".
-    const bundled = new Set([
-      "github-light",
-      "github-dark",
-      "github-light-default",
-      "github-dark-dimmed",
-      "github-light-high-contrast",
-      "github-dark-high-contrast",
-      "solarized-light",
-      "solarized-dark",
-      "nord",
-      "dracula",
-      "one-light",
-      "one-dark-pro",
-      "tokyo-night",
-      "catppuccin-latte",
-      "catppuccin-mocha",
-      "gruvbox-light-medium",
-      "gruvbox-dark-medium",
-      "rose-pine",
-      "rose-pine-dawn",
-      "everforest-light",
-      "everforest-dark",
-      "vitesse-light",
-      "vitesse-dark",
-    ]);
+    //
+    // Checked against Shiki's own manifest rather than a list kept by hand here.
+    // The hand-kept version had to be extended every time a preset was added,
+    // which made it a second place to get the id wrong — a list whose job is to
+    // catch drift should not be a thing that drifts.
+    // Dynamic, because AGENTS.md forbids a static Shiki import anywhere in the
+    // source tree — it is what keeps the highlighter out of the entry chunk.
+    const { bundledThemesInfo } = await import("shiki/themes");
+    const bundled = new Set(bundledThemesInfo.map((entry) => entry.id));
 
     for (const preset of PRESETS) {
       for (const half of ["light", "dark"] as const) {
@@ -74,6 +111,24 @@ describe("presets", () => {
           bundled.has(id) || id in HOUSE_THEMES,
           `${preset.id}.${half} names unknown shiki theme "${id}"`,
         ).toBe(true);
+      }
+    }
+  });
+
+  it("writes no control characters into a token", () => {
+    // A `list-style-type` of `"\2013\00a0\00a0"` was written as a CSS escape and
+    // came out of the editing tool as literal NUL bytes, which rendered as "a0a0"
+    // on the page. Nothing failed: not the typecheck, not the schema, not any
+    // other test — a token is a string, and that string was a valid one.
+    // eslint-disable-next-line no-control-regex
+    const control = /[\u0000-\u001f\u007f]/;
+    for (const preset of PRESETS) {
+      for (const half of ["light", "dark"] as const) {
+        for (const [key, value] of Object.entries(docTokens(preset[half]))) {
+          expect(control.test(value), `${preset.id}.${half} ${key}: ${JSON.stringify(value)}`).toBe(
+            false,
+          );
+        }
       }
     }
   });
@@ -228,17 +283,38 @@ describe("structural tokens", () => {
     );
   });
 
-  it("draws vertical rules only for a grid, and pads the last column with them", () => {
+  it("draws vertical rules only for a grid, and pads every cell that gets one", () => {
     const table = house.light.layout.table;
     const hairline = withLayout({ table: { ...table, rules: "hairline" } });
     expect(hairline["--doc-table-rule"]).toBe("transparent");
     // Flush to the text edge, which is what makes a hairline table read as part
     // of the page rather than as a box on it.
-    expect(hairline["--doc-table-pad-last"]).toBe("0px");
+    expect(hairline["--doc-table-pad-edge"]).toBe("0px");
+    expect(hairline["--doc-table-pad-start"]).toBe("0px");
 
     const grid = withLayout({ table: { ...table, rules: "grid" } });
     expect(grid["--doc-table-rule"]).not.toBe("transparent");
-    expect(grid["--doc-table-pad-last"]).not.toBe("0px");
+    expect(grid["--doc-table-pad-edge"]).not.toBe("0px");
+    // The one this test used to miss. Only the outer two cells were padded, so
+    // every column after the first sat hard against its own rule.
+    expect(grid["--doc-table-pad-start"]).not.toBe("0px");
+  });
+
+  it("tints a quotation whichever style it is", () => {
+    // A rule about quotations, not a property of one style: a quotation marked
+    // only by being italic, or larger, or slightly outdented reads as an
+    // emphatic paragraph. The styles differ in what joins the tint — a rule, a
+    // radius, a displacement — never in whether there is one.
+    for (const quote of ["bar", "card", "hang", "plain"] as const) {
+      const tokens = docTokens({
+        ...house.light,
+        components: { ...house.light.components, quote },
+      });
+      expect(tokens["--doc-quote-fill"], quote).not.toBe("transparent");
+      // A fill with the text against its edge is worse than no fill, so every
+      // style has to pad on all four sides — a one- or two-value `inset` does.
+      expect(tokens["--doc-quote-inset"]!.split(/\s+/).length, `${quote} inset`).toBeGreaterThan(1);
+    }
   });
 
   it("resolves the stripe to transparent when it is off, never to nothing", () => {
@@ -435,6 +511,24 @@ describe("the two token namespaces stay apart", () => {
       // Heading sizes are computed per theme, not defaulted in CSS.
       if (/^--doc-h\d$/.test(property)) continue;
       expect(css, `${property} has no default in styles.css`).toContain(`${property}:`);
+    }
+  });
+
+  it("overrides rather than unions when a theme is nested inside a theme", () => {
+    // `applyTheme` writes onto the canvas, not onto documentElement, so a themed
+    // card inside a themed page has two themed ancestors. This was `data-*`
+    // attributes first, and equal-specificity selectors resolve by source order
+    // rather than by proximity — so the two variants' properties unioned and
+    // every non-House theme drew its own furniture on top of House's.
+    //
+    // Custom properties inherit, so the nearest ancestor wins. What that needs is
+    // for every theme to write every token: a variant that only sets the
+    // properties it turns *on* leaves the outer theme's showing through.
+    const keys = (theme: Theme) => Object.keys(docTokens(theme)).sort();
+    for (const preset of PRESETS) {
+      expect(keys(preset.light), `${preset.id} writes a different set to House`).toEqual(
+        keys(house.light),
+      );
     }
   });
 });

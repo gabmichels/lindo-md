@@ -51,6 +51,53 @@ export function Section({ title, children }: { title: string; children: ReactNod
   );
 }
 
+/**
+ * A collapsible run of `Section`s.
+ *
+ * The drawer was eight flat sections in one scroll, which worked until a theme
+ * gained eleven component controls. Grouping is structure inside the panel that
+ * already exists rather than a second surface — DESIGN.md's rule is that a visual
+ * setting belongs in the drawer, and that does not stop being true when there are
+ * more of them.
+ *
+ * `<details>` rather than state: it is disclosure, the browser already gives it
+ * keyboard handling and the right ARIA, and the open/closed state is genuinely
+ * ephemeral — nothing here is worth persisting to config.
+ */
+export function Group({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details open={defaultOpen} className="group border-t border-ui-hairline">
+      <summary
+        className={cn(
+          "flex cursor-default list-none items-center justify-between px-4 py-2.5",
+          "text-[12.5px] text-ui-text-muted transition-colors duration-[var(--ui-dur)]",
+          "hover:text-ui-text-strong focus-visible:outline-none focus-visible:text-ui-text-strong",
+          "[&::-webkit-details-marker]:hidden",
+        )}
+      >
+        {title}
+        <ChevronDown
+          size={13}
+          strokeWidth={1.5}
+          aria-hidden
+          className="opacity-60 transition-transform duration-[var(--ui-dur)] group-open:rotate-180"
+        />
+      </summary>
+      {/* The sections inside draw their own top hairline; the group's own rule
+          would otherwise double up with the first one's. */}
+      <div className="[&>section:first-child]:border-t-0">{children}</div>
+    </details>
+  );
+}
+
 export function Slider({
   value,
   min,
@@ -181,6 +228,27 @@ export interface SelectOption {
   label: string;
   /** Rendered in the option's own font, so a font picker shows the face. */
   fontFamily?: string;
+  /** Heading this option sits under. Options are grouped in the order the
+   *  headings first appear, so the caller controls the sequence by ordering the
+   *  array rather than by passing a separate structure. */
+  group?: string;
+}
+
+/** Groups in first-seen order, or a single unlabelled run if nobody set one. */
+function grouped(options: SelectOption[]): { group?: string; options: SelectOption[] }[] {
+  if (!options.some((option) => option.group)) return [{ options }];
+
+  const order: string[] = [];
+  const byGroup = new Map<string, SelectOption[]>();
+  for (const option of options) {
+    const key = option.group ?? "";
+    if (!byGroup.has(key)) {
+      order.push(key);
+      byGroup.set(key, []);
+    }
+    byGroup.get(key)!.push(option);
+  }
+  return order.map((key) => ({ group: key || undefined, options: byGroup.get(key)! }));
 }
 
 export function Select({
@@ -224,28 +292,53 @@ export function Select({
             "rounded-ui-lg bg-ui-plane-2 p-1 shadow-2xl",
           )}
         >
+          {/* Past a dozen options the list scrolls, and a popper that scrolls
+              without saying so reads as a list that simply ends. */}
+          <RadixSelect.ScrollUpButton className="flex justify-center py-0.5 text-ui-text-faint">
+            <ChevronDown size={12} strokeWidth={1.5} className="rotate-180" aria-hidden />
+          </RadixSelect.ScrollUpButton>
+
           <RadixSelect.Viewport>
-            {options.map((option) => (
-              <RadixSelect.Item
-                key={option.value}
-                value={option.value}
-                className={cn(
-                  "flex cursor-default items-center justify-between gap-2 rounded-ui-sm px-2 py-1.5",
-                  "text-[12.5px] text-ui-text outline-none",
-                  "data-[highlighted]:bg-ui-ember-wash data-[highlighted]:text-ui-text-strong",
+            {grouped(options).map(({ group, options: items }) => (
+              <RadixSelect.Group key={group ?? "all"}>
+                {group && (
+                  <RadixSelect.Label className="rail-label px-2 pt-2 pb-1">
+                    {group}
+                  </RadixSelect.Label>
                 )}
-              >
-                <RadixSelect.ItemText>
-                  <span style={option.fontFamily ? { fontFamily: option.fontFamily } : undefined}>
-                    {option.label}
-                  </span>
-                </RadixSelect.ItemText>
-                <RadixSelect.ItemIndicator>
-                  <Check size={13} strokeWidth={2} className="text-ui-ember" aria-hidden />
-                </RadixSelect.ItemIndicator>
-              </RadixSelect.Item>
+                {items.map((option) => (
+                  <RadixSelect.Item
+                    key={option.value}
+                    value={option.value}
+                    className={cn(
+                      "flex cursor-default items-center justify-between gap-2 rounded-ui-sm px-2 py-1.5",
+                      "text-[12.5px] text-ui-text outline-none",
+                      "data-[highlighted]:bg-ui-ember-wash data-[highlighted]:text-ui-text-strong",
+                    )}
+                  >
+                    <RadixSelect.ItemText>
+                      {/* A face shown at row size is a name, not a specimen: 12.5px is
+                          below where a serif's detail survives, which is the one thing
+                          the reader is trying to judge. */}
+                      <span
+                        className={option.fontFamily ? "text-[15px]" : undefined}
+                        style={option.fontFamily ? { fontFamily: option.fontFamily } : undefined}
+                      >
+                        {option.label}
+                      </span>
+                    </RadixSelect.ItemText>
+                    <RadixSelect.ItemIndicator>
+                      <Check size={13} strokeWidth={2} className="text-ui-ember" aria-hidden />
+                    </RadixSelect.ItemIndicator>
+                  </RadixSelect.Item>
+                ))}
+              </RadixSelect.Group>
             ))}
           </RadixSelect.Viewport>
+
+          <RadixSelect.ScrollDownButton className="flex justify-center py-0.5 text-ui-text-faint">
+            <ChevronDown size={12} strokeWidth={1.5} aria-hidden />
+          </RadixSelect.ScrollDownButton>
         </RadixSelect.Content>
       </RadixSelect.Portal>
     </RadixSelect.Root>
