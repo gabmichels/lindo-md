@@ -101,6 +101,33 @@ export const ThemeColorsSchema = z.object({
     warning: color,
     caution: color,
   }),
+  /**
+   * The five colours a highlight can be painted in.
+   *
+   * Defaulted, so no preset has to fill them in and a theme file shared before
+   * they existed still imports — the rule every field added to `Theme` follows.
+   *
+   * The ink a mark is read in is deliberately **not** here. It is derived from
+   * whichever colour ends up in these slots (`readableInk`), because a theme is
+   * a file people share and nothing can stop one choosing a colour this build
+   * has never seen. Letting a theme set both halves would let it set an
+   * unreadable pair; deriving one keeps the guarantee whoever wrote the theme.
+   */
+  mark: z
+    .object({
+      yellow: color,
+      green: color,
+      blue: color,
+      pink: color,
+      purple: color,
+    })
+    .default({
+      yellow: "oklch(0.88 0.15 95)",
+      green: "oklch(0.86 0.14 148)",
+      blue: "oklch(0.85 0.1 235)",
+      pink: "oklch(0.84 0.11 5)",
+      purple: "oklch(0.82 0.11 305)",
+    }),
 });
 export type ThemeColors = z.infer<typeof ThemeColorsSchema>;
 

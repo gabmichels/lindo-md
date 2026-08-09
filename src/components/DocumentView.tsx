@@ -118,7 +118,7 @@ export function DocumentView({
   useEffect(() => {
     setArticleElement(articleRef.current);
   }, []);
-  const annotations = useAnnotations(canAnnotate ? doc : null, articleElement);
+  const annotations = useAnnotations(canAnnotate ? doc : null, articleElement, visible);
 
   useEffect(() => {
     if (!visible) return;
@@ -529,6 +529,7 @@ export function DocumentView({
             : undefined
         }
         canHighlight={canHighlight}
+        markColors={theme.colors.mark}
         canRemoveHighlight={canRemoveHighlight}
         onRemoveHighlight={() => {
           const at = pendingMark.current ?? pending.current;

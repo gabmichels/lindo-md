@@ -10,7 +10,7 @@ import {
   type DocView,
 } from "./apply";
 import { MARK_SLOTS } from "./apply";
-import { toHex } from "./color";
+import { contrastRatio, toHex } from "./color";
 import { BUNDLED_FONTS } from "./fonts";
 import { DEFAULT_PRESET_ID, PRESETS, findPreset, resolveTheme } from "./presets";
 import { ThemeFileSchema, ThemeSchema, type Theme } from "./schema";
@@ -518,7 +518,7 @@ describe("the two token namespaces stay apart", () => {
     const written = {
       ...docTokens(house.light),
       ...viewTokens({ zoom: 1, contentWidth: "standard" }),
-      ...markTokens(),
+      ...markTokens(house.light),
     };
     for (const property of Object.keys(written)) {
       // Heading sizes are computed per theme, not defaulted in CSS.
@@ -552,46 +552,65 @@ function channels(value: string): number[] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-/** WCAG contrast ratio. Used to check a highlight stays readable, which is the
- *  one property of the mark palette that cannot be judged by looking at House. */
-function contrast(a: number[], b: number[]): number {
-  const luminance = (c: number[]) => {
-    const f = (v: number) => {
-      const s = v / 255;
-      return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-    };
-    return 0.2126 * f(c[0]!) + 0.7152 * f(c[1]!) + 0.0722 * f(c[2]!);
-  };
-  const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (high! + 0.05) / (low! + 0.05);
-}
-
 describe("markTokens", () => {
   it("emits only --doc-* properties, like every other value on the paper", () => {
-    for (const property of Object.keys(markTokens())) {
+    for (const property of Object.keys(markTokens(house.light))) {
       expect(property.startsWith("--doc-"), property).toBe(true);
     }
   });
 
   it("covers every slot the menu offers, so no colour can paint as nothing", () => {
-    const tokens = markTokens();
+    const tokens = markTokens(house.light);
     for (const slot of MARK_SLOTS) {
       expect(tokens[`--doc-mark-${slot}`], slot).toBeTruthy();
+      expect(tokens[`--doc-mark-ink-${slot}`], `${slot} ink`).toBeTruthy();
     }
   });
 
-  it("keeps a mark legible on every preset, which is why it carries its own ink", () => {
-    // The check that would have caught the first version of this palette. It
-    // washed a translucent colour over the page and let the theme's own text show
-    // through, which fails on dark paper: the wash lifts the background towards
-    // the light text on it, and Solarized Dark went from 5.61:1 to 2.44:1. An
-    // opaque mark with its own ink makes this a property of `markTokens` alone,
-    // so it is checked once here rather than argued forty times.
-    const tokens = markTokens();
-    const ink = channels(tokens["--doc-mark-ink"]!);
-    for (const slot of MARK_SLOTS) {
-      const ground = channels(tokens[`--doc-mark-${slot}`]!);
-      expect(contrast(ground, ink), `${slot} against its own ink`).toBeGreaterThanOrEqual(4.5);
+  it("takes the ground from the theme, so a theme can recolour a highlight", () => {
+    const recoloured = {
+      ...house.light,
+      colors: { ...house.light.colors, mark: { ...house.light.colors.mark, yellow: "#123456" } },
+    };
+    expect(markTokens(recoloured)["--doc-mark-yellow"]).toBe("#123456");
+  });
+
+  it("keeps body text legible inside a mark, on every preset and every slot", () => {
+    // The check that would have caught the first version of this palette: a
+    // translucent wash over the page, which reads well on paper the colour of
+    // paper and fails on dark themes — Solarized Dark went from 5.61:1 to
+    // 2.44:1. An opaque ground with a derived ink makes this a property of
+    // `markTokens` rather than of the paper, so it holds for all forty halves.
+    for (const preset of PRESETS) {
+      for (const half of ["light", "dark"] as const) {
+        const tokens = markTokens(preset[half]);
+        for (const slot of MARK_SLOTS) {
+          expect(
+            contrastRatio(tokens[`--doc-mark-${slot}`]!, tokens[`--doc-mark-ink-${slot}`]!),
+            `${slot} on ${preset.id}.${half}`,
+          ).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }
+  });
+
+  it("holds that guarantee for colours no preset uses, because a theme is a shared file", () => {
+    // The reason the ink is derived rather than chosen. Nothing stops someone
+    // putting any of these in a theme they send to a friend, and a fixed ink
+    // would be a guess that happened to suit the palette that shipped.
+    for (const hostile of ["#ffffff", "#000000", "#808080", "#7f7f00", "oklch(0.5 0.2 300)"]) {
+      const theme = {
+        ...house.light,
+        colors: {
+          ...house.light.colors,
+          mark: { ...house.light.colors.mark, yellow: hostile },
+        },
+      };
+      const tokens = markTokens(theme);
+      expect(
+        contrastRatio(tokens["--doc-mark-yellow"]!, tokens["--doc-mark-ink-yellow"]!),
+        hostile,
+      ).toBeGreaterThanOrEqual(4.5);
     }
   });
 
@@ -599,10 +618,10 @@ describe("markTokens", () => {
     // A highlight the same colour as the page is not a highlight. Checked against
     // every half of every preset, because a palette that is only ever eyeballed on
     // House is a palette that has only been checked on one paper.
-    const tokens = markTokens();
     for (const preset of PRESETS) {
       for (const half of ["light", "dark"] as const) {
         const paper = channels(preset[half].colors.bg);
+        const tokens = markTokens(preset[half]);
         for (const slot of MARK_SLOTS) {
           const ground = channels(tokens[`--doc-mark-${slot}`]!);
           const distance = Math.hypot(...ground.map((c, i) => c - paper[i]!));
@@ -623,19 +642,10 @@ describe("markTokens", () => {
       const at = css.indexOf(`::highlight(lindo-md-mark-${slot})`);
       expect(at, `no rule for ${slot}`).toBeGreaterThan(-1);
       const block = css.slice(at, css.indexOf("}", at));
-      expect(block, `${slot} does not set its ink`).toContain("color: var(--doc-mark-ink)");
+      expect(block, `${slot} does not set its ink`).toContain(`color: var(--doc-mark-ink-${slot})`);
       expect(block, `${slot} does not set its ground`).toContain(
         `background-color: var(--doc-mark-${slot})`,
       );
-    }
-  });
-
-  it("gives the tool its own copy of the palette rather than reading the paper's", () => {
-    // DESIGN.md: chrome must never read a --doc-* variable. The context menu
-    // draws swatches, so it needs --ui-mark-* to draw them from.
-    const css = readFileSync("src/styles.css", "utf8");
-    for (const slot of MARK_SLOTS) {
-      expect(css, `--ui-mark-${slot} has no definition`).toContain(`--ui-mark-${slot}:`);
     }
   });
 });
