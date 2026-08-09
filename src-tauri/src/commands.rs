@@ -181,6 +181,23 @@ pub fn all_annotations(
     store.with(&app, |connection| annotations::all(connection))
 }
 
+/// Looks for this document's marks under the path it used to have.
+///
+/// Called when a load found none, which is the only time it can do anything. See
+/// `annotations::relink` for the three conditions that stop it taking marks that
+/// belong to a copy or to a file that still exists.
+#[tauri::command]
+pub fn relink_annotations(
+    app: AppHandle,
+    store: State<'_, annotations::Store>,
+    path: String,
+    content_hash: String,
+) -> LindoResult<usize> {
+    store.with(&app, |connection| {
+        annotations::relink(connection, &path, &content_hash)
+    })
+}
+
 #[tauri::command]
 pub fn create_annotation(
     app: AppHandle,

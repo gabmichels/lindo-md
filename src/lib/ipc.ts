@@ -321,6 +321,15 @@ export function listAnnotations(path: string): Promise<Annotation[]> {
   return call("list_annotations", AnnotationListSchema, { path });
 }
 
+/** Looks for this document's marks under a path it used to have, after a rename
+ *  or a move. Returns how many were found, so a caller knows whether to list
+ *  again. Only ever called when a load came back empty — see
+ *  `annotations::relink` for the conditions that keep it from claiming a copy's
+ *  marks. */
+export function relinkAnnotations(path: string, contentHash: string): Promise<number> {
+  return call("relink_annotations", z.number().int().nonnegative(), { path, contentHash });
+}
+
 export function createAnnotation(annotation: NewAnnotation): Promise<Annotation> {
   return call("create_annotation", AnnotationSchema, { annotation });
 }

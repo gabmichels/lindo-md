@@ -529,6 +529,7 @@ export function DocumentView({
             : undefined
         }
         canHighlight={canHighlight}
+        markColors={theme.colors.mark}
         canRemoveHighlight={canRemoveHighlight}
         onRemoveHighlight={() => {
           const at = pendingMark.current ?? pending.current;

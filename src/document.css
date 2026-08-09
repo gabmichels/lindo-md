@@ -1069,25 +1069,25 @@
    and live over there. */
 .doc-scroller ::highlight(lindo-md-mark-yellow) {
   background-color: var(--doc-mark-yellow);
-  color: var(--doc-mark-ink);
+  color: var(--doc-mark-ink-yellow);
 }
 
 .doc-scroller ::highlight(lindo-md-mark-green) {
   background-color: var(--doc-mark-green);
-  color: var(--doc-mark-ink);
+  color: var(--doc-mark-ink-green);
 }
 
 .doc-scroller ::highlight(lindo-md-mark-blue) {
   background-color: var(--doc-mark-blue);
-  color: var(--doc-mark-ink);
+  color: var(--doc-mark-ink-blue);
 }
 
 .doc-scroller ::highlight(lindo-md-mark-pink) {
   background-color: var(--doc-mark-pink);
-  color: var(--doc-mark-ink);
+  color: var(--doc-mark-ink-pink);
 }
 
 .doc-scroller ::highlight(lindo-md-mark-purple) {
   background-color: var(--doc-mark-purple);
-  color: var(--doc-mark-ink);
+  color: var(--doc-mark-ink-purple);
 }

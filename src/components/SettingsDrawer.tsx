@@ -148,7 +148,11 @@ const HEADING_RULES: SelectOption[] = [
   { value: "h1-h2", label: "h1 and h2" },
 ];
 
-const COLOR_FIELDS: { key: keyof Omit<ThemeColors, "alert">; label: string }[] = [
+/** The flat colours, which is every one a single swatch can edit. `alert` and
+ *  `mark` are groups and are excluded by shape, not by being forgotten. */
+type FlatColor = keyof Omit<ThemeColors, "alert" | "mark">;
+
+const COLOR_FIELDS: { key: FlatColor; label: string }[] = [
   { key: "bg", label: "Page" },
   { key: "surface", label: "Raised surface" },
   { key: "text", label: "Body text" },
@@ -268,7 +272,7 @@ export function SettingsDrawer({
     }));
   };
 
-  const editColor = (key: keyof Omit<ThemeColors, "alert">, value: string) => {
+  const editColor = (key: FlatColor, value: string) => {
     edit((current) => ({
       ...current,
       colors: { ...current.colors, [key]: value },

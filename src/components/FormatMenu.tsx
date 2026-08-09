@@ -43,6 +43,17 @@ interface FormatMenuProps {
    */
   onHighlight?: (slot: MarkSlot) => void;
   canHighlight?: boolean;
+  /**
+   * The active theme's mark colours, for the swatches.
+   *
+   * Passed as values rather than read from `--doc-mark-*` in CSS. DESIGN.md's
+   * rule is that chrome must not read the paper's *tokens*, which keeps a bright
+   * paper theme from washing out the rail — it is not a rule against chrome
+   * ever showing a colour from the document, or the settings drawer's colour
+   * pickers could not exist. A swatch that ignored the theme would be a swatch
+   * that lies about what the row does.
+   */
+  markColors?: Record<MarkSlot, string>;
   /** True when the right-click landed on an existing mark. */
   canRemoveHighlight?: boolean;
   onRemoveHighlight?: () => void;
@@ -66,6 +77,7 @@ export function FormatMenu({
   onEditSource,
   onHighlight,
   canHighlight = false,
+  markColors,
   canRemoveHighlight = false,
   onRemoveHighlight,
 }: FormatMenuProps) {
@@ -206,9 +218,7 @@ export function FormatMenu({
                         <span
                           aria-hidden="true"
                           className="mr-2 inline-block size-3 rounded-ui-sm"
-                          // The swatch is the tool's copy of the palette, never
-                          // the paper's — see `--ui-mark-*` in styles.css.
-                          style={{ background: `var(--ui-mark-${slot})` }}
+                          style={{ background: markColors?.[slot] }}
                         />
                         {SLOT_LABELS[slot]}
                       </ContextItem>

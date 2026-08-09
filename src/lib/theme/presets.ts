@@ -493,6 +493,23 @@ interface Palette {
   accent?: string;
 }
 
+/**
+ * The highlight slots every preset starts from.
+ *
+ * Shared rather than derived per palette because a mark is the reader's ink, not
+ * the document's design: the same yellow should mean the same thing whichever
+ * theme is on. A theme can still override them — they are ordinary `Theme`
+ * fields — and the ink each is read in is derived from whatever they end up as,
+ * so overriding cannot make one unreadable. See `markTokens`.
+ */
+const MARKS: ThemeColors["mark"] = {
+  yellow: "oklch(0.88 0.15 95)",
+  green: "oklch(0.86 0.14 148)",
+  blue: "oklch(0.85 0.1 235)",
+  pink: "oklch(0.84 0.11 5)",
+  purple: "oklch(0.82 0.11 305)",
+};
+
 function colorsFrom(
   palette: Palette,
   appearance: Appearance,
@@ -516,6 +533,7 @@ function colorsFrom(
     quoteBar: palette.border,
     selection: `color-mix(in oklab, ${palette.link} 22%, transparent)`,
     alert: { ...alerts },
+    mark: { ...MARKS },
   };
 }
 

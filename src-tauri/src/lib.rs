@@ -144,6 +144,7 @@ pub fn run() {
             commands::request_default_app,
             commands::list_annotations,
             commands::all_annotations,
+            commands::relink_annotations,
             commands::create_annotation,
             commands::update_annotation,
             commands::reanchor_annotations,

@@ -284,6 +284,75 @@ pub fn all(connection: &Connection) -> LindoResult<Vec<Annotation>> {
     )
 }
 
+/// Moves a document's marks to the path it now lives at, if they can be found.
+///
+/// Annotations are filed under a path, so renaming or moving a file cuts them
+/// loose: the rows are all still there, and nothing was looking for them. This
+/// is what looks.
+///
+/// **The evidence that two paths are the same document is the content hash**,
+/// which every annotation already carries as `anchored_hash` — the fingerprint of
+/// the source its offsets were computed against, kept current by `reanchor`. A
+/// renamed file is almost always byte-identical to the one that was renamed, so
+/// its marks are exactly the rows whose anchor hash equals this document's.
+///
+/// Three conditions, and each one is refusing a way this could take marks that
+/// belong to something else:
+///
+/// - **This path has no marks of its own.** Otherwise a document with one
+///   highlight would adopt another document's twenty.
+/// - **Exactly one other path matches.** Two candidates means two files with
+///   identical content, and nothing here can tell which was renamed into this
+///   one. Doing nothing loses no data — the marks stay where they are — while
+///   guessing puts a reader's notes on a file they never opened.
+/// - **The old path is gone from disk.** This is what separates a *rename* from
+///   a *copy*. If the original is still there its marks are still reachable by
+///   opening it, and moving them would take them away from a document that still
+///   exists.
+///
+/// Returns how many marks were moved, so the caller knows whether to load again.
+pub fn relink(connection: &Connection, path: &str, content_hash: &str) -> LindoResult<usize> {
+    let key = key_for(path);
+
+    let mine: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM annotation WHERE path = ?1",
+            [&key],
+            |row| row.get(0),
+        )
+        .map_err(|e| LindoError::msg(format!("Could not look for moved annotations: {e}")))?;
+    if mine > 0 {
+        return Ok(0);
+    }
+
+    let mut statement = connection
+        .prepare("SELECT DISTINCT path FROM annotation WHERE anchored_hash = ?1 AND path <> ?2")
+        .map_err(|e| LindoError::msg(format!("Could not look for moved annotations: {e}")))?;
+    let candidates = statement
+        .query_map(rusqlite::params![content_hash, key], |row| {
+            row.get::<_, String>(0)
+        })
+        .map_err(|e| LindoError::msg(format!("Could not look for moved annotations: {e}")))?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|e| LindoError::msg(format!("Could not look for moved annotations: {e}")))?;
+
+    // Only paths that have actually gone. A candidate still on disk is a copy,
+    // or the same file open under a second name, and its marks are not ours.
+    let mut gone = candidates
+        .into_iter()
+        .filter(|candidate| !Path::new(candidate).exists());
+    let (Some(from), None) = (gone.next(), gone.next()) else {
+        return Ok(0);
+    };
+
+    connection
+        .execute(
+            "UPDATE annotation SET path = ?1 WHERE path = ?2",
+            rusqlite::params![key, from],
+        )
+        .map_err(|e| LindoError::msg(format!("Could not move the annotations: {e}")))
+}
+
 pub fn create(connection: &Connection, new: &NewAnnotation) -> LindoResult<Annotation> {
     if new.quote.is_empty() {
         return Err(LindoError::msg(
@@ -518,6 +587,90 @@ mod tests {
         assert_eq!(moved.anchored_hash, "hash-two");
         // Bookkeeping, not an edit by the reader — see `reanchor`.
         assert_eq!(moved.updated_at, made.updated_at);
+    }
+
+    #[test]
+    fn a_renamed_document_gets_its_marks_back() {
+        let connection = store();
+        // A path that no longer exists, which is what a rename leaves behind.
+        let mut old = sample("C:/notes/old-name.md");
+        old.anchored_hash = "same-content".to_owned();
+        create(&connection, &old).unwrap();
+
+        let moved = relink(&connection, "C:/notes/new-name.md", "same-content").unwrap();
+
+        assert_eq!(moved, 1);
+        assert_eq!(list(&connection, "C:/notes/new-name.md").unwrap().len(), 1);
+        assert!(list(&connection, "C:/notes/old-name.md")
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn a_document_that_already_has_marks_does_not_adopt_more() {
+        let connection = store();
+        let mut theirs = sample("C:/notes/old-name.md");
+        theirs.anchored_hash = "same-content".to_owned();
+        create(&connection, &theirs).unwrap();
+        let mut mine = sample("C:/notes/new-name.md");
+        mine.anchored_hash = "same-content".to_owned();
+        create(&connection, &mine).unwrap();
+
+        assert_eq!(
+            relink(&connection, "C:/notes/new-name.md", "same-content").unwrap(),
+            0
+        );
+        assert_eq!(list(&connection, "C:/notes/new-name.md").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn two_identical_documents_are_left_alone_rather_than_guessed_between() {
+        let connection = store();
+        for path in ["C:/notes/a.md", "C:/notes/b.md"] {
+            let mut one = sample(path);
+            one.anchored_hash = "same-content".to_owned();
+            create(&connection, &one).unwrap();
+        }
+
+        // Nothing here can tell which was renamed into `c.md`. Doing nothing
+        // loses no marks; guessing puts them on a file nobody marked.
+        assert_eq!(
+            relink(&connection, "C:/notes/c.md", "same-content").unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn a_copy_does_not_steal_the_original_s_marks() {
+        let connection = store();
+        // The source path is this test file's own crate manifest: something that
+        // certainly exists, standing in for an original that was copied rather
+        // than renamed.
+        let existing = env!("CARGO_MANIFEST_DIR").to_owned() + "/Cargo.toml";
+        let mut one = sample(&existing);
+        one.anchored_hash = "same-content".to_owned();
+        create(&connection, &one).unwrap();
+
+        assert_eq!(
+            relink(&connection, "C:/notes/copy.md", "same-content").unwrap(),
+            0
+        );
+        assert_eq!(list(&connection, &existing).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_renamed_document_that_was_also_edited_is_not_claimed() {
+        let connection = store();
+        let mut old = sample("C:/notes/old-name.md");
+        old.anchored_hash = "content-before".to_owned();
+        create(&connection, &old).unwrap();
+
+        // The hash is the only evidence there is. Changed content means no
+        // evidence, and inventing some would be worse than the marks staying put.
+        assert_eq!(
+            relink(&connection, "C:/notes/new-name.md", "content-after").unwrap(),
+            0
+        );
     }
 
     #[test]

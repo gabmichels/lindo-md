@@ -13,6 +13,7 @@ import {
   createAnnotation,
   deleteAnnotation,
   listAnnotations,
+  relinkAnnotations,
   reanchorAnnotations,
   type Annotation,
   type Document,
@@ -74,7 +75,24 @@ export function useAnnotations(doc: Document | null, article: HTMLElement | null
     // narrows a plain boolean to `false` and calls the guard dead.
     const live = { current: true };
     void (async () => {
-      const stored = await listAnnotations(path);
+      let stored = await listAnnotations(path);
+      // Nothing here may mean nothing was ever marked, or may mean this file has
+      // been renamed out from under its marks. Only worth asking in the empty
+      // case, which is also the only case `relink` will act on.
+      if (stored.length === 0 && contentHash.length > 0) {
+        await relinkAnnotations(path, contentHash);
+        if (!live.current) return;
+        // Listed again unconditionally, rather than only when the call reported
+        // moving something. Two of these can be in flight at once — an effect
+        // that re-runs while the first is awaiting, which a watcher reload or a
+        // save is enough to cause — and then the first does the move and is
+        // cancelled before it can list, while the second is told nothing moved
+        // because the first already moved it. Both give up, the rows sit under
+        // the new path, and the reader sees no marks until something else
+        // reloads the document. Trusting the count is what makes that possible;
+        // asking again costs one indexed query on a document with no marks.
+        stored = await listAnnotations(path);
+      }
       if (!live.current) return;
 
       const resolved: ResolvedAnnotation[] = [];

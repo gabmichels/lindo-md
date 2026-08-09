@@ -711,38 +711,46 @@ Three things about painting that are easy to get subtly wrong:
   off. Otherwise switching tabs leaves the previous document's marks registered against nodes
   that are no longer there.
 
-**The highlight palette is the one set of `--doc-*` values not drawn from the theme.** They
-are constants in `markTokens()`. Making them theme fields means five required colours in
-`ThemeColorsSchema` — twenty presets times two halves, and five more decisions for anyone
-authoring a theme — for a palette with no UI to change it. Promoting them later is an optional
-field whose default is exactly what is written there.
+**A mark is opaque and its ink is derived, and those two together are what make a highlight
+safe on paper this code has never seen.** The grounds come from the theme like every other
+`--doc-*` value, so a theme can recolour highlights; the ink does not, because a theme is a
+file people share and letting it set both halves would let it set an unreadable pair — quietly,
+since a low-contrast highlight still looks like a highlight. `readableInk` picks per colour.
 
-**A mark is opaque and carries its own ink**, and that is what makes one palette safe on
-twenty presets rather than a claim to re-check whenever a preset lands. The first version
-washed a translucent colour over the page and let the theme's own text show through: fine on
-paper the colour of paper, and on a dark theme the wash lifts the background towards the light
-text sitting on it — Solarized Dark went from 5.61:1 body contrast to 2.44:1. Compositing over
-an unknown background can only be argued preset by preset, and there are forty halves to
-argue. Painting the ground *and* the ink makes contrast a property of `markTokens` alone.
-`::highlight(lindo-md-find-active)` already worked this way.
+Both halves of that were learned rather than designed. The first version was a **translucent
+wash** over whatever the page happened to be, checked by eye on one dark theme: it reads well
+on paper the colour of paper and fails on dark themes, where the wash lifts the background
+towards the light text sitting on it — Solarized Dark went from 5.61:1 body contrast to 2.44:1.
+Compositing over an unknown background can only be argued preset by preset, and there are forty
+halves to argue. Then the derived ink needed a **fallback to pure black or white**: a mid-grey
+ground sits equidistant from both softened inks, so the better of the two reaches only 3.95:1.
+Pure black and white always leave one option at 4.58:1 or better, which is what turns the
+guarantee from "for our palette" into "for any colour anyone can write".
 
-`theme.test.ts` checks three things rather than trusting that paragraph: each slot against its
-own ink (≥ 4.5:1), each slot against every preset's paper (visibly different), and that
-`document.css` really sets both halves of the pair. **That third one is what makes the first
-meaningful** — `toHex` drops alpha, so a translucent palette scores identically against the
-ink, and the contrast number is only true on the page if the stylesheet paints both.
+`theme.test.ts` checks four things rather than trusting the paragraph above: every slot against
+its derived ink on every preset, the same for colours no preset uses (white, black, mid-grey),
+that each slot is visibly different from every preset's paper, and that `document.css` really
+sets both halves of the pair. **That last one is what makes the first meaningful** — `toHex`
+drops alpha, so a translucent palette scores identically against an ink it never paints with.
 
-The context menu's swatches are drawn from a **separate `--ui-mark-*` set**, because chrome may
-not read the paper's tokens (DESIGN.md) and a swatch is chrome.
+The context menu's swatches take their colour from the `theme` prop rather than from
+`--doc-mark-*`. DESIGN.md's rule is that chrome must not read the paper's *tokens*, which is
+what stops a bright paper theme washing out the rail; it is not a rule against chrome ever
+showing a colour from the document, or the settings drawer's colour pickers could not exist.
 
 `annotationRange` in `lib/edit/selection.ts` sits beside `selectionRange` rather than
 replacing it, and the difference between them is the difference between describing a range
 and rewriting one: a selection spanning two blocks covers the markup between them, so
 *formatting* it is refused, while *marking* it costs the document nothing.
 
-Annotations are keyed by canonicalized path, so **renaming a file loses the link to its
-marks**. They are still in the database and `anchoredHash` is enough to offer to re-link
-them, but nothing does that yet.
+Annotations are keyed by canonicalized path, so renaming or moving a file cuts them loose.
+`annotations::relink` is what finds them again, and the evidence it goes on is the **content
+hash** every annotation already carries as `anchored_hash`. It acts only when this path has no
+marks of its own, exactly one other path matches the hash, and that path is gone from disk —
+three conditions, each refusing a way this could take marks belonging to something else. Two
+identical files are left alone rather than guessed between: doing nothing loses no marks, while
+guessing puts a reader's notes on a file they never opened. A rename plus an edit is not
+recovered, because the hash is the only evidence there is.
 
 ## The command palette
 
