@@ -1,6 +1,6 @@
 {
   "name": "lindo-md",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "A beautiful, offline Markdown viewer — GitHub-flavored rendering with editorial typography, Mermaid diagrams and deeply customizable themes",
   "license": "MIT",
   "private": true,
