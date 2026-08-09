@@ -1,6 +1,6 @@
 [package]
 name = "lindo-md"
-version = "1.4.0"
+version = "1.5.0"
 description = "A beautiful, offline Markdown viewer with editorial typography and deeply customizable themes"
 authors = ["lindo-md contributors"]
 license = "MIT"
