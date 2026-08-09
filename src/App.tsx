@@ -423,27 +423,42 @@ function Shell() {
    *
    * Read from the store rather than from the view's state: the panel can export
    * a document the deck has evicted, and `listAnnotations` is one indexed query.
+   *
+   * **The active tab, not the focused pane** — the one place this deliberately
+   * differs from `exportHtml` next door. That one exports what you are looking
+   * at, which is right for a picture of the page. This exports what the panel is
+   * about, and the panel pins the active tab because the comparison pane can
+   * hold no marks of its own. Taking `reading` here would let a click in a panel
+   * showing one document save a different one.
    */
   const exportAnnotated = useCallback(async () => {
-    if (!reading) return;
+    if (!document) return;
     setExportNotice(null);
 
     try {
-      const stored = await listAnnotations(reading.path);
+      const stored = await listAnnotations(document.path);
       if (stored.length === 0) {
         setExportNotice("There are no highlights in this document to export.");
         update({ notesOpen: true });
         return;
       }
 
-      const { resolved } = resolveAll(reading.source, reading.contentHash, reading.blocks, stored);
-      const { markdown, unplaced } = annotatedMarkdown(reading.source, resolved);
+      const { resolved } = resolveAll(
+        document.source,
+        document.contentHash,
+        document.blocks,
+        stored,
+      );
+      // The block map goes in because a mark may span two paragraphs — the
+      // painter draws that as one highlight — and `<mark>` cannot cross a blank
+      // line without silently losing everything after the first block.
+      const { markdown, unplaced } = annotatedMarkdown(document.source, resolved, document.blocks);
 
       const path = await saveDialog({
         title: "Export with notes",
         // Named so it cannot be mistaken for the document, and so a second
         // export does not offer to overwrite the file the marks were made on.
-        defaultPath: `${reading.title} (annotated).md`,
+        defaultPath: `${document.title} (annotated).md`,
         filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
       });
       if (!path) return;
@@ -463,7 +478,7 @@ function Shell() {
       setExportNotice(message(cause));
       update({ notesOpen: true });
     }
-  }, [reading, update]);
+  }, [document, update]);
 
   /**
    * Following a link inside a tab.
@@ -924,7 +939,7 @@ function Shell() {
           }}
           // Offered only with a document open, since it exports *this* document
           // rather than the panel's whole list.
-          onExport={reading ? () => void exportAnnotated() : undefined}
+          onExport={document ? () => void exportAnnotated() : undefined}
         />
       )}
 

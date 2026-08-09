@@ -1,5 +1,5 @@
 import type { SourceRange } from "@/lib/edit/selection";
-import type { Annotation } from "@/lib/ipc";
+import type { Annotation, BlockMap } from "@/lib/ipc";
 
 /**
  * Writing a reader's marks back into the Markdown they were made on.
@@ -46,6 +46,10 @@ const STRANDED_HEADING = "Notes without a place in the text";
 export function annotatedMarkdown(
   source: string,
   marks: readonly ExportableMark[],
+  /** The document's block map, used to split a mark that spans blocks. Omitting
+   *  it writes each mark as one element, which is right only when no mark
+   *  crosses a blank line. */
+  blocks: readonly BlockMap[] = [],
 ): AnnotatedExport {
   const placed: PlacedMark[] = [];
   const stranded: ExportableMark[] = [];
@@ -83,18 +87,29 @@ export function annotatedMarkdown(
   const edits: { at: number; text: string; opening: boolean }[] = [];
 
   for (const mark of placed) {
-    edits.push({ at: mark.range.start, text: openTag(mark.color), opening: true });
-
-    let closing = "</mark>";
-    if (mark.body.trim().length > 0) {
-      const name = label(mark.id);
-      notes.push({ label: name, body: oneParagraph(mark.body) });
-      // The reference goes *after* the closing tag: inside it, the marker would
-      // be part of the highlighted phrase and would highlight the little number
-      // too.
-      closing += `[^${name}]`;
+    const segments = splitAcrossBlocks(mark.range, blocks);
+    if (segments.length === 0) {
+      stranded.push(mark);
+      continue;
     }
-    edits.push({ at: mark.range.end, text: closing, opening: false });
+
+    // The reference is welded onto the closing tag rather than pushed as its own
+    // edit at the same offset. Two insertions at one offset come out in reverse,
+    // because each one goes in *before* whatever is already there — so a
+    // separate `[^1]` would land inside the element it is meant to follow.
+    let name = "";
+    if (mark.body.trim().length > 0) {
+      name = label(mark.id);
+      notes.push({ label: name, body: oneParagraph(mark.body) });
+    }
+
+    segments.forEach((segment, index) => {
+      edits.push({ at: segment.start, text: openTag(mark.color), opening: true });
+      // One reference, after the last piece, because it is one note however many
+      // blocks the mark had to be cut into.
+      const reference = name && index === segments.length - 1 ? `[^${name}]` : "";
+      edits.push({ at: segment.end, text: `</mark>${reference}`, opening: false });
+    });
   }
 
   return {
@@ -105,6 +120,49 @@ export function annotatedMarkdown(
 
 interface PlacedMark extends Annotation {
   range: SourceRange;
+}
+
+/**
+ * A mark's range cut into one piece per block it covers.
+ *
+ * **`<mark>` cannot span a blank line, and it fails by losing text rather than
+ * by breaking.** comrak ends the element at the end of its paragraph, so a mark
+ * made across two paragraphs — which `annotationRange` deliberately allows, and
+ * which the painter shows as one continuous highlight — exported as a single
+ * element would mark the first paragraph and leave the rest bare, silently. A
+ * Rust test pins that behaviour next to the sanitizer allowlist.
+ *
+ * Each piece is clipped to the text the block map actually covers, so the
+ * markup *between* blocks is never wrapped: a `<mark>` opened in the blank line
+ * before a heading would be inline HTML sitting in its own paragraph.
+ *
+ * With no block map — a caller that has none, or a document that produced none —
+ * the range is returned whole, which is what the single-block case wants anyway.
+ */
+function splitAcrossBlocks(range: SourceRange, blocks: readonly BlockMap[]): SourceRange[] {
+  if (blocks.length === 0) return [range];
+
+  const pieces: SourceRange[] = [];
+  for (const block of blocks) {
+    let start = Infinity;
+    let end = -Infinity;
+    for (const run of block.runs) {
+      // Only the part of this run the mark actually covers.
+      const from = Math.max(range.start, run.sourceStart);
+      const to = Math.min(range.end, run.sourceEnd);
+      if (from >= to) continue;
+      start = Math.min(start, from);
+      end = Math.max(end, to);
+    }
+    // One piece per block rather than one per run: a block's runs are broken up
+    // by inline markup, and `<mark>` spans that happily — `<mark>a **b** c</mark>`
+    // is fine, while a pair around every run would be noise.
+    if (start < end) pieces.push({ start, end });
+  }
+
+  // Blocks come in document order, so the pieces do too — which the insertion
+  // pass relies on for the footnote reference to land after the last one.
+  return pieces;
 }
 
 /** Two ranges that overlap without either containing the other. */
@@ -169,9 +227,20 @@ function oneParagraph(body: string): string {
  * of what was inserted — the classic form of this bug, where the first mark is
  * right and each one after it drifts a little further.
  *
- * At one offset, closings go in before openings, so two adjacent marks read
- * `</mark><mark>` rather than nesting into each other. Applying descending means
- * the array is walked from the end, so the *opening* is emitted first there.
+ * Every insertion goes in *before* whatever is already at that offset, so at a
+ * shared offset the **last** one applied is the one that ends up first in the
+ * string. All three tie-breaks below follow from that:
+ *
+ * - **Closings before openings**, so two adjacent marks read `</mark><mark>`
+ *   rather than nesting into each other. Openings sort earlier here, are applied
+ *   earlier, and therefore land later.
+ * - **Openings, outermost last.** Marks are processed outermost-first, so the
+ *   outer one's opening must be applied last to land first. Without this the
+ *   inner opening comes out in front and a nested pair's *colours swap* — the
+ *   outer phrase wears the inner colour and neither the markup nor the rendered
+ *   page looks wrong, which is why it needs a test rather than an eye.
+ * - **Closings, outermost first**, which is the mirror of the same rule and is
+ *   what the push order already gives.
  */
 function assemble(
   source: string,
@@ -179,7 +248,14 @@ function assemble(
   notes: { label: string; body: string }[],
   stranded: readonly ExportableMark[],
 ): string {
-  const ordered = [...edits].sort((a, b) => b.at - a.at || Number(b.opening) - Number(a.opening));
+  const ordered = edits
+    .map((edit, seq) => ({ ...edit, seq }))
+    .sort(
+      (a, b) =>
+        b.at - a.at ||
+        Number(b.opening) - Number(a.opening) ||
+        (a.opening ? b.seq - a.seq : a.seq - b.seq),
+    );
 
   let out = source;
   for (const edit of ordered) {

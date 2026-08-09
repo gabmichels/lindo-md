@@ -1113,6 +1113,22 @@ mod tests {
     /// exists so that it is always deliberate: adding a tag or an attribute means
     /// editing this list too, and explaining why in the diff. The audit's finding was
     /// an entry nobody had re-read in a long time.
+    /// A `<mark>` cannot span a blank line, and fails by *losing text* rather
+    /// than by producing broken markup — comrak ends the element at the end of
+    /// its paragraph and the second half renders unmarked, with no warning. The
+    /// annotated export therefore splits a mark that spans blocks into one
+    /// element per block; this pins the behaviour that makes that necessary.
+    #[test]
+    fn a_mark_element_cannot_span_a_blank_line() {
+        let out = html("First <mark>para tail\n\nsecond para</mark> rest.\n");
+
+        assert_eq!(out.matches("<mark").count(), 1, "{out}");
+        assert!(out.contains("<mark>para tail</mark>"), "{out}");
+        // The half the reader would have lost silently.
+        assert!(out.contains("second para rest."), "{out}");
+        assert!(!out.contains("<mark>second"), "{out}");
+    }
+
     #[test]
     fn the_allowlist_is_what_we_think_it_is() {
         // A tag that is allowed and must stay allowed: each is load-bearing for a

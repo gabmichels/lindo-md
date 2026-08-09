@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { annotatedMarkdown, type ExportableMark } from "./annotated";
-import type { Annotation } from "@/lib/ipc";
+import type { Annotation, BlockMap } from "@/lib/ipc";
 
 /** A mark over the first occurrence of `quote`, as the document view would hand
  *  one over: resolved against this source, with its stored fields filled in. */
@@ -87,6 +87,33 @@ describe("annotatedMarkdown", () => {
 
     expect(markdown).toContain(
       '<mark class="lindo-yellow">quick <mark class="lindo-green">brown</mark> fox</mark>',
+    );
+  });
+
+  it("nests correctly when two marks start at the same place", () => {
+    // Both openings land on one offset, and each insertion goes in *before*
+    // whatever is already there — so without an explicit order the inner mark's
+    // opening comes out first and the two elements' colours swap: the outer
+    // phrase gets the inner colour and vice versa. Nothing about the output
+    // looks broken, which is what makes it worth pinning.
+    const { markdown } = annotatedMarkdown(SOURCE, [
+      { ...mark(SOURCE, "quick brown fox", { id: 1 }), range: { start: 4, end: 19 } },
+      { ...mark(SOURCE, "quick", { id: 2, color: "green" }), range: { start: 4, end: 9 } },
+    ]);
+
+    expect(markdown).toContain(
+      '<mark class="lindo-yellow"><mark class="lindo-green">quick</mark> brown fox</mark>',
+    );
+  });
+
+  it("nests correctly when two marks end at the same place", () => {
+    const { markdown } = annotatedMarkdown(SOURCE, [
+      { ...mark(SOURCE, "quick brown fox", { id: 1 }), range: { start: 4, end: 19 } },
+      { ...mark(SOURCE, "fox", { id: 2, color: "green" }), range: { start: 16, end: 19 } },
+    ]);
+
+    expect(markdown).toContain(
+      '<mark class="lindo-yellow">quick brown <mark class="lindo-green">fox</mark></mark>',
     );
   });
 
@@ -233,6 +260,87 @@ describe("annotatedMarkdown", () => {
     const { markdown } = annotatedMarkdown(source, [mark(source, "beta", { id: 1 })]);
 
     expect(markdown).toBe('🎉 alpha <mark class="lindo-yellow">beta</mark> gamma');
+  });
+
+  describe("a mark that spans two blocks", () => {
+    // `annotationRange` allows this on purpose and the painter draws it as one
+    // continuous highlight. `<mark>` cannot span a blank line: comrak ends the
+    // element at the end of its paragraph and everything after renders bare, so
+    // one element across both would lose half the highlight without saying so.
+    const source = "First para here.\n\nSecond para here.\n";
+    const blocks: BlockMap[] = [
+      {
+        sourcepos: "1:1-1:16",
+        aligned: true,
+        runs: [{ text: "First para here.", sourceStart: 0, sourceEnd: 16 }],
+      },
+      {
+        sourcepos: "3:1-3:17",
+        aligned: true,
+        runs: [{ text: "Second para here.", sourceStart: 18, sourceEnd: 35 }],
+      },
+    ];
+    /** "para here.\n\nSecond para" — from inside the first to inside the second. */
+    const spanning = (fields: Partial<Annotation> = {}): ExportableMark => ({
+      ...mark(source, "First", { id: 1, ...fields }),
+      range: { start: 6, end: 29 },
+    });
+
+    it("writes one element per block instead of one across both", () => {
+      const { markdown } = annotatedMarkdown(source, [spanning()], blocks);
+
+      expect(markdown).toBe(
+        'First <mark class="lindo-yellow">para here.</mark>\n\n' +
+          '<mark class="lindo-yellow">Second para</mark> here.\n',
+      );
+    });
+
+    it("never wraps the markup between the blocks", () => {
+      // A `<mark>` opened in the blank line would be inline HTML in a paragraph
+      // of its own.
+      const { markdown } = annotatedMarkdown(source, [spanning()], blocks);
+
+      expect(markdown).not.toContain('<mark class="lindo-yellow">\n');
+      expect(markdown).not.toContain("\n</mark>");
+    });
+
+    it("references its note once, after the last piece", () => {
+      const { markdown } = annotatedMarkdown(source, [spanning({ body: "one note" })], blocks);
+
+      expect(markdown.match(/\[\^lindo-1\](?!:)/g)).toHaveLength(1);
+      expect(markdown).toContain("Second para</mark>[^lindo-1] here.");
+      expect(markdown).toContain("[^lindo-1]: one note");
+    });
+
+    it("counts as placed, not as a note with nowhere to go", () => {
+      expect(annotatedMarkdown(source, [spanning()], blocks).unplaced).toBe(0);
+    });
+
+    it("clips to the text the block map covers, never past a block's end", () => {
+      // A range running to the very end of the document still stops at the last
+      // run rather than wrapping the trailing newline.
+      const { markdown } = annotatedMarkdown(
+        source,
+        [{ ...mark(source, "First", { id: 1 }), range: { start: 0, end: source.length } }],
+        blocks,
+      );
+
+      expect(markdown).toBe(
+        '<mark class="lindo-yellow">First para here.</mark>\n\n' +
+          '<mark class="lindo-yellow">Second para here.</mark>\n',
+      );
+    });
+
+    it("leaves a single-block mark as one element", () => {
+      const { markdown } = annotatedMarkdown(
+        source,
+        [{ ...mark(source, "First", { id: 1 }), range: { start: 0, end: 5 } }],
+        blocks,
+      );
+
+      expect(markdown).toContain('<mark class="lindo-yellow">First</mark> para');
+      expect(markdown.match(/<mark/g)).toHaveLength(1);
+    });
   });
 
   it("separates the appended notes from a document that did not end in a newline", () => {
