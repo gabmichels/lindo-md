@@ -48,6 +48,16 @@ export interface AnnotationState {
    *  the marks simply do not show, so the UI hides the affordance rather than
    *  offering one whose result is invisible. */
   supported: boolean;
+  /**
+   * What went wrong with the last annotation operation, or null.
+   *
+   * Present because every call into the store can fail for reasons the reader
+   * can act on — a second copy of the app holding the database, a disk with
+   * nothing left on it, a file written by a newer build — and the alternative to
+   * showing it is the feature quietly not existing. A failed load used to leave
+   * no marks and no message; a failed write used to make the menu row a no-op.
+   */
+  error: string | null;
 }
 
 export function useAnnotations(
@@ -58,7 +68,26 @@ export function useAnnotations(
   visible: boolean,
 ): AnnotationState {
   const [marks, setMarks] = useState<ResolvedAnnotation[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const supported = useRef(supportsHighlights());
+
+  /**
+   * Which document `marks` describes.
+   *
+   * Resolving is asynchronous, so between a new document arriving and its marks
+   * coming back there is a render where `marks` holds the *previous* document's
+   * offsets. Painting those is not a harmless no-op: `domPositionOf` falls back
+   * to the nearest position it can find rather than refusing, so offsets
+   * belonging to another file are clamped onto this one and painted — the
+   * wrong-words failure the orphan rule exists to prevent, arriving from the one
+   * direction the anchor never sees. The same gap opens on every save, where it
+   * shows as marks jumping while the reader types.
+   *
+   * Compared rather than cleared, because clearing would flash the marks off and
+   * on again for the far more common case of a re-render that resolves to the
+   * same thing.
+   */
+  const describes = useRef<string | null>(null);
 
   // Only where `data-sourcepos` is trustworthy. `files.rs` builds no block map
   // for plain text or MDX, so there is nothing to anchor against — the same
@@ -72,6 +101,7 @@ export function useAnnotations(
   // paint or the highlight sits on the wrong words.
   useEffect(() => {
     if (!path) {
+      describes.current = null;
       setMarks([]);
       return;
     }
@@ -81,12 +111,23 @@ export function useAnnotations(
     // narrows a plain boolean to `false` and calls the guard dead.
     const live = { current: true };
     void (async () => {
-      let stored = await listAnnotations(path);
+      try {
+        await load();
+      } catch (cause) {
+        // Reported rather than swallowed. `void` satisfies `no-floating-promises`
+        // without handling anything, which is the shape AGENTS.md names as the
+        // dead-links bug of v1.0.0 — a rejection nobody saw for a whole release.
+        if (live.current) setError(message(cause));
+      }
+    })();
+
+    async function load() {
+      let stored = await listAnnotations(path!);
       // Nothing here may mean nothing was ever marked, or may mean this file has
       // been renamed out from under its marks. Only worth asking in the empty
       // case, which is also the only case `relink` will act on.
       if (stored.length === 0 && contentHash.length > 0) {
-        await relinkAnnotations(path, contentHash);
+        await relinkAnnotations(path!, contentHash);
         if (!live.current) return;
         // Listed again unconditionally, rather than only when the call reported
         // moving something. Two of these can be in flight at once — an effect
@@ -97,7 +138,7 @@ export function useAnnotations(
         // the new path, and the reader sees no marks until something else
         // reloads the document. Trusting the count is what makes that possible;
         // asking again costs one indexed query on a document with no marks.
-        stored = await listAnnotations(path);
+        stored = await listAnnotations(path!);
       }
       if (!live.current) return;
 
@@ -120,11 +161,14 @@ export function useAnnotations(
         }
       }
 
+      describes.current = key(path!, contentHash);
       setMarks(resolved);
-      // Fire and forget: the marks are already correct on screen, and a failure
-      // to persist costs a search next time rather than anything visible.
-      if (moved.length > 0) void reanchorAnnotations(moved);
-    })();
+      setError(null);
+      // The one call that stays fire-and-forget, and the only one that can
+      // afford to: the marks are already correct on screen, and a failure to
+      // persist costs a search next time rather than anything the reader sees.
+      if (moved.length > 0) await reanchorAnnotations(moved).catch(() => undefined);
+    }
 
     return () => {
       live.current = false;
@@ -148,17 +192,36 @@ export function useAnnotations(
   // nothing else in here changes when a tab is re-shown.
   useEffect(() => {
     if (!article || !supported.current || !visible || !path) return;
+    // Stale marks describe a different file, or this file before an edit moved
+    // everything below the change. Painting them puts a highlight on words
+    // nobody marked; waiting a beat for the resolve to land does not.
+    if (describes.current !== key(path, contentHash)) return;
 
     const paintable: PaintableMark[] = marks.flatMap((mark) =>
       mark.range ? [{ range: mark.range, color: mark.color }] : [],
     );
     applyHighlights(paintRanges(article, doc?.blocks ?? [], paintable));
-  }, [article, marks, visible, path, doc?.blocks, doc?.html]);
+  }, [article, marks, visible, path, contentHash, doc?.blocks, doc?.html]);
 
-  // Highlights are global to the page, so a document that goes away has to take
-  // its own off — otherwise closing the last marked tab leaves its marks
-  // registered against nodes that are no longer on screen.
-  useEffect(() => clearHighlights, [path]);
+  // Taking its own marks off on the way out, for the same reason the paint above
+  // is gated: the registry is one per page. **The guard has to be here too, and
+  // leaving it off was the same bug in its other half.** This destructor runs on
+  // unmount whatever the view was doing, so a background tab being closed or
+  // evicted, or the comparison pane — which never painted anything, since its
+  // annotations are off — cleared the marks of the document actually on screen,
+  // and nothing repainted because nothing in the visible view had changed.
+  //
+  // A ref rather than the values themselves: this must run *only* on unmount and
+  // only for the view that owns what is registered, so it cannot depend on
+  // `visible` or `path` without also firing every time either of them changes.
+  const owns = useRef(false);
+  owns.current = visible && path !== null;
+  useEffect(
+    () => () => {
+      if (owns.current) clearHighlights();
+    },
+    [],
+  );
 
   const highlight = useCallback(
     (range: SourceRange, color: string) => {
@@ -166,30 +229,65 @@ export function useAnnotations(
       const anchor = createAnchor(source, range, contentHash);
       if (!anchor) return;
 
-      void createAnnotation({ path, color, body: "", ...anchor }).then((made) => {
-        setMarks((current) => [
-          ...current,
-          { ...made, range: { start: anchor.startOffset, end: anchor.endOffset } },
-        ]);
-      });
+      const against = key(path, contentHash);
+      void createAnnotation({ path, color, body: "", ...anchor })
+        .then((made) => {
+          // The document may have been rewritten while the write was in flight —
+          // the comparison pane exists to watch a file something else is
+          // changing. Appending offsets computed against the old text would put
+          // the mark a paragraph out, and the reload that is already coming will
+          // list this row properly anyway.
+          if (describes.current !== against) return;
+          setMarks((current) => [
+            ...current,
+            { ...made, range: { start: anchor.startOffset, end: anchor.endOffset } },
+          ]);
+          setError(null);
+        })
+        .catch((cause: unknown) => {
+          // Otherwise picking a colour is a silent no-op, which is the failure
+          // mode a read-only document is carefully never allowed to have.
+          setError(message(cause));
+        });
     },
     [path, source, contentHash],
   );
 
+  // The marks are read from a ref rather than from a state updater: a `setState`
+  // updater has to be pure, and React — which double-invokes them under
+  // StrictMode — is entitled to run it more than once. Deleting inside one sent
+  // the delete twice per mark.
+  const latest = useRef(marks);
+  latest.current = marks;
+
   const removeAt = useCallback((range: SourceRange) => {
-    setMarks((current) => {
-      const [gone, kept] = partition(current, (mark) => overlaps(mark.range, range));
-      for (const mark of gone) void deleteAnnotation(mark.id);
-      return gone.length > 0 ? kept : current;
-    });
+    const gone = latest.current.filter((mark) => overlaps(mark.range, range));
+    if (gone.length === 0) return;
+
+    setMarks((current) => current.filter((mark) => !gone.includes(mark)));
+    for (const mark of gone) {
+      void deleteAnnotation(mark.id).catch((cause: unknown) => {
+        // Put it back rather than leaving the reader with a mark that is gone
+        // from the page and still in the database — it would reappear on the
+        // next load with no explanation.
+        setMarks((current) => (current.includes(mark) ? current : [...current, mark]));
+        setError(message(cause));
+      });
+    }
   }, []);
 
-  return { marks, highlight, removeAt, supported: supported.current };
+  return { marks, highlight, removeAt, supported: supported.current, error };
 }
 
-function partition<T>(items: T[], predicate: (item: T) => boolean): [T[], T[]] {
-  const yes: T[] = [];
-  const no: T[] = [];
-  for (const item of items) (predicate(item) ? yes : no).push(item);
-  return [yes, no];
+/** What `marks` was resolved against. Both halves matter: the path alone misses
+ *  an edit, and the hash alone would collide across two identical files. */
+function key(path: string, contentHash: string): string {
+  return `${path} ${contentHash}`;
+}
+
+/** `LindoError` serializes to a plain string, so an error from Rust is already
+ *  written for a reader; anything else is a bug here and says so. */
+function message(cause: unknown): string {
+  if (typeof cause === "string") return cause;
+  return cause instanceof Error ? cause.message : "Something went wrong with your annotations.";
 }

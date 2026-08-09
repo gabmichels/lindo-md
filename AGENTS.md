@@ -714,7 +714,22 @@ Three things about painting that are easy to get subtly wrong:
   wins: `DocumentDeck` keeps background tabs mounted, and the comparison pane mounts a second
   `DocumentView` with annotations off entirely, so opening the pane wiped the deck's marks.
   `visible` is a dependency as well as a guard, because nothing else in `useAnnotations` changes
-  when a tab is re-shown and the marks would stay gone.
+  when a tab is re-shown and the marks would stay gone. **The unmount cleanup needs the same
+  guard**, and not having it was the identical bug in its other half: that destructor runs
+  whatever the view was doing, so closing the pane — which never painted anything — or closing
+  or evicting a background tab cleared the marks of the document actually on screen.
+- **Marks are only painted against the document they were resolved for.** Resolving is
+  asynchronous, so there is a render where `marks` holds the previous document's offsets and
+  `doc` is already the new one. Painting those is not a harmless no-op, because `domPositionOf`
+  falls back to the nearest position it can find rather than refusing — offsets from another
+  file get clamped onto this one and painted. `useAnnotations` therefore records which
+  path-and-hash the marks describe and skips the paint until they agree. The same gap opens on
+  every save, where it showed as marks jumping about while the reader typed.
+- **Every call into the store is handled, and failures are shown.** A rejected load used to
+  leave no marks and no message, which is indistinguishable from a feature that does not exist;
+  a rejected write made the menu row a silent no-op. `AnnotationState.error` carries the reason
+  to a `.doc-notice`. `void`-ing a promise satisfies `no-floating-promises` without handling
+  anything, which is the shape AGENTS.md already blames for the v1.0.0 dead-links bug.
 
 **A mark is opaque and its ink is derived, and those two together are what make a highlight
 safe on paper this code has never seen.** The grounds come from the theme like every other
@@ -765,8 +780,20 @@ and rewriting one: a selection spanning two blocks covers the markup between the
 Annotations are keyed by canonicalized path, so renaming or moving a file cuts them loose.
 `annotations::relink` is what finds them again, and the evidence it goes on is the **content
 hash** every annotation already carries as `anchored_hash`. It acts only when this path has no
-marks of its own, exactly one other path matches the hash, and that path is gone from disk —
-three conditions, each refusing a way this could take marks belonging to something else. Two
+marks of its own, and exactly one of the paths matching that hash is **confirmed absent** from
+disk — conditions that each refuse a way this could take marks belonging to something else.
+
+"Confirmed absent" is doing real work there. `Path::exists` is the obvious spelling and the
+wrong one: it is `metadata(..).is_ok()`, so it answers "no" for an unplugged drive, a sleeping
+NAS, a directory whose ACL denies traversal, or an unhydrated cloud placeholder. Every one of
+those is a file that still exists and still owns its marks, and reading "no" as "renamed away"
+moved them onto an unrelated byte-identical copy — irreversibly, since the path they came from
+is overwritten by the move. `is_definitely_absent` requires `ErrorKind::NotFound`; anything else
+means the answer is unknown, and the only safe reading of unknown is to leave the marks alone.
+
+**All of a matching path's rows move, not only the ones whose hash matched.** That is
+deliberate: rows at a path all belong to that document, and the ones carrying an older hash are
+its orphaned marks, which should follow the file like the rest. Two
 identical files are left alone rather than guessed between: doing nothing loses no marks, while
 guessing puts a reader's notes on a file they never opened. A rename plus an edit is not
 recovered, because the hash is the only evidence there is.

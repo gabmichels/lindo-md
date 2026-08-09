@@ -464,6 +464,17 @@ export function DocumentView({
       role="region"
       aria-label={`${doc.title}, document content`}
     >
+      {annotations.error !== null && (
+        // A failed annotation used to be indistinguishable from a feature that
+        // does not exist: a load that rejected left no marks and said nothing, and
+        // a write that rejected made the menu row a no-op. Both are things the
+        // reader can usually act on — another copy of the app holding the
+        // database, a full disk — so both are said out loud. `role="alert"`
+        // because it appears in response to something they just did.
+        <div className="doc-notice" role="alert">
+          <span>{annotations.error}</span>
+        </div>
+      )}
       {blocked && (
         <div className="doc-notice">
           <span>Remote images are blocked so opening a document cannot report that you did.</span>

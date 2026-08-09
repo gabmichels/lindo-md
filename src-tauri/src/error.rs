@@ -63,10 +63,20 @@ pub enum LindoError {
     /// error type of every command in the app does not acquire a dependency on the
     /// database. The message is the whole value here anyway — there is no variant
     /// a caller would handle differently.
+    /// Deliberately does **not** tell the reader to move the file aside.
+    ///
+    /// It used to, for every failure alike — and most of them are transient: a
+    /// second copy of the app holding the database, a full disk, a roaming
+    /// profile that has not synced yet, or a file written by a newer build,
+    /// which this refuses on purpose. In every one of those the right move is to
+    /// wait, close the other program, or update. The advice actually given was
+    /// to shift the only copy of the reader's notes out of the way, which for
+    /// the newer-build case destroys exactly what the refusal exists to protect.
     #[error(
-        "The annotations database at {path} could not be opened: {message}. \
-         lindo-md will not replace it, because the notes in it are not \
-         recoverable from anywhere else. Move it aside to start fresh."
+        "The annotations database at {path} could not be opened: {message} \
+         Your highlights and notes are still in it, and lindo-md will not \
+         replace it. If another copy of lindo-md is running, close it and try \
+         again."
     )]
     AnnotationStore { path: String, message: String },
 
