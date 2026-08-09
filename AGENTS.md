@@ -835,6 +835,45 @@ only becomes a place on screen once its annotation has loaded and re-anchored �
 later. One field would mean whichever consumer ran first clearing the other's work. An orphan
 is consumed without scrolling, since there is nowhere honest to go.
 
+### Exporting a document with its marks in it
+
+"Export with notes…" writes a **copy** — the panel's share button or the palette. Nothing ever
+writes back to the document the marks were made on; that a file can be read without being
+changed is the premise the whole store rests on.
+
+**A highlight is written as `<mark class="lindo-yellow">`, not `==text==`.** The `==` spelling
+is prettier and is what Obsidian, Bear and Logseq use, but it is an extension *none* of comrak,
+GitHub or CommonMark implements — so a file full of it renders as literal equals signs in
+lindo-md itself. `<mark>` is plain HTML that all of them render, Obsidian included, and it is
+the only form with somewhere to keep the colour slot. Two tests hold this up: the sanitizer
+allowlist keeps `mark`, and `srcmap` keeps a paragraph containing one **annotatable**, so an
+exported document can be marked up again rather than being a dead end. A note becomes a
+footnote, which is the construct Markdown already has for "a remark attached to this phrase".
+
+Three rules in `lib/export/annotated.ts`, each of which is a way this goes wrong:
+
+- **Insertions are applied back to front.** Every offset was computed against the original
+  string, so inserting at the front first shifts everything after it — the first mark lands
+  right and each one after it drifts further. At one offset closings go in before openings, so
+  two adjacent marks read `</mark><mark>` instead of nesting into each other.
+- **Nested marks are written; crossing ones are not.** `<mark>` inside `<mark>` is legal.
+  `<mark>a<mark>b</mark>c` has no closing order any parser agrees on, and getting it wrong
+  corrupts everything after it — so the crossing mark is stranded instead.
+- **Nothing is dropped.** Orphans and stranded marks are listed under a heading at the end with
+  the words they were put on, and the count comes back to the caller so the panel can say so.
+  Silently losing a reader's note is the failure the whole feature exists to prevent.
+
+Footnote labels are namespaced `lindo-1`, and the prefix grows until nothing in the source
+matches it — the kitchen sink alone already uses `[^source]` and `[^second]`, and a real
+document is free to use `[^lindo-1]` too. A note is flattened to one paragraph, because a
+footnote definition continues only while its lines stay indented and a second paragraph would
+silently become body text of the document.
+
+`resolveAll` in `lib/annotate/resolve.ts` is shared by the view and the export deliberately: both
+answer "still there / moved / gone" about the same document, and a second implementation of that
+is a second one to get wrong. The export resolves against the file **as it is now**, so a mark
+that moved is exported where it moved to.
+
 Annotations are keyed by canonicalized path, so renaming or moving a file cuts them loose.
 `annotations::relink` is what finds them again, and the evidence it goes on is the **content
 hash** every annotation already carries as `anchored_hash`. It acts only when this path has no

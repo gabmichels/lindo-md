@@ -130,6 +130,14 @@ pub fn write_html_file(path: String, contents: String) -> LindoResult<()> {
     export::write_html(&PathBuf::from(path), &contents)
 }
 
+/// Writes the document with its annotations written into it, to a path the
+/// reader named in a save dialog. Never to the document's own path — the
+/// annotation store's whole premise is that reading a file does not change it.
+#[tauri::command]
+pub fn write_markdown_file(path: String, contents: String) -> LindoResult<()> {
+    export::write_markdown(&PathBuf::from(path), &contents)
+}
+
 /// The documents the OS has handed us and the window has not collected yet — the
 /// launch argument, a double-clicked file, an "Open with". Empty for a normal
 /// launch. Collecting drains the queue; see `assoc::OpenQueue` for why there is

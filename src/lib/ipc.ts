@@ -280,6 +280,13 @@ export function writeHtmlFile(path: string, contents: string): Promise<void> {
   return call("write_html_file", NothingSchema, { path, contents });
 }
 
+/** Writes the document with its annotations written in, to a path the reader
+ *  chose. Rust refuses anything that is not a Markdown extension, so an export
+ *  always lands as a file this app can open — and still annotate — again. */
+export function writeMarkdownFile(path: string, contents: string): Promise<void> {
+  return call("write_markdown_file", NothingSchema, { path, contents });
+}
+
 // --- annotations -------------------------------------------------------------
 // Storage only. Whether an annotation still points at the words it was put on is
 // decided in `lib/annotate/anchor.ts`, against the document's own source — Rust

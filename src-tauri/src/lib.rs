@@ -141,6 +141,7 @@ pub fn run() {
             commands::read_theme_file,
             commands::write_theme_file,
             commands::write_html_file,
+            commands::write_markdown_file,
             commands::get_pending_documents,
             commands::get_default_app_status,
             commands::request_default_app,

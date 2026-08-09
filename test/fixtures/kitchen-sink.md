@@ -220,6 +220,9 @@ Hidden until opened, and containing **markdown** of its own.
 
 Press <kbd>Ctrl</kbd> + <kbd>F</kbd> to search.
 
+A <mark class="lindo-yellow">highlighted phrase</mark>, which is what an annotated
+export writes a mark as — so reopening one of those lands here.
+
 ## Images
 
 A local image, relative to this file:

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useAnnotationRevision } from "@/hooks/useAnnotationRevision";
-import { createAnchor, overlaps, resolveAnchor } from "@/lib/annotate/anchor";
+import { createAnchor, overlaps } from "@/lib/annotate/anchor";
 import {
   applyHighlights,
   clearHighlights,
@@ -9,6 +9,7 @@ import {
   supportsHighlights,
   type PaintableMark,
 } from "@/lib/annotate/paint";
+import { resolveAll, type ResolvedAnnotation } from "@/lib/annotate/resolve";
 import type { SourceRange } from "@/lib/edit/selection";
 import {
   createAnnotation,
@@ -16,9 +17,7 @@ import {
   listAnnotations,
   relinkAnnotations,
   reanchorAnnotations,
-  type Annotation,
   type Document,
-  type Reanchor,
 } from "@/lib/ipc";
 
 /**
@@ -31,12 +30,10 @@ import {
  * again — the search is the expensive path and it is supposed to run once.
  */
 
-/** An annotation plus where it actually is now, or null if it could not be
- *  found. An orphan stays in the list: it is the reader's note, and dropping it
- *  because a sentence was reworded would be losing data to a rewording. */
-export interface ResolvedAnnotation extends Annotation {
-  range: SourceRange | null;
-}
+/** Re-exported where it has always been imported from. An orphan stays in the
+ *  list: it is the reader's note, and dropping it because a sentence was
+ *  reworded would be losing data to a rewording. */
+export type { ResolvedAnnotation };
 
 export interface AnnotationState {
   marks: ResolvedAnnotation[];
@@ -164,36 +161,17 @@ export function useAnnotations(
       }
       if (!live.current) return;
 
-      // Where a caret can go, taken from the block map. Without it the search
-      // re-finds a quote inside a link target or a fence and then freezes there.
+      // Resolved through the shared rule rather than a copy of it: the annotated
+      // export has to answer the same question about the same document, and a
+      // second implementation of "still there / moved / gone" is a second one to
+      // get wrong.
       //
-      // Read through a ref rather than named as a dependency: `blocks` is a fresh
-      // array on every `Document`, so depending on it would re-run the whole load
-      // for a reload that changed nothing. It always describes the same document
-      // as the `source` and `contentHash` this run was started for, because all
-      // three come off one object that is replaced atomically.
-      const covered = blocks.current.flatMap((block) =>
-        block.runs.map((run) => ({ start: run.sourceStart, end: run.sourceEnd })),
-      );
-
-      const resolved: ResolvedAnnotation[] = [];
-      const moved: Reanchor[] = [];
-      for (const annotation of stored) {
-        const outcome = resolveAnchor(source, contentHash, annotation, covered);
-        if (outcome.status === "orphaned") {
-          resolved.push({ ...annotation, range: null });
-          continue;
-        }
-        resolved.push({ ...annotation, range: outcome.range });
-        if (outcome.status === "moved") {
-          moved.push({
-            id: annotation.id,
-            startOffset: outcome.range.start,
-            endOffset: outcome.range.end,
-            anchoredHash: contentHash,
-          });
-        }
-      }
+      // `blocks` is read through a ref rather than named as a dependency: it is a
+      // fresh array on every `Document`, so depending on it would re-run the whole
+      // load for a reload that changed nothing. It always describes the same
+      // document as the `source` and `contentHash` this run was started for,
+      // because all three come off one object that is replaced atomically.
+      const { resolved, moved } = resolveAll(source, contentHash, blocks.current, stored);
 
       describes.current = key(path!, contentHash);
       setMarks(resolved);

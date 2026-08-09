@@ -157,6 +157,19 @@ pub fn write_html(path: &Path, contents: &str) -> LindoResult<()> {
     write(path, contents)
 }
 
+/// The document with its annotations written into it.
+///
+/// Exactly the extensions `files` treats as Markdown, taken from that list
+/// rather than restated, so an export always lands as a file this app can open
+/// again — and, since a mark leaves as `<mark>`, one it can still annotate. It
+/// writes a *copy* the reader named in a dialog; nothing here ever writes back
+/// to the document the marks were made on.
+pub fn write_markdown(path: &Path, contents: &str) -> LindoResult<()> {
+    require_extension(path, &crate::files::MARKDOWN_EXTENSIONS)?;
+    require_safe_target(path, true)?;
+    write(path, contents)
+}
+
 fn write(path: &Path, contents: &str) -> LindoResult<()> {
     std::fs::write(path, contents).map_err(|source| LindoError::WriteFile {
         path: path.display().to_string(),
@@ -202,6 +215,33 @@ mod tests {
         for path in ["a.ps1", "a.exe", "id_rsa", "a.json.txt", "a"] {
             assert!(
                 require_extension(Path::new(path), &["json"]).is_err(),
+                "{path} should be refused"
+            );
+        }
+    }
+
+    /// An annotated export must land somewhere this app can open again.
+    /// Restating the list here would let the two drift; asking the same constant
+    /// twice is what keeps them together.
+    #[test]
+    fn a_markdown_export_accepts_every_extension_a_document_can_have() {
+        for extension in crate::files::MARKDOWN_EXTENSIONS {
+            assert!(
+                require_extension(
+                    Path::new(&format!("a.{extension}")),
+                    &crate::files::MARKDOWN_EXTENSIONS
+                )
+                .is_ok(),
+                ".{extension} opens as a document but was refused as an export target"
+            );
+        }
+        // And nothing else, least of all the two the app opens read-only: MDX is
+        // not Markdown to this app, and a `.txt` has no source map, so writing an
+        // annotated document to either would produce a file whose marks it could
+        // never resolve.
+        for path in ["a.mdx", "a.txt", "a.html", "a.ps1"] {
+            assert!(
+                require_extension(Path::new(path), &crate::files::MARKDOWN_EXTENSIONS).is_err(),
                 "{path} should be refused"
             );
         }
