@@ -5,26 +5,10 @@
    design system from the chrome and shares nothing with it but the cascade. */
 @import "./document.css";
 
-/* Bundled reading faces. @font-face declarations only trigger a download once a
-   family is actually referenced, so importing the whole library here costs
-   nothing until a theme selects one. Everything ships with the app — lindo-md
-   never touches the network. */
-@import "@fontsource-variable/source-serif-4";
-@import "@fontsource-variable/literata";
-@import "@fontsource-variable/newsreader";
-@import "@fontsource-variable/eb-garamond";
-@import "@fontsource-variable/lora";
-@import "@fontsource-variable/inter-tight";
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/source-sans-3";
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/600.css";
-@import "@fontsource/atkinson-hyperlegible/400.css";
-@import "@fontsource/atkinson-hyperlegible/700.css";
-@import "@fontsource-variable/jetbrains-mono";
-@import "@fontsource-variable/source-code-pro";
-@import "@fontsource/ibm-plex-mono/400.css";
-@import "@fontsource/ibm-plex-mono/600.css";
+/* Bundled reading faces — generated, see scripts/fonts.mjs. @font-face declares a
+   family without loading it, so the whole library costs nothing until a theme
+   selects one. Everything ships with the app; lindo-md never touches the network. */
+@import "./fonts.css";
 
 /* ===========================================================================
    TOKENS
@@ -149,6 +133,11 @@
   --doc-table-pad-last: 0px;
   --doc-table-stripe: transparent;
   --doc-code-wrap: pre;
+
+  --doc-heading-tracking: -0.02em;
+  --doc-heading-leading: 1.22;
+  --doc-image-radius: 6px;
+  --doc-image-frame: transparent;
 
   /* The reader's view, not the theme's (lib/theme/apply.ts, `viewTokens`).
      Defaulted here so the first paint is a standard-width page before React has

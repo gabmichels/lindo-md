@@ -1,4 +1,10 @@
-import { DEFAULT_VIEW, docTokens, viewTokens, type DocView } from "../theme/apply";
+import {
+  DEFAULT_VIEW,
+  componentAttributes,
+  docTokens,
+  viewTokens,
+  type DocView,
+} from "../theme/apply";
 import { isSafeCssValue, type Theme } from "../theme/schema";
 import { isOpenablePath, splitFragment } from "../utils";
 
@@ -44,8 +50,16 @@ export function buildStandaloneHtml(options: ExportOptions): string {
     .map(([property, value]) => `      ${property}: ${value};`)
     .join("\n");
 
+  // The component choices are attributes rather than tokens, so they ride on the
+  // root element instead of the `:root` block. Values come from a closed set of
+  // enums and so cannot carry an escape — which is why they need no filtering the
+  // way the token values above do.
+  const attributes = Object.entries(componentAttributes(theme))
+    .map(([attribute, value]) => `${attribute}="${value}"`)
+    .join(" ");
+
   return `<!doctype html>
-<html lang="en" data-appearance="${theme.appearance}" data-line-numbers="${theme.code.lineNumbers}" data-heading-numbers="${theme.layout.numberHeadings}">
+<html lang="en" data-appearance="${theme.appearance}" data-line-numbers="${theme.code.lineNumbers}" data-heading-numbers="${theme.layout.numberHeadings}" ${attributes}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />

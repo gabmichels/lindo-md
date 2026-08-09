@@ -1,7 +1,9 @@
+import { DEFAULT_COMPONENTS } from "./schema";
 import type {
   Appearance,
   Theme,
   ThemeColors,
+  ThemeComponents,
   ThemeLayout,
   ThemePreset,
   ThemeTypography,
@@ -206,6 +208,7 @@ function theme(
   shikiTheme: string,
   typography: ThemeTypography = EDITORIAL,
   alerts?: ThemeColors["alert"],
+  components: ThemeComponents = DEFAULT_COMPONENTS,
 ): Theme {
   return {
     id,
@@ -214,6 +217,12 @@ function theme(
     colors: colorsFrom(palette, appearance, alerts),
     typography,
     layout: { ...LAYOUT, table: { ...LAYOUT.table } },
+    components: {
+      ...components,
+      heading: { ...components.heading },
+      code: { ...components.code },
+      image: { ...components.image },
+    },
     code: { shikiTheme, lineNumbers: false, wrap: false },
   };
 }
@@ -223,6 +232,9 @@ interface PresetSpec {
   name: string;
   note: string;
   typography?: ThemeTypography;
+  /** How the page's furniture is drawn. Shared by both halves of a preset: a
+   *  quotation does not change shape when the lights go out. */
+  components?: ThemeComponents;
   /** Only Colorblind Safe sets these. GitHub's five hues are the default
    *  because they are what readers recognise, and a preset that replaces them
    *  is saying it has a reason the palette cannot express. */
@@ -232,6 +244,7 @@ interface PresetSpec {
 
 function preset(spec: PresetSpec): ThemePreset {
   const typography = spec.typography ?? EDITORIAL;
+  const components = spec.components ?? DEFAULT_COMPONENTS;
   return {
     id: spec.id,
     name: spec.name,
@@ -244,6 +257,7 @@ function preset(spec: PresetSpec): ThemePreset {
       spec.light.shiki,
       typography,
       spec.light.alerts,
+      components,
     ),
     dark: theme(
       `${spec.id}-dark`,
@@ -253,6 +267,7 @@ function preset(spec: PresetSpec): ThemePreset {
       spec.dark.shiki,
       typography,
       spec.dark.alerts,
+      components,
     ),
   };
 }

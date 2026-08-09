@@ -160,6 +160,90 @@ export const ThemeLayoutSchema = z.object({
 });
 export type ThemeLayout = z.infer<typeof ThemeLayoutSchema>;
 
+/**
+ * How the page's furniture is drawn — quotes, rules, callouts, code, lists.
+ *
+ * These were constants in `document.css` until themes started needing to differ
+ * by more than palette. Eleven presets shared one typography set and one layout,
+ * so the entire difference between Nord and Everforest was hue: the pages were
+ * otherwise the same page. A theme is a voice, and a voice includes whether a
+ * quotation is a barred block or a hanging indent.
+ *
+ * Every field is an enum or a bounded number, never CSS. That is a security
+ * property as much as a design one: `isSafeCssValue` above exists because the
+ * HTML exporter writes theme values into a raw-text `<style>`, and a closed set
+ * of tokens cannot carry an escape at all. Enums land as `data-*` attributes on
+ * the document root — the pattern `data-heading-numbers` already established —
+ * and numbers land as custom properties.
+ *
+ * Every default reproduces exactly what the app drew before this group existed,
+ * so a theme file exported by an earlier build imports unchanged and looks the
+ * same.
+ */
+export const ThemeComponentsSchema = z.object({
+  heading: z
+    .object({
+      /** A rule under h1, h2, both, or neither. GitHub draws one under both and
+       *  it is the most recognisable thing about a README; nothing else here
+       *  changes a page's character for so little ink. */
+      rule: z.enum(["none", "h1", "h2", "h1-h2"]).default("none"),
+      /** Was hardcoded at `-0.02em` for every face. That is a sans setting: a
+       *  Garamond or a Newsreader at heading size wants nothing taken out, and
+       *  several presets were being tracked as though they were Inter. */
+      tracking: z.number().min(-0.06).max(0.06).default(-0.02),
+      leading: z.number().min(1).max(1.6).default(1.22),
+      /** h5 and h6. `uppercase` is what the app has always drawn; `small-caps`
+       *  is the serif answer to the same problem and needs a face with real
+       *  small caps to be worth choosing. */
+      minor: z.enum(["uppercase", "small-caps", "normal"]).default("uppercase"),
+    })
+    .default({ rule: "none", tracking: -0.02, leading: 1.22, minor: "uppercase" }),
+
+  /** `bar` is the rule-and-hang the app has always drawn. `hang` drops the rule
+   *  and sets the quote larger in the margin, which is the book and the Medium
+   *  answer. `card` is the tinted block a wiki uses. `plain` is italic alone. */
+  quote: z.enum(["bar", "hang", "card", "plain"]).default("bar"),
+
+  /** A thematic break. `asterism` (⁂) is the typographic form a book uses for a
+   *  scene change, and reads as punctuation rather than as a divider. */
+  rule: z.enum(["line", "short", "asterism", "space"]).default("line"),
+
+  code: z
+    .object({
+      /** `card` is the filled, rounded block. `flush` drops the fill for a left
+       *  rule, which stops a technical document reading as a stack of boxes.
+       *  `framed` keeps the outline and loses the fill. */
+      block: z.enum(["card", "flush", "framed"]).default("card"),
+      inline: z.enum(["tint", "outline", "bare"]).default("tint"),
+    })
+    .default({ block: "card", inline: "tint" }),
+
+  alert: z.enum(["bar", "card", "minimal"]).default("bar"),
+
+  /** `dash` sets an en dash for unordered markers, `outdent` hangs the marker in
+   *  the margin so the text edge stays flush — the book setting. */
+  list: z.enum(["default", "dash", "outdent"]).default("default"),
+
+  /** Table headers have always been uppercase and tracked. That is right for a
+   *  data table and wrong in a serif theme, where it is the one shouting thing
+   *  on an otherwise quiet page. */
+  tableHead: z.enum(["uppercase", "sentence"]).default("uppercase"),
+
+  image: z
+    .object({
+      radius: z.number().min(0).max(16).default(6),
+      /** A hairline around the image. Needed on a light theme where a photo with
+       *  a white edge otherwise bleeds into the paper. */
+      frame: z.boolean().default(false),
+    })
+    .default({ radius: 6, frame: false }),
+});
+export type ThemeComponents = z.infer<typeof ThemeComponentsSchema>;
+
+/** The defaults, as one object — presets spread it, and `apply.test.ts` uses it
+ *  to assert that an unset group still produces today's tokens. */
+export const DEFAULT_COMPONENTS: ThemeComponents = ThemeComponentsSchema.parse({});
+
 export const ThemeCodeSchema = z.object({
   /** A Shiki theme id. `lindo-md-house-light` / `-dark` are ours, built from
    *  the House tokens so code reads as part of the page; everything else is the
@@ -185,6 +269,19 @@ export const ThemeSchema = z.object({
     pagePadding: 2,
     numberHeadings: false,
     table: { density: "comfortable", rules: "hairline", zebra: false },
+  }),
+  /** Defaulted for the same reason `layout` is: every field reproduces what the
+   *  app drew before the group existed, so an older theme file imports and looks
+   *  identical rather than merely parsing. */
+  components: ThemeComponentsSchema.default({
+    heading: { rule: "none", tracking: -0.02, leading: 1.22, minor: "uppercase" },
+    quote: "bar",
+    rule: "line",
+    code: { block: "card", inline: "tint" },
+    alert: "bar",
+    list: "default",
+    tableHead: "uppercase",
+    image: { radius: 6, frame: false },
   }),
   code: ThemeCodeSchema,
 });

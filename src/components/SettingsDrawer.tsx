@@ -15,6 +15,7 @@ import {
   type SelectOption,
 } from "@/components/ui/controls";
 import { readThemeFile, writeThemeFile, type AppConfig, type AppearanceMode } from "@/lib/ipc";
+import { BUNDLED_FONTS, type BundledFont } from "@/lib/theme/fonts";
 import { PRESETS } from "@/lib/theme/presets";
 import { forkTheme, parseThemeFile, serializeTheme } from "@/lib/theme/io";
 import type {
@@ -50,26 +51,47 @@ interface SettingsDrawerProps {
   onUpdateConfig: (patch: Partial<AppConfig>) => void;
 }
 
-const BODY_FONTS: SelectOption[] = [
-  { value: '"Source Serif 4 Variable", Georgia, serif', label: "Source Serif 4" },
-  { value: '"Literata Variable", Georgia, serif', label: "Literata" },
-  { value: '"Newsreader Variable", Georgia, serif', label: "Newsreader" },
-  { value: '"EB Garamond Variable", Georgia, serif', label: "EB Garamond" },
-  { value: '"Lora Variable", Georgia, serif', label: "Lora" },
-  { value: '"Inter Variable", system-ui, sans-serif', label: "Inter" },
-  { value: '"Inter Tight Variable", system-ui, sans-serif', label: "Inter Tight" },
-  { value: '"Source Sans 3 Variable", system-ui, sans-serif', label: "Source Sans 3" },
-  { value: '"IBM Plex Sans", system-ui, sans-serif', label: "IBM Plex Sans" },
-  { value: '"Atkinson Hyperlegible", system-ui, sans-serif', label: "Atkinson Hyperlegible" },
-  { value: "system-ui, sans-serif", label: "System UI" },
-].map((option) => ({ ...option, fontFamily: option.value }));
+/**
+ * The picker's lists, from `BUNDLED_FONTS` — which `scripts/fonts.mjs` writes
+ * from the same manifest that generates the `@font-face` rules. A family cannot
+ * be offered here without being bundled, or bundled without being offered.
+ *
+ * Every option previews in its own face. The system entries are last in each
+ * list and preview in whatever the OS supplies, which is the honest preview.
+ */
+const GROUP_LABEL: Record<BundledFont["role"], string> = {
+  serif: "Serif",
+  sans: "Sans",
+  mono: "Monospace",
+};
 
-const MONO_FONTS: SelectOption[] = [
-  { value: '"JetBrains Mono Variable", ui-monospace, monospace', label: "JetBrains Mono" },
-  { value: '"Source Code Pro Variable", ui-monospace, monospace', label: "Source Code Pro" },
-  { value: '"IBM Plex Mono", ui-monospace, monospace', label: "IBM Plex Mono" },
-  { value: "ui-monospace, monospace", label: "System Monospace" },
-].map((option) => ({ ...option, fontFamily: option.value }));
+function fontOptions(...roles: BundledFont["role"][]): SelectOption[] {
+  return roles.flatMap((role) =>
+    BUNDLED_FONTS.filter((font) => font.role === role).map((font) => ({
+      value: font.value,
+      label: font.label,
+      fontFamily: font.value,
+      group: GROUP_LABEL[role],
+    })),
+  );
+}
+
+const SYSTEM_SANS: SelectOption = {
+  value: "system-ui, sans-serif",
+  label: "System UI",
+  fontFamily: "system-ui, sans-serif",
+  group: "System",
+};
+
+const SYSTEM_MONO: SelectOption = {
+  value: "ui-monospace, monospace",
+  label: "System Monospace",
+  fontFamily: "ui-monospace, monospace",
+  group: "System",
+};
+
+const BODY_FONTS: SelectOption[] = [...fontOptions("serif", "sans"), SYSTEM_SANS];
+const MONO_FONTS: SelectOption[] = [...fontOptions("mono"), SYSTEM_MONO];
 
 const COLOR_FIELDS: { key: keyof Omit<ThemeColors, "alert">; label: string }[] = [
   { key: "bg", label: "Page" },

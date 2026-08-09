@@ -59,7 +59,7 @@ export function viewTokens(view: DocView): Record<string, string> {
 }
 
 export function docTokens(theme: Theme): Record<string, string> {
-  const { colors, typography: type, layout } = theme;
+  const { colors, typography: type, layout, components } = theme;
   const compactTable = layout.table.density === "compact";
 
   const tokens: Record<string, string> = {
@@ -113,6 +113,13 @@ export function docTokens(theme: Theme): Record<string, string> {
       : "transparent",
 
     "--doc-code-wrap": theme.code.wrap ? "pre-wrap" : "pre",
+
+    // Heading metrics were constants in document.css, which meant every serif
+    // preset was tracked at a sans face's -0.02em.
+    "--doc-heading-tracking": `${components.heading.tracking}em`,
+    "--doc-heading-leading": `${components.heading.leading}`,
+    "--doc-image-radius": `${components.image.radius}px`,
+    "--doc-image-frame": components.image.frame ? "var(--doc-border)" : "transparent",
   };
 
   HEADING_EXPONENTS.forEach((exponent, index) => {
@@ -159,7 +166,37 @@ export function applyTheme(theme: Theme, target: HTMLElement, view: Partial<DocV
   // Heading numbers are CSS counters rather than a token, because a counter
   // cannot be expressed as a value the way every other setting here can.
   target.dataset.headingNumbers = String(theme.layout.numberHeadings);
+  for (const [attribute, value] of Object.entries(componentAttributes(theme))) {
+    target.setAttribute(attribute, value);
+  }
   target.style.colorScheme = theme.appearance;
+}
+
+/**
+ * The component choices, as `data-*` attributes.
+ *
+ * A rule and a value are different things: `quote: "hang"` does not set a
+ * property, it selects a different set of rules in `document.css`. Expressing
+ * those as attributes rather than as tokens keeps the stylesheet the one place
+ * that knows what a hanging quotation looks like — the alternative is a dozen
+ * tokens per component, most of them `initial`, written from here.
+ *
+ * Shared with the HTML exporter, which stamps the same attributes on `<html>` so
+ * an exported file is the page it was exported from.
+ */
+export function componentAttributes(theme: Theme): Record<string, string> {
+  const { components: parts } = theme;
+  return {
+    "data-heading-rule": parts.heading.rule,
+    "data-heading-minor": parts.heading.minor,
+    "data-quote": parts.quote,
+    "data-rule": parts.rule,
+    "data-code-block": parts.code.block,
+    "data-code-inline": parts.code.inline,
+    "data-alert": parts.alert,
+    "data-list": parts.list,
+    "data-table-head": parts.tableHead,
+  };
 }
 
 /**

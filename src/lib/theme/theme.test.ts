@@ -1,7 +1,14 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { applyTheme, docTokens, mermaidThemeVariables, viewTokens, type DocView } from "./apply";
+import {
+  applyTheme,
+  componentAttributes,
+  docTokens,
+  mermaidThemeVariables,
+  viewTokens,
+  type DocView,
+} from "./apply";
 import { toHex } from "./color";
 import { DEFAULT_PRESET_ID, PRESETS, findPreset, resolveTheme } from "./presets";
 import { ThemeFileSchema, ThemeSchema, type Theme } from "./schema";
@@ -435,6 +442,19 @@ describe("the two token namespaces stay apart", () => {
       // Heading sizes are computed per theme, not defaulted in CSS.
       if (/^--doc-h\d$/.test(property)) continue;
       expect(css, `${property} has no default in styles.css`).toContain(`${property}:`);
+    }
+  });
+
+  it("gives index.html a House default for every component attribute", () => {
+    // The same first-paint rule as the tokens above, and a sharper one: a token
+    // that is missing falls back to the House value in styles.css, but an
+    // attribute that is missing matches no rule at all — a quotation would paint
+    // with no bar, a code block with no card, until React mounts.
+    const html = readFileSync("index.html", "utf8");
+    for (const [attribute, value] of Object.entries(componentAttributes(house.light))) {
+      expect(html, `${attribute} is not defaulted in index.html`).toContain(
+        `${attribute}="${value}"`,
+      );
     }
   });
 });
