@@ -113,6 +113,54 @@ describe("cleanedMarkup", () => {
     expect(markup).toContain("Body");
   });
 
+  it("carries the frontmatter into the file, open", () => {
+    const html = buildStandaloneHtml({
+      title: "Guide",
+      theme,
+      article: article("<h1>Guide</h1>"),
+      documentCss: "",
+      frontmatter: "title: Guide\nstatus: draft",
+    });
+
+    expect(html).toContain(`<details class="doc-frontmatter" open>`);
+    expect(html).toContain("status: draft");
+    // Before the article, the same order it is read in on screen.
+    expect(html.indexOf("doc-frontmatter")).toBeLessThan(html.indexOf("<h1"));
+  });
+
+  it("adds nothing when a document has no frontmatter", () => {
+    const html = buildStandaloneHtml({
+      title: "Guide",
+      theme,
+      article: article("<h1>Guide</h1>"),
+      documentCss: "",
+      frontmatter: null,
+    });
+
+    expect(html).not.toContain("doc-frontmatter");
+  });
+
+  /**
+   * The one place in the exporter where *document text* becomes markup rather
+   * than being cloned from a DOM ammonia has already been through — the same
+   * shape of hazard as a theme token written into a literal `<style>`.
+   */
+  it("escapes frontmatter, which is whatever the file's author typed", () => {
+    const html = buildStandaloneHtml({
+      title: "Guide",
+      theme,
+      article: article("<h1>Guide</h1>"),
+      documentCss: "",
+      frontmatter: `title: </pre><script>alert(1)</script>\nx: "</details>"`,
+    });
+
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain("</pre><");
+    expect(html).toContain("&lt;script&gt;");
+    // Still one block, not one the document managed to close early.
+    expect(html.split("doc-frontmatter").length - 1).toBe(1);
+  });
+
   it("turns a wikilink into the link it would have been written as", () => {
     const element = article(
       `<a href="Design%20Notes" data-wikilink="true">Design Notes</a>` +

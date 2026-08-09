@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Document } from "@/lib/ipc";
 import type { Theme } from "@/lib/theme/schema";
 import { FormatMenu } from "@/components/FormatMenu";
+import { Frontmatter } from "@/components/Frontmatter";
 import { useDocumentTyping } from "@/hooks/useDocumentTyping";
 import { applyFormat, type FormatCommand } from "@/lib/edit/format";
 import { restoreSelection, selectionRange, type SourceRange } from "@/lib/edit/selection";
@@ -435,6 +436,22 @@ export function DocumentView({
           </button>
         </div>
       )}
+      {/* Above the article rather than under the title, and that is a constraint
+          rather than a preference: `mirror` tracks the article's top-level blocks
+          *positionally*, so a node inserted into `.doc` that comrak did not emit
+          makes every edit fall back to rebuilding the whole document. A sibling in
+          the scroller — the same place `.doc-notice` sits — costs nothing.
+
+          Hidden with the source view, where the raw file is on screen with its
+          frontmatter already in it. */}
+      {/* Truthy rather than `!== null`, to agree with the exporter: a document
+          that opens `---\n---` has *empty* frontmatter, and an empty disclosure
+          is a control with nothing behind it. Keyed on the path because
+          `<details>` holds its own open state — this component is reused when a
+          link re-points the same tab, so without the key the next document
+          arrives with its frontmatter already expanded. */}
+      {doc.frontmatter && draft === null && <Frontmatter key={doc.path} text={doc.frontmatter} />}
+
       {draft !== null && (
         <textarea
           ref={sourceRef}

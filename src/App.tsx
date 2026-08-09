@@ -359,6 +359,7 @@ function Shell() {
         theme,
         article,
         documentCss,
+        frontmatter: reading.frontmatter,
         view: { contentWidth: config.contentWidth },
       }),
     );
@@ -901,8 +902,16 @@ function useKeyboardShortcuts(
 
       if (!(event.ctrlKey || event.metaKey)) {
         // Typing in the find box or any other field must not scroll the page.
+        //
+        // `summary` and `button` are here because Space is *their* key: without
+        // them a keyboard user who tabs to a control and presses Space scrolls the
+        // document a page while the control does nothing, since `scrollByKey`
+        // maps " " to a page and calls `preventDefault`. The frontmatter
+        // disclosure is the first focusable control inside the scroller, which is
+        // what made it visible, but the copy buttons and the blocked-images button
+        // have always had the same problem.
         const target = event.target as HTMLElement | null;
-        if (target?.closest("input, textarea, [contenteditable]")) return;
+        if (target?.closest("input, textarea, [contenteditable], summary, button")) return;
         scrollByKey(event, handlers.scroller);
         return;
       }

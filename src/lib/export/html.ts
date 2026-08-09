@@ -23,6 +23,11 @@ export interface ExportOptions {
   article: HTMLElement;
   /** The document's own stylesheet, inlined verbatim. */
   documentCss: string;
+  /** The document's YAML frontmatter, or null. Carried into the file for the
+   *  same reason it is shown on screen: it is content the document has, and an
+   *  export that quietly drops it is the bug this was written to fix, moved to
+   *  another surface. */
+  frontmatter?: string | null;
   /** The reader's view. Only the width half of it is carried into the file: an
    *  export should be as wide as the page you were looking at, but zoom belongs
    *  to this window and has no meaning in someone else's browser. */
@@ -67,7 +72,7 @@ ${documentCss}
   </head>
   <body>
     <div class="doc-scroller">
-      <article class="doc">
+${frontmatterMarkup(options.frontmatter)}      <article class="doc">
 ${cleanedMarkup(article)}
       </article>
     </div>
@@ -122,6 +127,28 @@ function cleanedMarkup(article: HTMLElement): string {
   }
 
   return clone.innerHTML;
+}
+
+/**
+ * The frontmatter block, or nothing at all.
+ *
+ * The only place in this file where **document text** becomes markup rather than
+ * being cloned from a DOM that has already been through ammonia. `cleanedMarkup`
+ * works on nodes; this is a raw string off `Document.frontmatter`, which is
+ * whatever the file's author typed — so it is escaped here, and a
+ * `</pre><script>` in someone's YAML is text like everything else.
+ *
+ * Exported open, unlike on screen. A `<details>` in a file someone opens once in
+ * a browser has no memory of being clicked, and a collapsed block in a document
+ * nobody can navigate is just a hidden one.
+ */
+function frontmatterMarkup(frontmatter: string | null | undefined): string {
+  if (!frontmatter) return "";
+  return `      <details class="doc-frontmatter" open>
+        <summary>Frontmatter</summary>
+        <pre>${escapeHtml(frontmatter)}</pre>
+      </details>
+`;
 }
 
 /**
