@@ -51,6 +51,53 @@ export function Section({ title, children }: { title: string; children: ReactNod
   );
 }
 
+/**
+ * A collapsible run of `Section`s.
+ *
+ * The drawer was eight flat sections in one scroll, which worked until a theme
+ * gained eleven component controls. Grouping is structure inside the panel that
+ * already exists rather than a second surface — DESIGN.md's rule is that a visual
+ * setting belongs in the drawer, and that does not stop being true when there are
+ * more of them.
+ *
+ * `<details>` rather than state: it is disclosure, the browser already gives it
+ * keyboard handling and the right ARIA, and the open/closed state is genuinely
+ * ephemeral — nothing here is worth persisting to config.
+ */
+export function Group({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details open={defaultOpen} className="group border-t border-ui-hairline">
+      <summary
+        className={cn(
+          "flex cursor-default list-none items-center justify-between px-4 py-2.5",
+          "text-[12.5px] text-ui-text-muted transition-colors duration-[var(--ui-dur)]",
+          "hover:text-ui-text-strong focus-visible:outline-none focus-visible:text-ui-text-strong",
+          "[&::-webkit-details-marker]:hidden",
+        )}
+      >
+        {title}
+        <ChevronDown
+          size={13}
+          strokeWidth={1.5}
+          aria-hidden
+          className="opacity-60 transition-transform duration-[var(--ui-dur)] group-open:rotate-180"
+        />
+      </summary>
+      {/* The sections inside draw their own top hairline; the group's own rule
+          would otherwise double up with the first one's. */}
+      <div className="[&>section:first-child]:border-t-0">{children}</div>
+    </details>
+  );
+}
+
 export function Slider({
   value,
   min,

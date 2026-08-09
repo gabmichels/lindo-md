@@ -83,7 +83,8 @@ Every `--doc-*` value comes from the active theme. The default is **House**, our
 
 ## Type
 
-The tool speaks in small sans; the document speaks in serif. That contrast *is* the design.
+The tool speaks in small sans; the document speaks in whatever its theme says. That contrast *is*
+the design.
 
 **Tool** — Inter Tight. 13px rows, 12px secondary, 10.5px uppercase section labels at `+0.08em`
 tracking, tabular numerals everywhere a number can change.
@@ -92,6 +93,20 @@ tracking, tabular numerals everywhere a number can change.
 headings at `-0.02em`. Modular scale **1.22** — tighter than the usual 1.25, because a document
 viewer shows h1–h4 on one screen more often than a web page does. Heading margins follow an optical
 rhythm (space above a heading always exceeds space below it), not a uniform multiple.
+
+**Twenty-six bundled families**, generated into `src/fonts.css` by `scripts/fonts.mjs` — run
+`pnpm fonts` after editing its manifest. Three rules that file exists to enforce:
+
+- **Latin and latin-ext only.** Fontsource's package roots declare every subset Google ships;
+  Vite bundles every one of them into the installer whether or not the app can render the script.
+- **Italics are drawn, not slanted.** The package roots are upright-only, so until this existed
+  every `<em>` and every blockquote was a synthesised oblique.
+- **Take the `opsz` axis where a family has one.** It lives in the package's `opsz.css`, and the
+  browser applies it with no CSS asking — `font-optical-sizing: auto` is the initial value.
+
+The picker's list is generated from the same manifest (`src/lib/theme/fonts.ts`), and presets name
+faces through `face()`, which throws at module load. A family cannot be bundled without being
+offered, offered without being bundled, or named by a preset without existing.
 
 ## The page
 
@@ -103,6 +118,51 @@ width rather than capping the text forever.
 
 Content width is a **view** setting, stored in config beside zoom, never in a theme. A theme is a
 file people share; it must not carry someone else's window.
+
+## A theme is a voice, not a palette
+
+This used to say the opposite. Layout was one shared object across all presets, on the reasoning
+that a palette has no opinion about whether a table has vertical rules — which is true of a palette
+and false of a theme. The result was measurable: fifteen presets, four typography sets, eleven of
+them identical, so the whole difference between Nord and Everforest was hue.
+
+A theme now also owns `components` — the page's furniture:
+
+| Field | Choices |
+| --- | --- |
+| `heading.rule` | none, h1, h2, h1-h2 |
+| `heading.tracking` / `.leading` | numbers, previously constants in `document.css` |
+| `heading.minor` | uppercase, small-caps, normal (h6) |
+| `quote` | bar, hang, card, plain |
+| `rule` | line, short, asterism, space |
+| `code.block` / `.inline` | card / framed / flush, tint / outline / bare |
+| `alert` | bar, card, minimal |
+| `list` | default, dash, outdent |
+| `tableHead` | uppercase, sentence |
+| `image` | radius, frame |
+
+Three rules hold it together:
+
+1. **Enums and bounded numbers, never CSS.** This is a security property as much as a design one:
+   the HTML exporter writes theme values into a raw-text `<style>`, and a closed set cannot carry
+   an escape. It is why `isSafeCssValue` has nothing to do here.
+2. **Enums become `data-*` attributes on the document root; numbers become `--doc-*` tokens.** A
+   rule and a value are different things — `quote: "hang"` selects a different set of rules rather
+   than setting a property, and `document.css` stays the one place that knows what a hanging
+   quotation looks like.
+3. **Every default reproduces what the app drew before the group existed**, so a theme file
+   exported by an older build imports and looks identical rather than merely parsing.
+
+The attributes are also stamped on `<html>` in `index.html`. That is not decoration: a missing
+token falls back to the House value in `styles.css`, but a missing *attribute* matches no rule at
+all, so the first paint before React mounts would draw a quotation with no mark. `theme.test.ts`
+fails if `index.html` and `componentAttributes` drift, and a separate test fails if any two presets
+share a body face, size and measure — the regression this whole group exists to prevent is one no
+schema can notice.
+
+`numberHeadings` is deliberately **not** part of a preset's identity. It changes what the document
+says rather than how it looks, and a theme deciding your spec is numbered is a theme editing your
+content.
 
 One thing to know before editing `document.css`: block rules use `margin-block`, not the
 `margin: x 0` shorthand. The shorthand also resets the inline margins, which is a side effect no
@@ -146,6 +206,13 @@ needs to watch a paragraph while deciding whether the rail shows dotfiles.
 
 That is the whole rule. A visual setting belongs in the drawer; anything else belongs in the dialog.
 Merging them would give half the controls a shape that only the other half earns.
+
+The drawer's sections are grouped under collapsible headings — Page, Type, Page furniture, Colors —
+with the theme gallery and appearance above them and the theme file below. Eight flat sections in
+one scroll worked until a theme could restyle its own furniture; the grouping is structure inside
+the panel that already exists, not a third surface. Page and Type open by default because they are
+what a reader came to adjust. `<details>`, not state: the browser brings the keyboard handling and
+the ARIA, and nothing here is worth writing to config.
 
 `Ctrl / ⌘ + ,` opens the dialog — the conventional meaning — and `Ctrl / ⌘ + Shift + ,` the drawer.
 

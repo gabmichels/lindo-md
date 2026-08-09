@@ -10,6 +10,7 @@ import {
   type DocView,
 } from "./apply";
 import { toHex } from "./color";
+import { BUNDLED_FONTS } from "./fonts";
 import { DEFAULT_PRESET_ID, PRESETS, findPreset, resolveTheme } from "./presets";
 import { ThemeFileSchema, ThemeSchema, type Theme } from "./schema";
 import { HOUSE_THEMES } from "./shiki-house";
@@ -17,6 +18,58 @@ import { HOUSE_THEMES } from "./shiki-house";
 const house = findPreset("house")!;
 
 describe("presets", () => {
+  it("gives every preset a voice no other preset already has", () => {
+    // The regression this guards is the state the theme gallery was in before:
+    // fifteen presets, four typography sets, eleven of them identical. Nothing
+    // was broken and every test passed — the themes were simply the same page in
+    // different colours, which is not something a schema can notice.
+    //
+    // The face, the size and the measure are the three that have to be chosen
+    // together, so they are what identity is measured on. Two presets may share
+    // one or two of them; sharing all three means one of them has nothing to say.
+
+    // The one deliberate exception. GitHub Dimmed is not a theme that resembles
+    // GitHub — it is github.com with the contrast taken off, which is how GitHub
+    // itself ships it. Giving the two different type would claim a difference
+    // that is not there. Listed rather than skipped so adding a third lookalike
+    // is a decision someone has to write down.
+    const SAME_PRODUCT = new Set(["github-dimmed"]);
+
+    const seen = new Map<string, string>();
+    for (const preset of PRESETS) {
+      const { bodyFont, baseSize, measure } = preset.light.typography;
+      const voice = `${bodyFont} @ ${baseSize}px / ${measure}ch`;
+      const owner = seen.get(voice);
+      if (!SAME_PRODUCT.has(preset.id)) {
+        expect(owner, `${preset.id} is set exactly like ${owner} — ${voice}`).toBeUndefined();
+      }
+      seen.set(voice, preset.id);
+    }
+  });
+
+  it("keeps both halves of a preset the same page", () => {
+    // Turning the lights off changes the palette. It does not change the measure,
+    // move the quotation marks or restyle the tables.
+    for (const preset of PRESETS) {
+      expect(preset.dark.typography, preset.id).toEqual(preset.light.typography);
+      expect(preset.dark.components, preset.id).toEqual(preset.light.components);
+      expect(preset.dark.layout, preset.id).toEqual(preset.light.layout);
+    }
+  });
+
+  it("names only bundled faces", () => {
+    // `face()` throws at module load, so this cannot fail through a preset — it
+    // is here for a custom or imported theme's sake, and to fail loudly if the
+    // generated list and the manifest ever stop agreeing.
+    const bundled = new Set(BUNDLED_FONTS.map((font) => font.value));
+    for (const preset of PRESETS) {
+      const { bodyFont, headingFont, monoFont } = preset.light.typography;
+      for (const font of [bodyFont, headingFont, monoFont]) {
+        expect(bundled.has(font), `${preset.id} names unbundled face "${font}"`).toBe(true);
+      }
+    }
+  });
+
   it("every half of every preset satisfies the schema", () => {
     for (const preset of PRESETS) {
       for (const half of ["light", "dark"] as const) {
@@ -45,34 +98,18 @@ describe("presets", () => {
     expect(findPreset(DEFAULT_PRESET_ID)).toBeDefined();
   });
 
-  it("names a Shiki theme that is either House's own or a bundled id", () => {
+  it("names a Shiki theme that is either House's own or a bundled id", async () => {
     // A typo here would silently fall back to plain text at runtime, which looks
     // like "highlighting is broken" rather than "the theme id is wrong".
-    const bundled = new Set([
-      "github-light",
-      "github-dark",
-      "github-light-default",
-      "github-dark-dimmed",
-      "github-light-high-contrast",
-      "github-dark-high-contrast",
-      "solarized-light",
-      "solarized-dark",
-      "nord",
-      "dracula",
-      "one-light",
-      "one-dark-pro",
-      "tokyo-night",
-      "catppuccin-latte",
-      "catppuccin-mocha",
-      "gruvbox-light-medium",
-      "gruvbox-dark-medium",
-      "rose-pine",
-      "rose-pine-dawn",
-      "everforest-light",
-      "everforest-dark",
-      "vitesse-light",
-      "vitesse-dark",
-    ]);
+    //
+    // Checked against Shiki's own manifest rather than a list kept by hand here.
+    // The hand-kept version had to be extended every time a preset was added,
+    // which made it a second place to get the id wrong — a list whose job is to
+    // catch drift should not be a thing that drifts.
+    // Dynamic, because AGENTS.md forbids a static Shiki import anywhere in the
+    // source tree — it is what keeps the highlighter out of the entry chunk.
+    const { bundledThemesInfo } = await import("shiki/themes");
+    const bundled = new Set(bundledThemesInfo.map((entry) => entry.id));
 
     for (const preset of PRESETS) {
       for (const half of ["light", "dark"] as const) {
