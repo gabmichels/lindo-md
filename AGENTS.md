@@ -151,6 +151,19 @@ the response with a zod schema, and attaches the command name to any parse failu
 `#[serde(rename_all = "camelCase")]`; Tauri converts argument names, so Rust `snake_case` parameters
 are called with `camelCase` keys.
 
+**A command that returns nothing is parsed with `NothingSchema`, never `z.void()`.** Tauri
+serializes Rust's `()` to JSON `null`, and `z.void()` accepts only `undefined` — so every one of
+the seven commands returning `LindoResult<()>` did its work in Rust and then threw on the way
+back, from the day each was written. What hid it was the callers: `setConfig`, `watchPaths` and
+`reanchorAnnotations` are `.catch(() => undefined)`, so the config was written, the watch was
+registered and the re-anchoring was persisted while all three reported failure to nobody. Both
+exporters lost only their confirmation — the file was on disk and "Exported to …" never appeared —
+and "Make lindo-md the default" opened the OS page *and* showed an error. It surfaced only when
+annotations became the first feature to put an IPC rejection in front of a reader, as a deleted
+highlight coming back with `delete_annotation returned an unexpected shape` beneath it. The lesson
+is not about zod: **a rejection that every caller swallows is a bug with no upper bound on how long
+it lives**, and the thing that found this one was the first caller that refused to swallow it.
+
 ## TypeScript
 
 `pnpm knip` finds what nothing imports. Two settings in `knip.json` are load-bearing and both

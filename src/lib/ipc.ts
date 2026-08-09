@@ -35,6 +35,33 @@ async function call<T>(
   return parseOrThrow(command, schema, await invoke(command, args));
 }
 
+/**
+ * What a command that returns nothing hands back.
+ *
+ * **`z.void()` is the wrong schema here, and every use of it was a rejection.**
+ * Tauri serializes Rust's `()` to JSON `null`, and `z.void()` accepts only
+ * `undefined` — so all seven commands returning `LindoResult<()>` did their work
+ * in Rust and then threw on the way back, for the whole life of each one.
+ *
+ * It stayed invisible because of what the callers do with the rejection rather
+ * than because it was rare: `setConfig`, `watchPaths` and `reanchorAnnotations`
+ * are `.catch(() => undefined)`, so the settings were written, the watch was
+ * registered and the re-anchoring was persisted while every one of them reported
+ * failure to nobody. The two exports lost only their confirmation — the file was
+ * on disk and "Exported to …" never appeared — and "Make lindo-md the default"
+ * opened the OS page *and* showed an error. `deleteAnnotation` is the one that
+ * finally said it out loud, because annotations are the first feature to put an
+ * IPC failure in front of the reader: the mark came back and the notice read
+ * `delete_annotation returned an unexpected shape`.
+ *
+ * `null` and `undefined` are both accepted, so this keeps working if Tauri ever
+ * changes its mind; anything else is refused, because a command that starts
+ * returning data is exactly the drift this file parses for.
+ */
+export const NothingSchema = z
+  .union([z.null(), z.undefined()])
+  .transform((): undefined => undefined);
+
 // --- documents --------------------------------------------------------------
 
 export const HeadingSchema = z.object({
@@ -157,7 +184,7 @@ export function scanFolder(
  *  visible one, so a background tab still live-reloads. An empty list and no
  *  folder stops watching. */
 export function watchPaths(documents: string[], folder: string | null): Promise<void> {
-  return call("watch_paths", z.void(), { documents, folder });
+  return call("watch_paths", NothingSchema, { documents, folder });
 }
 
 // --- settings ---------------------------------------------------------------
@@ -224,7 +251,7 @@ export function getConfig(): Promise<AppConfig> {
 }
 
 export function setConfig(config: AppConfig): Promise<void> {
-  return call("set_config", z.void(), { config });
+  return call("set_config", NothingSchema, { config });
 }
 
 export type { Theme };
@@ -245,11 +272,11 @@ export function readThemeFile(path: string): Promise<string> {
 }
 
 export function writeThemeFile(path: string, contents: string): Promise<void> {
-  return call("write_theme_file", z.void(), { path, contents });
+  return call("write_theme_file", NothingSchema, { path, contents });
 }
 
 export function writeHtmlFile(path: string, contents: string): Promise<void> {
-  return call("write_html_file", z.void(), { path, contents });
+  return call("write_html_file", NothingSchema, { path, contents });
 }
 
 // --- annotations -------------------------------------------------------------
@@ -338,11 +365,11 @@ export function createAnnotation(annotation: NewAnnotation): Promise<Annotation>
  *  on every load. Applied in one transaction: half a document's marks agreeing
  *  with the new file and half still claiming the old hash is worse than none. */
 export function reanchorAnnotations(updates: Reanchor[]): Promise<void> {
-  return call("reanchor_annotations", z.void(), { updates });
+  return call("reanchor_annotations", NothingSchema, { updates });
 }
 
 export function deleteAnnotation(id: number): Promise<void> {
-  return call("delete_annotation", z.void(), { id });
+  return call("delete_annotation", NothingSchema, { id });
 }
 
 // `all_annotations` and `update_annotation` are registered in Rust and reached
@@ -372,7 +399,7 @@ export function getDefaultAppStatus(): Promise<DefaultAppStatus> {
 /** Opens the OS settings page for the association. It cannot be changed from
  *  inside the app — Windows blocks that by design. */
 export function requestDefaultApp(): Promise<void> {
-  return call("request_default_app", z.void());
+  return call("request_default_app", NothingSchema);
 }
 
 // --- events -----------------------------------------------------------------
