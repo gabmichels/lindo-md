@@ -130,7 +130,7 @@ A theme now also owns `components` — the page's furniture:
 
 | Field | Choices |
 | --- | --- |
-| `heading.rule` | none, h1, h2, h1-h2 |
+| `heading.rule` | none, h1, h2, h1-h2 — GitHub's underline, the most recognisable tell there is |
 | `heading.tracking` / `.leading` | numbers, previously constants in `document.css` |
 | `heading.minor` | uppercase, small-caps, normal (h6) |
 | `quote` | bar, hang, card, plain |
@@ -143,22 +143,32 @@ A theme now also owns `components` — the page's furniture:
 
 Three rules hold it together:
 
-1. **Enums and bounded numbers, never CSS.** This is a security property as much as a design one:
-   the HTML exporter writes theme values into a raw-text `<style>`, and a closed set cannot carry
-   an escape. It is why `isSafeCssValue` has nothing to do here.
-2. **Enums become `data-*` attributes on the document root; numbers become `--doc-*` tokens.** A
-   rule and a value are different things — `quote: "hang"` selects a different set of rules rather
-   than setting a property, and `document.css` stays the one place that knows what a hanging
-   quotation looks like.
+1. **Enums and bounded numbers in the schema, never CSS.** This is a security property as much as
+   a design one: the HTML exporter writes theme values into a raw-text `<style>`, and a closed set
+   cannot carry an escape. It is why `isSafeCssValue` has nothing to do here.
+2. **Every choice resolves to `--doc-*` tokens** in `componentTokens`, and a variant states every
+   token in its group — including the ones it is turning *off*.
 3. **Every default reproduces what the app drew before the group existed**, so a theme file
    exported by an older build imports and looks identical rather than merely parsing.
 
-The attributes are also stamped on `<html>` in `index.html`. That is not decoration: a missing
-token falls back to the House value in `styles.css`, but a missing *attribute* matches no rule at
-all, so the first paint before React mounts would draw a quotation with no mark. `theme.test.ts`
-fails if `index.html` and `componentAttributes` drift, and a separate test fails if any two presets
-share a body face, size and measure — the regression this whole group exists to prevent is one no
-schema can notice.
+Rule 2 is the one that is easy to get wrong, and it was got wrong first. The obvious design is a
+`data-*` attribute per choice and a `[data-quote="hang"] .doc blockquote` rule per variant — it
+reads better, and it keeps `document.css` the only place that knows what a hanging quotation looks
+like. It does not work here. **`applyTheme` writes onto the document canvas, not onto
+`documentElement`**: `useTheme` passes the canvas, the drawer's previews pass a card, the specimen
+passes twenty of them. With House's defaults on `<html>` for the first paint, two ancestors of the
+same `.doc` carried the attributes, both selectors matched at identical specificity, and CSS breaks
+that tie **by source order, not by proximity**. The variants did not override each other — their
+properties unioned, and every non-House theme drew its own furniture on top of House's.
+
+Custom properties inherit, so the nearest themed ancestor wins, which is what "this element is
+themed" should mean. A theme inside a theme now works by construction rather than by everyone
+remembering it must not happen. The price is the verbosity in rule 2, and it is paid in
+`apply.ts` rather than in the stylesheet.
+
+Two tests hold the parts a schema cannot see: no two presets may share a body face, size and
+measure, and every preset must write the same *set* of tokens as House — a variant that only sets
+the properties it turns on would leave an outer theme's showing through.
 
 `numberHeadings` is deliberately **not** part of a preset's identity. It changes what the document
 says rather than how it looks, and a theme deciding your spec is numbered is a theme editing your
@@ -243,9 +253,23 @@ the ARIA, and nothing here is worth writing to config.
 ## Keeping it honest
 
 `src/Specimen.tsx` (open the app with `?specimen`) renders every chrome state — rail, tree, outline,
-tab strip, settings drawer, find bar, dialogs, empty state, all window-control states — beside the
-kitchen-sink document. Review it at 1024 / 1440 / 1920 in both appearances before calling any visual
-work done.
+tab strip, settings drawer, find bar, dialogs, empty state, all window-control states — beside one
+card per preset. Review it at 1024 / 1440 / 1920 in both appearances before calling any visual work
+done.
+
+Two things about those cards, both learned the hard way in the same review:
+
+- **The card body is a real `.doc`.** It used to be hand-built markup — a `border-l-2` blockquote,
+  a rounded code chip — which was an honest picture of a theme while a theme was a palette. Once a
+  theme chose whether a quotation has a bar at all, hand-built markup showed twenty presets looking
+  identical and hid exactly what the reviewer was there to judge. Anything `document.css` draws,
+  `document.css` draws here.
+- **The drawer is actually mounted.** This paragraph listed it for a long time while the specimen
+  did not render it, so the surface with the most controls in the app was the one that could not be
+  looked at without building for Tauri.
+
+A specimen that is out of date with what it claims to show is worse than no specimen, because the
+review passes.
 
 The tab strips in the specimen are live: they reorder, group and collapse, so the squeeze and the
 drag can be judged by using them rather than by looking at a still. They are also the only place the

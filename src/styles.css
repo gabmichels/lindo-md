@@ -134,8 +134,60 @@
   --doc-table-stripe: transparent;
   --doc-code-wrap: pre;
 
+  /* The components group, at House's settings. These inherit, which is what makes
+     a theme applied to a card inside a themed page override cleanly rather than
+     union with it — see `componentTokens` in lib/theme/apply.ts. */
   --doc-heading-tracking: -0.02em;
   --doc-heading-leading: 1.22;
+  --doc-h1-rule: 0px;
+  --doc-h1-rule-gap: 0em;
+  --doc-h2-rule: 0px;
+  --doc-h2-rule-gap: 0em;
+  --doc-h6-transform: uppercase;
+  --doc-h6-caps: normal;
+  --doc-h6-tracking: 0.04em;
+
+  --doc-quote-outdent: 0em;
+  --doc-quote-inset: 0em 0em 0em 1.1em;
+  --doc-quote-rule: 2px;
+  --doc-quote-radius: 0px;
+  --doc-quote-fill: transparent;
+  --doc-quote-ink: var(--doc-text-muted);
+  --doc-quote-style: italic;
+  --doc-quote-size: 1em;
+
+  --doc-hr-height: 1px;
+  --doc-hr-fill: var(--doc-border);
+  --doc-hr-width: 100%;
+  --doc-hr-align: 0;
+  --doc-hr-mark: "";
+
+  --doc-code-radius: 8px;
+  --doc-code-fill: var(--doc-code-bg);
+  --doc-code-ring: 1px;
+  --doc-code-rule: 0px;
+  --doc-code-inset: 1em 1.1em;
+
+  --doc-code-inline-fill: var(--doc-code-bg);
+  --doc-code-inline-ring: 1px;
+  --doc-code-inline-inset: 0.15em 0.35em;
+  --doc-code-inline-ink: inherit;
+
+  --doc-alert-rule: 3px;
+  --doc-alert-radius: 0 6px 6px 0;
+  --doc-alert-fill: color-mix(in oklab, var(--alert-color) 7%, var(--doc-bg));
+  --doc-alert-ring: 0px;
+  --doc-alert-inset: 0.9em 1.1em;
+
+  --doc-list-pad: 1.4em;
+  --doc-list-style: disc;
+  --doc-list-hang: 0em;
+
+  --doc-th-transform: uppercase;
+  --doc-th-tracking: 0.04em;
+  --doc-th-size: 0.85em;
+  --doc-th-ink: var(--doc-text-muted);
+
   --doc-image-radius: 6px;
   --doc-image-frame: transparent;
 

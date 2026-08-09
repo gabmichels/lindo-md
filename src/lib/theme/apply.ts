@@ -59,7 +59,7 @@ export function viewTokens(view: DocView): Record<string, string> {
 }
 
 export function docTokens(theme: Theme): Record<string, string> {
-  const { colors, typography: type, layout, components } = theme;
+  const { colors, typography: type, layout } = theme;
   const compactTable = layout.table.density === "compact";
 
   const tokens: Record<string, string> = {
@@ -113,20 +113,13 @@ export function docTokens(theme: Theme): Record<string, string> {
       : "transparent",
 
     "--doc-code-wrap": theme.code.wrap ? "pre-wrap" : "pre",
-
-    // Heading metrics were constants in document.css, which meant every serif
-    // preset was tracked at a sans face's -0.02em.
-    "--doc-heading-tracking": `${components.heading.tracking}em`,
-    "--doc-heading-leading": `${components.heading.leading}`,
-    "--doc-image-radius": `${components.image.radius}px`,
-    "--doc-image-frame": components.image.frame ? "var(--doc-border)" : "transparent",
   };
 
   HEADING_EXPONENTS.forEach((exponent, index) => {
     tokens[`--doc-h${index + 1}`] = `${round(Math.pow(type.scale, exponent))}em`;
   });
 
-  return tokens;
+  return { ...tokens, ...componentTokens(theme) };
 }
 
 function indented(type: Theme["typography"]): boolean {
@@ -166,36 +159,235 @@ export function applyTheme(theme: Theme, target: HTMLElement, view: Partial<DocV
   // Heading numbers are CSS counters rather than a token, because a counter
   // cannot be expressed as a value the way every other setting here can.
   target.dataset.headingNumbers = String(theme.layout.numberHeadings);
-  for (const [attribute, value] of Object.entries(componentAttributes(theme))) {
-    target.setAttribute(attribute, value);
-  }
   target.style.colorScheme = theme.appearance;
 }
 
 /**
- * The component choices, as `data-*` attributes.
+ * The component choices, as tokens.
  *
- * A rule and a value are different things: `quote: "hang"` does not set a
- * property, it selects a different set of rules in `document.css`. Expressing
- * those as attributes rather than as tokens keeps the stylesheet the one place
- * that knows what a hanging quotation looks like — the alternative is a dozen
- * tokens per component, most of them `initial`, written from here.
+ * These were `data-*` attributes at first, which read better — `[data-quote="hang"]`
+ * says what it selects, and `document.css` stayed the only place that knew what a
+ * hanging quotation looks like. It was wrong, and the way it was wrong is worth
+ * recording because the same trap is open to anything else keyed on an attribute.
  *
- * Shared with the HTML exporter, which stamps the same attributes on `<html>` so
- * an exported file is the page it was exported from.
+ * `applyTheme` writes onto the document *canvas*, not onto `documentElement` —
+ * `useTheme` passes the canvas, the drawer's previews pass a card, and the
+ * specimen passes twenty of them. Meanwhile `index.html` carried House's defaults
+ * so the first paint had something to match. So two ancestors of the same `.doc`
+ * both carried the attributes, both selectors matched at identical specificity,
+ * and CSS breaks that tie by source order rather than by proximity. The variants
+ * did not override each other; their properties unioned. Every non-House theme
+ * drew its own quotation *and* House's, and the fill from a card sat underneath
+ * the left rule of a flush code block.
+ *
+ * Custom properties do not have that problem: they inherit, so the nearest
+ * themed ancestor wins, which is exactly what "this element is themed" should
+ * mean. Nesting a theme inside a theme now works by construction rather than by
+ * everyone remembering that it must not happen.
+ *
+ * The cost is that a variant states every property in its group, including the
+ * ones it is turning off. That is the tax for inheritance being the mechanism,
+ * and it is paid here rather than in the stylesheet.
  */
-export function componentAttributes(theme: Theme): Record<string, string> {
-  const { components: parts } = theme;
+function componentTokens(theme: Theme): Record<string, string> {
+  const { heading, quote, rule, code, alert, list, tableHead, image } = theme.components;
+
+  const headingRule = (level: "h1" | "h2") => {
+    const on = heading.rule === level || heading.rule === "h1-h2";
+    return {
+      [`--doc-${level}-rule`]: on ? "1px" : "0px",
+      [`--doc-${level}-rule-gap`]: on ? (level === "h1" ? "0.28em" : "0.26em") : "0em",
+    };
+  };
+
+  const MINOR = {
+    uppercase: { transform: "uppercase", caps: "normal", tracking: "0.04em" },
+    "small-caps": { transform: "none", caps: "all-small-caps", tracking: "0.03em" },
+    normal: { transform: "none", caps: "normal", tracking: "0em" },
+  }[heading.minor];
+
+  // padding is `block inline-end block inline-start`, so a barred quote pads only
+  // on the side its rule is on and a card pads all four.
+  const QUOTE = {
+    bar: {
+      outdent: "0em",
+      inset: "0em 0em 0em 1.1em",
+      rule: "2px",
+      radius: "0px",
+      fill: "transparent",
+      ink: "var(--doc-text-muted)",
+      style: "italic",
+      size: "1em",
+    },
+    hang: {
+      outdent: "-1.2em",
+      inset: "0em 0em 0em 1.2em",
+      rule: "0px",
+      radius: "0px",
+      fill: "transparent",
+      ink: "var(--doc-text)",
+      style: "italic",
+      size: "1.08em",
+    },
+    card: {
+      outdent: "0em",
+      inset: "0.9em 1.1em",
+      rule: "0px",
+      radius: "8px",
+      fill: "var(--doc-surface)",
+      ink: "var(--doc-text-muted)",
+      style: "normal",
+      size: "1em",
+    },
+    plain: {
+      outdent: "0em",
+      inset: "0em",
+      rule: "0px",
+      radius: "0px",
+      fill: "transparent",
+      ink: "var(--doc-text-muted)",
+      style: "italic",
+      size: "1em",
+    },
+  }[quote];
+
+  const HR = {
+    line: { height: "1px", fill: "var(--doc-border)", width: "100%", align: "0", mark: '""' },
+    short: { height: "1px", fill: "var(--doc-border)", width: "5em", align: "auto", mark: '""' },
+    space: { height: "0px", fill: "none", width: "100%", align: "0", mark: '""' },
+    asterism: { height: "auto", fill: "none", width: "100%", align: "0", mark: '"⁂"' },
+  }[rule];
+
+  const CODE_BLOCK = {
+    card: {
+      radius: "8px",
+      fill: "var(--doc-code-bg)",
+      ring: "1px",
+      rule: "0px",
+      inset: "1em 1.1em",
+    },
+    framed: { radius: "8px", fill: "transparent", ring: "1px", rule: "0px", inset: "1em 1.1em" },
+    flush: {
+      radius: "0px",
+      fill: "transparent",
+      ring: "0px",
+      rule: "2px",
+      inset: "1em 0 1em 1.1em",
+    },
+  }[code.block];
+
+  const CODE_INLINE = {
+    tint: {
+      fill: "var(--doc-code-bg)",
+      ring: "1px",
+      inset: "0.15em 0.35em",
+      ink: "inherit",
+    },
+    outline: { fill: "transparent", ring: "1px", inset: "0.15em 0.35em", ink: "inherit" },
+    bare: { fill: "transparent", ring: "0px", inset: "0em 0.1em", ink: "var(--doc-accent)" },
+  }[code.inline];
+
+  const ALERT = {
+    bar: {
+      rule: "3px",
+      radius: "0 6px 6px 0",
+      fill: "color-mix(in oklab, var(--alert-color) 7%, var(--doc-bg))",
+      ring: "0px",
+      inset: "0.9em 1.1em",
+    },
+    card: {
+      rule: "0px",
+      radius: "8px",
+      fill: "color-mix(in oklab, var(--alert-color) 8%, var(--doc-bg))",
+      ring: "1px",
+      inset: "0.9em 1.1em",
+    },
+    minimal: {
+      rule: "0px",
+      radius: "0px",
+      fill: "transparent",
+      ring: "0px",
+      inset: "0.2em 0em",
+    },
+  }[alert];
+
+  // `list-style-type` accepts a string, so the dash is a marker in the same sense
+  // `disc` is — positioned and aligned by the list rather than by a pseudo-element
+  // this file would have to place by hand.
+  //
+  // The en dash and the two spaces after it are literal characters rather than
+  // the CSS escapes a backslash would introduce. `applyTheme` writes this through
+  // `setProperty`, which re-escapes the backslash and puts "a0a0" on the page.
+  const LIST = {
+    default: { pad: "1.4em", style: "disc", hang: "0em" },
+    dash: { pad: "1.4em", style: '"–  "', hang: "0em" },
+    // The marker hangs in the gutter, so the list's text edge lines up with the
+    // paragraphs above it rather than being indented past them.
+    outdent: { pad: "0em", style: "disc", hang: "1.4em" },
+  }[list];
+
+  const TABLE_HEAD = {
+    uppercase: {
+      transform: "uppercase",
+      tracking: "0.04em",
+      size: "0.85em",
+      ink: "var(--doc-text-muted)",
+    },
+    sentence: { transform: "none", tracking: "0em", size: "0.92em", ink: "var(--doc-heading)" },
+  }[tableHead];
+
   return {
-    "data-heading-rule": parts.heading.rule,
-    "data-heading-minor": parts.heading.minor,
-    "data-quote": parts.quote,
-    "data-rule": parts.rule,
-    "data-code-block": parts.code.block,
-    "data-code-inline": parts.code.inline,
-    "data-alert": parts.alert,
-    "data-list": parts.list,
-    "data-table-head": parts.tableHead,
+    ...headingRule("h1"),
+    ...headingRule("h2"),
+    "--doc-heading-tracking": `${heading.tracking}em`,
+    "--doc-heading-leading": `${heading.leading}`,
+    "--doc-h6-transform": MINOR.transform,
+    "--doc-h6-caps": MINOR.caps,
+    "--doc-h6-tracking": MINOR.tracking,
+
+    "--doc-quote-outdent": QUOTE.outdent,
+    "--doc-quote-inset": QUOTE.inset,
+    "--doc-quote-rule": QUOTE.rule,
+    "--doc-quote-radius": QUOTE.radius,
+    "--doc-quote-fill": QUOTE.fill,
+    "--doc-quote-ink": QUOTE.ink,
+    "--doc-quote-style": QUOTE.style,
+    "--doc-quote-size": QUOTE.size,
+
+    "--doc-hr-height": HR.height,
+    "--doc-hr-fill": HR.fill,
+    "--doc-hr-width": HR.width,
+    "--doc-hr-align": HR.align,
+    "--doc-hr-mark": HR.mark,
+
+    "--doc-code-radius": CODE_BLOCK.radius,
+    "--doc-code-fill": CODE_BLOCK.fill,
+    "--doc-code-ring": CODE_BLOCK.ring,
+    "--doc-code-rule": CODE_BLOCK.rule,
+    "--doc-code-inset": CODE_BLOCK.inset,
+
+    "--doc-code-inline-fill": CODE_INLINE.fill,
+    "--doc-code-inline-ring": CODE_INLINE.ring,
+    "--doc-code-inline-inset": CODE_INLINE.inset,
+    "--doc-code-inline-ink": CODE_INLINE.ink,
+
+    "--doc-alert-rule": ALERT.rule,
+    "--doc-alert-radius": ALERT.radius,
+    "--doc-alert-fill": ALERT.fill,
+    "--doc-alert-ring": ALERT.ring,
+    "--doc-alert-inset": ALERT.inset,
+
+    "--doc-list-pad": LIST.pad,
+    "--doc-list-style": LIST.style,
+    "--doc-list-hang": LIST.hang,
+
+    "--doc-th-transform": TABLE_HEAD.transform,
+    "--doc-th-tracking": TABLE_HEAD.tracking,
+    "--doc-th-size": TABLE_HEAD.size,
+    "--doc-th-ink": TABLE_HEAD.ink,
+
+    "--doc-image-radius": `${image.radius}px`,
+    "--doc-image-frame": image.frame ? "var(--doc-border)" : "transparent",
   };
 }
 

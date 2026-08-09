@@ -1,23 +1,5 @@
 <!doctype html>
-<!--
-  The component attributes carry House's defaults, for the same reason styles.css
-  duplicates House's `--doc-*` values: `document.css` selects a quote or a code
-  block's shape by attribute, and an unstamped root matches none of those rules —
-  so the first paint before React mounts would draw a quotation with no mark at
-  all. `theme.test.ts` fails if this drifts from what `componentAttributes` writes.
--->
-<html
-  lang="en"
-  data-heading-rule="none"
-  data-heading-minor="uppercase"
-  data-quote="bar"
-  data-rule="line"
-  data-code-block="card"
-  data-code-inline="tint"
-  data-alert="bar"
-  data-list="default"
-  data-table-head="uppercase"
->
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

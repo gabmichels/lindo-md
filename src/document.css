@@ -190,19 +190,17 @@
   margin-block: 1.9em 0.55em;
 }
 
-/* A rule under the top headings. Drawn as a border on the heading rather than as
-   a pseudo-element so it spans the measure and not the text, and sits below the
-   heading's own descenders. */
-[data-heading-rule="h1"] .doc h1,
-[data-heading-rule="h1-h2"] .doc h1 {
-  padding-bottom: 0.28em;
-  border-bottom: 1px solid var(--doc-border);
+/* A rule under the top headings, when the theme asks for one. Drawn as a border
+   on the heading rather than as a pseudo-element so it spans the measure and not
+   the text, and sits below the heading's own descenders. */
+.doc h1 {
+  padding-bottom: var(--doc-h1-rule-gap);
+  border-bottom: var(--doc-h1-rule) solid var(--doc-border);
 }
 
-[data-heading-rule="h2"] .doc h2:not(section[data-footnotes] h2),
-[data-heading-rule="h1-h2"] .doc h2:not(section[data-footnotes] h2) {
-  padding-bottom: 0.26em;
-  border-bottom: 1px solid var(--doc-border);
+.doc h2:not(section[data-footnotes] h2) {
+  padding-bottom: var(--doc-h2-rule-gap);
+  border-bottom: var(--doc-h2-rule) solid var(--doc-border);
 }
 .doc h3 {
   font-size: var(--doc-h3);
@@ -225,16 +223,9 @@
   font-size: var(--doc-h6);
   margin-block: 1.5em 0.4em;
   color: var(--doc-text-muted);
-}
-
-[data-heading-minor="uppercase"] .doc h6 {
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-[data-heading-minor="small-caps"] .doc h6 {
-  letter-spacing: 0.03em;
-  font-variant-caps: all-small-caps;
+  letter-spacing: var(--doc-h6-tracking);
+  text-transform: var(--doc-h6-transform);
+  font-variant-caps: var(--doc-h6-caps);
 }
 
 /* Numbered headings, when the theme asks for them.
@@ -337,71 +328,58 @@
    whose rhythm is otherwise tight. */
 .doc hr {
   border: 0;
-  height: 1px;
-  background: var(--doc-border);
+  height: var(--doc-hr-height);
+  width: var(--doc-hr-width);
+  background: var(--doc-hr-fill);
   margin-block: 3em;
-}
-
-[data-rule="short"] .doc hr {
-  width: 5em;
-  margin-inline: auto;
-}
-
-[data-rule="space"] .doc hr {
-  height: 0;
-  background: none;
-}
-
-[data-rule="asterism"] .doc hr {
-  height: auto;
-  background: none;
+  margin-inline: var(--doc-hr-align);
   color: var(--doc-text-muted);
   text-align: center;
-  /* The character, not three positioned glyphs: a real ⁂ is kerned as one mark
-     and falls back gracefully in a face that lacks it. */
   font-size: 1.1em;
   line-height: 1;
 }
 
-[data-rule="asterism"] .doc hr::before {
-  content: "⁂";
+/* The asterism is one character, not three positioned glyphs: a real ⁂ is kerned
+   as a single mark and degrades gracefully in a face that lacks it. Every other
+   setting resolves this token to an empty string. */
+.doc hr::before {
+  content: var(--doc-hr-mark);
 }
 
+/* Tailwind's preflight strips the marker from every `ul` and `ol`, so a bullet
+   has to be asked for here rather than merely left alone — which is why unordered
+   lists in the document had no markers at all until this rule existed.
+
+   `dash` sets an en dash instead — quieter, and in a serif page a bullet is a
+   solid black dot in a field of thin strokes. `outdent` hangs the marker in the
+   gutter so the list's text edge lines up with the paragraphs above it, which
+   `list-style-position: outside` alone does not do: the padding is what the
+   marker hangs into. */
 .doc :is(ul, ol) {
   margin-block: 0 var(--doc-para-space);
-  padding-left: 1.4em;
-}
-
-/* An en dash for unordered markers. Quieter than a bullet, and in a serif page a
-   bullet is a solid black dot in a field of thin strokes. */
-[data-list="dash"] .doc ul {
-  list-style: none;
-  padding-left: 1.4em;
-}
-
-[data-list="dash"] .doc ul > li::before {
-  content: "–";
-  position: absolute;
-  margin-left: -1.4em;
-  color: var(--doc-text-muted);
-}
-
-/* The marker hangs in the gutter so the list's text edge lines up with the
-   paragraphs above it — the book setting. `outside` alone does not do this; the
-   padding is what the marker hangs into. */
-[data-list="outdent"] .doc :is(ul, ol) {
-  padding-left: 0;
+  padding-left: var(--doc-list-pad);
   list-style-position: outside;
 }
 
-[data-list="outdent"] .doc :is(ul, ol) > li {
-  margin-left: 1.4em;
+/* `list-style-type` takes a string, which is the whole implementation of the dash
+   setting: `"–  "` is a marker in exactly the way `disc` is, laid out and aligned
+   by the list itself. The first attempt drew it with an absolutely positioned
+   `::before`, which resolves against the nearest *positioned* ancestor — and an
+   ordinary `li` is not one, so every dash landed somewhere off in the page. */
+.doc ul {
+  list-style-type: var(--doc-list-style);
 }
 
-/* Task lists position their own checkbox against the list's padding, so a list
-   style that removes it would leave the box floating. */
-[data-list="dash"] .doc ul > li.task-list-item::before {
-  content: none;
+.doc ol {
+  list-style-type: decimal;
+}
+
+.doc :is(ul, ol) > li {
+  margin-left: var(--doc-list-hang);
+}
+
+.doc li::marker {
+  color: var(--doc-text-muted);
 }
 
 .doc li {
@@ -454,65 +432,36 @@
 
 .doc blockquote {
   margin-block: 1.6em;
-  color: var(--doc-text-muted);
-  font-style: italic;
+  /* `hang` pulls the quotation out into the gutter and marks it with nothing but
+     that displacement, which is why it also takes a size up: the position has to
+     be unambiguous when there is no rule to read. */
+  margin-inline: var(--doc-quote-outdent) 0;
+  padding: var(--doc-quote-inset);
+  border-left: var(--doc-quote-rule) solid var(--doc-quote-bar);
+  border-radius: var(--doc-quote-radius);
+  background: var(--doc-quote-fill);
+  color: var(--doc-quote-ink);
+  font-style: var(--doc-quote-style);
+  font-size: var(--doc-quote-size);
 }
 
 .doc blockquote p:last-child {
   margin-bottom: 0;
 }
 
-[data-quote="bar"] .doc blockquote {
-  padding-left: 1.1em;
-  border-left: 2px solid var(--doc-quote-bar);
-}
-
-[data-quote="hang"] .doc blockquote {
-  /* Out into the gutter, and set a size up. Nothing marks it but its position,
-     so the position has to be unambiguous. */
-  margin-inline: -1.2em 0;
-  padding-inline: 1.2em 0;
-  font-size: 1.08em;
-  line-height: calc(var(--doc-leading) * 0.96);
-  color: var(--doc-text);
-}
-
-[data-quote="card"] .doc blockquote {
-  padding: 0.9em 1.1em;
-  border-radius: 8px;
-  background: var(--doc-surface);
-  font-style: normal;
-}
-
-[data-quote="plain"] .doc blockquote {
-  padding-left: 0;
-}
-
 /* --- GitHub alerts --------------------------------------------------------- */
 
+/* `minimal` has no fill and no rule — the coloured title carries the whole
+   signal. That is safe because comrak writes the kind's name into the callout, so
+   the alert still says "Warning" in words with the colour taken away. */
 .doc .markdown-alert {
   margin-block: 1.6em;
-  padding: 0.9em 1.1em;
-}
-
-[data-alert="bar"] .doc .markdown-alert {
-  border-left: 3px solid var(--alert-color);
-  border-radius: 0 6px 6px 0;
-  background: color-mix(in oklab, var(--alert-color) 7%, var(--doc-bg));
-}
-
-[data-alert="card"] .doc .markdown-alert {
-  border-radius: 8px;
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--alert-color) 35%, transparent);
-  background: color-mix(in oklab, var(--alert-color) 8%, var(--doc-bg));
-}
-
-/* No fill and no rule — the coloured title carries the whole signal. Depends on
-   comrak writing the kind's name into the callout, which it always does, so the
-   alert still says "Warning" in words with the colour taken away. */
-[data-alert="minimal"] .doc .markdown-alert {
-  padding-inline: 0;
-  padding-block: 0.2em;
+  padding: var(--doc-alert-inset);
+  border-left: var(--doc-alert-rule) solid var(--alert-color);
+  border-radius: var(--doc-alert-radius);
+  background: var(--doc-alert-fill);
+  box-shadow: inset 0 0 0 var(--doc-alert-ring)
+    color-mix(in oklab, var(--alert-color) 35%, transparent);
 }
 
 .doc .markdown-alert-note {
@@ -554,55 +503,34 @@
 }
 
 /* Inline code. An inset hairline rather than a border throughout: it does not add
-   to the box's size, so inline code cannot shift the line it sits on. */
+   to the box's size, so inline code cannot shift the line it sits on.
+
+   `bare` has neither fill nor frame and colours the text instead — right on a page
+   with a lot of inline code, where every identifier otherwise becomes a chip. */
 .doc :not(pre) > code {
-  padding: 0.15em 0.35em;
+  padding: var(--doc-code-inline-inset);
   border-radius: 4px;
+  color: var(--doc-code-inline-ink);
+  background: var(--doc-code-inline-fill);
+  box-shadow: inset 0 0 0 var(--doc-code-inline-ring) var(--doc-code-border);
 }
 
-[data-code-inline="tint"] .doc :not(pre) > code {
-  background: var(--doc-code-bg);
-  box-shadow: inset 0 0 0 1px var(--doc-code-border);
-}
-
-[data-code-inline="outline"] .doc :not(pre) > code {
-  box-shadow: inset 0 0 0 1px var(--doc-code-border);
-}
-
-/* Neither fill nor frame: the mono face is the whole signal. Right on a page with
-   a lot of inline code, where every identifier otherwise becomes a chip. */
-[data-code-inline="bare"] .doc :not(pre) > code {
-  padding-inline: 0.1em;
-  color: var(--doc-accent);
-}
-
+/* `flush` is a left rule and no fill. A technical document is mostly code blocks,
+   and a stack of filled cards makes the prose between them read as the
+   interruption rather than as the document. */
 .doc pre.code-block {
   position: relative;
   margin-block: 1.6em;
-  padding: 1em 1.1em;
+  padding: var(--doc-code-inset);
+  border-radius: var(--doc-code-radius);
+  border-left: var(--doc-code-rule) solid var(--doc-code-border);
+  background: var(--doc-code-fill);
+  box-shadow: inset 0 0 0 var(--doc-code-ring) var(--doc-code-border);
   overflow-x: auto;
   line-height: 1.55;
   text-align: start;
   /* Code is never justified or hyphenated, whatever the prose setting is. */
   hyphens: none;
-}
-
-[data-code-block="card"] .doc pre.code-block {
-  border-radius: 8px;
-  background: var(--doc-code-bg);
-  box-shadow: inset 0 0 0 1px var(--doc-code-border);
-}
-
-[data-code-block="framed"] .doc pre.code-block {
-  border-radius: 8px;
-  box-shadow: inset 0 0 0 1px var(--doc-code-border);
-}
-
-/* A left rule and no fill. A technical document is mostly code blocks, and a
-   stack of filled cards makes the prose between them read as the interruption. */
-[data-code-block="flush"] .doc pre.code-block {
-  padding-inline: 1.1em 0;
-  border-left: 2px solid var(--doc-code-border);
 }
 
 .doc pre.code-block > code {
@@ -701,24 +629,15 @@
    it is the one shouting thing on an otherwise quiet spread — hence the setting. */
 .doc th {
   font-family: var(--doc-font-heading);
-  font-size: 0.85em;
+  font-size: var(--doc-th-size);
   font-weight: 650;
-  color: var(--doc-text-muted);
+  letter-spacing: var(--doc-th-tracking);
+  text-transform: var(--doc-th-transform);
+  color: var(--doc-th-ink);
   text-align: start;
   padding: var(--doc-table-pad-block) var(--doc-table-pad-inline) var(--doc-table-pad-block) 0;
   border-bottom: 1px solid var(--doc-border);
   border-right: 1px solid var(--doc-table-rule);
-}
-
-[data-table-head="uppercase"] .doc th {
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-/* Sentence case at body size: the header is a label, not a category marker. */
-[data-table-head="sentence"] .doc th {
-  font-size: 0.92em;
-  color: var(--doc-heading);
 }
 
 .doc td {

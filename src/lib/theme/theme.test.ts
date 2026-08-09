@@ -1,14 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import {
-  applyTheme,
-  componentAttributes,
-  docTokens,
-  mermaidThemeVariables,
-  viewTokens,
-  type DocView,
-} from "./apply";
+import { applyTheme, docTokens, mermaidThemeVariables, viewTokens, type DocView } from "./apply";
 import { toHex } from "./color";
 import { BUNDLED_FONTS } from "./fonts";
 import { DEFAULT_PRESET_ID, PRESETS, findPreset, resolveTheme } from "./presets";
@@ -118,6 +111,24 @@ describe("presets", () => {
           bundled.has(id) || id in HOUSE_THEMES,
           `${preset.id}.${half} names unknown shiki theme "${id}"`,
         ).toBe(true);
+      }
+    }
+  });
+
+  it("writes no control characters into a token", () => {
+    // A `list-style-type` of `"\2013\00a0\00a0"` was written as a CSS escape and
+    // came out of the editing tool as literal NUL bytes, which rendered as "a0a0"
+    // on the page. Nothing failed: not the typecheck, not the schema, not any
+    // other test — a token is a string, and that string was a valid one.
+    // eslint-disable-next-line no-control-regex
+    const control = /[\u0000-\u001f\u007f]/;
+    for (const preset of PRESETS) {
+      for (const half of ["light", "dark"] as const) {
+        for (const [key, value] of Object.entries(docTokens(preset[half]))) {
+          expect(control.test(value), `${preset.id}.${half} ${key}: ${JSON.stringify(value)}`).toBe(
+            false,
+          );
+        }
       }
     }
   });
@@ -482,15 +493,20 @@ describe("the two token namespaces stay apart", () => {
     }
   });
 
-  it("gives index.html a House default for every component attribute", () => {
-    // The same first-paint rule as the tokens above, and a sharper one: a token
-    // that is missing falls back to the House value in styles.css, but an
-    // attribute that is missing matches no rule at all — a quotation would paint
-    // with no bar, a code block with no card, until React mounts.
-    const html = readFileSync("index.html", "utf8");
-    for (const [attribute, value] of Object.entries(componentAttributes(house.light))) {
-      expect(html, `${attribute} is not defaulted in index.html`).toContain(
-        `${attribute}="${value}"`,
+  it("overrides rather than unions when a theme is nested inside a theme", () => {
+    // `applyTheme` writes onto the canvas, not onto documentElement, so a themed
+    // card inside a themed page has two themed ancestors. This was `data-*`
+    // attributes first, and equal-specificity selectors resolve by source order
+    // rather than by proximity — so the two variants' properties unioned and
+    // every non-House theme drew its own furniture on top of House's.
+    //
+    // Custom properties inherit, so the nearest ancestor wins. What that needs is
+    // for every theme to write every token: a variant that only sets the
+    // properties it turns *on* leaves the outer theme's showing through.
+    const keys = (theme: Theme) => Object.keys(docTokens(theme)).sort();
+    for (const preset of PRESETS) {
+      expect(keys(preset.light), `${preset.id} writes a different set to House`).toEqual(
+        keys(house.light),
       );
     }
   });
