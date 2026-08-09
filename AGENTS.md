@@ -707,9 +707,14 @@ Three things about painting that are easy to get subtly wrong:
   out beats being thrown to the top of the document. A highlight has no such excuse: the
   fallback collapses the range or puts it somewhere arbitrary, which is the same wrong-words
   failure the orphan rule exists to prevent.
-- **Highlights are global to the page**, so a document leaving the screen has to take its own
-  off. Otherwise switching tabs leaves the previous document's marks registered against nodes
-  that are no longer there.
+- **Only the view on screen paints, and that is correctness rather than an optimisation.** The
+  highlight registry is one per page and `applyHighlights` replaces the whole of it — a slot
+  with nothing in it is deleted rather than left alone, since a stale set outliving its document
+  is worse than none. Every mounted view painting would therefore mean the last one to render
+  wins: `DocumentDeck` keeps background tabs mounted, and the comparison pane mounts a second
+  `DocumentView` with annotations off entirely, so opening the pane wiped the deck's marks.
+  `visible` is a dependency as well as a guard, because nothing else in `useAnnotations` changes
+  when a tab is re-shown and the marks would stay gone.
 
 **A mark is opaque and its ink is derived, and those two together are what make a highlight
 safe on paper this code has never seen.** The grounds come from the theme like every other

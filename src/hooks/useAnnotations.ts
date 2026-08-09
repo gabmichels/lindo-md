@@ -50,7 +50,13 @@ export interface AnnotationState {
   supported: boolean;
 }
 
-export function useAnnotations(doc: Document | null, article: HTMLElement | null): AnnotationState {
+export function useAnnotations(
+  doc: Document | null,
+  article: HTMLElement | null,
+  /** Whether this view is the one on screen. Background tabs stay mounted, and
+   *  the highlight registry is one per page — see the paint effect. */
+  visible: boolean,
+): AnnotationState {
   const [marks, setMarks] = useState<ResolvedAnnotation[]>([]);
   const supported = useRef(supportsHighlights());
 
@@ -129,17 +135,28 @@ export function useAnnotations(doc: Document | null, article: HTMLElement | null
   // `mirror` replaces the blocks an edit touched, and a Range holds the *node*
   // it was built over. A replaced node leaves its range pointing at something no
   // longer in the tree, which paints nothing and reports no error.
+  //
+  // **Only the view on screen paints, and that is a correctness rule rather than
+  // an optimisation.** The highlight registry is one per page, and
+  // `applyHighlights` replaces the whole of it — a slot with nothing in it is
+  // deleted, not left alone, because a stale set outliving its document is worse
+  // than none. Every mounted view running this would therefore have the last one
+  // to render win: `DocumentDeck` keeps background tabs mounted, and the
+  // comparison pane mounts a second `DocumentView` whose annotations are off
+  // entirely, so merely opening the pane used to wipe the deck's marks. `visible`
+  // is a dependency as well as a guard, so coming back to a tab repaints it —
+  // nothing else in here changes when a tab is re-shown.
   useEffect(() => {
-    if (!article || !supported.current) return;
+    if (!article || !supported.current || !visible || !path) return;
 
     const paintable: PaintableMark[] = marks.flatMap((mark) =>
       mark.range ? [{ range: mark.range, color: mark.color }] : [],
     );
     applyHighlights(paintRanges(article, doc?.blocks ?? [], paintable));
-  }, [article, marks, doc?.blocks, doc?.html]);
+  }, [article, marks, visible, path, doc?.blocks, doc?.html]);
 
   // Highlights are global to the page, so a document that goes away has to take
-  // its own off — otherwise switching tabs leaves the previous document's marks
+  // its own off — otherwise closing the last marked tab leaves its marks
   // registered against nodes that are no longer on screen.
   useEffect(() => clearHighlights, [path]);
 
