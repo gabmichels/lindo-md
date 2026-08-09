@@ -7,6 +7,7 @@ import {
   AnnotationListSchema,
   AnnotationSchema,
   AppConfigSchema,
+  NothingSchema,
   StoredCustomThemesSchema,
 } from "./ipc";
 import { PRESETS } from "./theme/presets";
@@ -70,6 +71,33 @@ describe("StoredCustomThemesSchema", () => {
     // Exactly the audit's trigger: drop one leaf from an otherwise valid theme.
     delete stale.colors.selection;
     expect(StoredCustomThemesSchema.parse([stale, good])).toHaveLength(1);
+  });
+});
+
+describe("NothingSchema", () => {
+  /**
+   * The bug this exists for: Tauri hands back JSON `null` for a Rust `()`, and
+   * `z.void()` accepts only `undefined`. Every command returning nothing did its
+   * work and then threw on the way back — invisible wherever the caller swallowed
+   * the rejection, and visible the moment annotations put one in front of the
+   * reader as "delete_annotation returned an unexpected shape".
+   */
+  // Through `safeParse` rather than `parse`, because the parsed value's type is
+  // `void` and lint forbids reading one — which is the whole shape of the bug.
+  it("accepts the null Tauri actually sends for a Rust ()", () => {
+    expect(NothingSchema.safeParse(null)).toMatchObject({ success: true });
+  });
+
+  it("accepts undefined too, so a change of mind upstream is not a second outage", () => {
+    expect(NothingSchema.safeParse(undefined)).toMatchObject({ success: true });
+  });
+
+  it("still refuses a command that started returning data", () => {
+    // Not a rubber stamp. Drift is what this file parses for, and a command that
+    // grew a return value is exactly the drift worth failing on.
+    for (const value of [0, "", false, {}, []]) {
+      expect(NothingSchema.safeParse(value).success).toBe(false);
+    }
   });
 });
 
