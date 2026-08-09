@@ -359,6 +359,7 @@ function Shell() {
         theme,
         article,
         documentCss,
+        frontmatter: reading.frontmatter,
         view: { contentWidth: config.contentWidth },
       }),
     );

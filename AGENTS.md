@@ -775,6 +775,18 @@ Four decisions worth not re-litigating:
   swallows the drag before the webview sees it. Tauri's own `onDragDropEvent` is the only route, and
   the only one that yields real filesystem paths instead of sandboxed `File` objects — see
   `useFileDrop`. Do not "fix" a dead drop target by adding `onDragOver`/`onDrop` to a div.
+- **Anything the app adds to the document canvas goes *beside* `.doc`, never inside it.** `mirror`
+  tracks the article's top-level blocks positionally, so one node React puts in `.doc` that comrak
+  did not emit makes every keystroke fall back to rebuilding the whole document — the 223ms → 30ms
+  optimisation, silently gone. `.doc-notice` and `.doc-frontmatter` are both siblings in
+  `.doc-scroller` for this reason, and both pay for it by restating `max-width: var(--doc-page)` and
+  the inline padding to stay aligned with the prose. The same constraint is why folding headers,
+  when they come, have to hide elements with CSS rather than wrap sections in a container.
+- **A `--doc-*` token that does not exist is worse than a wrong colour.** `color` is inherited, so an
+  undefined `var()` computes to `inherit` and the document canvas quietly picks up the *chrome's*
+  text colour — the one thing DESIGN.md forbids outright, arriving through a typo rather than
+  through a rule anyone broke. The paper namespace has exactly `--doc-text` and `--doc-text-muted`;
+  there is no `--doc-text-faint`, however much the `--ui-*` side suggests there should be.
 - **The asset protocol is deny-all by default.** A directory is granted at runtime
   (`asset_protocol_scope().allow_directory()`) when the user opens a file or folder, so images
   resolve only inside documents the user actually opened.

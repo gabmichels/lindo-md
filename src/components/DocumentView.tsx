@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Document } from "@/lib/ipc";
 import type { Theme } from "@/lib/theme/schema";
 import { FormatMenu } from "@/components/FormatMenu";
+import { Frontmatter } from "@/components/Frontmatter";
 import { useDocumentTyping } from "@/hooks/useDocumentTyping";
 import { applyFormat, type FormatCommand } from "@/lib/edit/format";
 import { restoreSelection, selectionRange, type SourceRange } from "@/lib/edit/selection";
@@ -435,6 +436,16 @@ export function DocumentView({
           </button>
         </div>
       )}
+      {/* Above the article rather than under the title, and that is a constraint
+          rather than a preference: `mirror` tracks the article's top-level blocks
+          *positionally*, so a node inserted into `.doc` that comrak did not emit
+          makes every edit fall back to rebuilding the whole document. A sibling in
+          the scroller — the same place `.doc-notice` sits — costs nothing.
+
+          Hidden with the source view, where the raw file is on screen with its
+          frontmatter already in it. */}
+      {doc.frontmatter !== null && draft === null && <Frontmatter text={doc.frontmatter} />}
+
       {draft !== null && (
         <textarea
           ref={sourceRef}
