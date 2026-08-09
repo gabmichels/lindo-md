@@ -126,6 +126,54 @@ export function docTokens(theme: Theme): Record<string, string> {
   return { ...tokens, ...componentTokens(theme) };
 }
 
+/**
+ * The colours a highlight can be painted in.
+ *
+ * Split out of `docTokens` for the same reason `viewTokens` is — so the split is
+ * enforced rather than remembered — but the split here is a different one. These
+ * are `--doc-*` because a highlight is on the paper, not on the tool: it is
+ * content the reader added, and it exports into the Markdown. They are **not**
+ * drawn from the theme, which every other `--doc-*` value is.
+ *
+ * That is a deliberate, reversible shortcut. Making them theme fields means a
+ * required five colours in `ThemeColorsSchema`, which is twenty presets times two
+ * halves to fill in and five more decisions for anyone authoring a theme — for a
+ * palette that has no UI to change it yet. Promoting them later is an optional
+ * schema field whose default is exactly what is written here.
+ *
+ * **A mark is opaque and carries its own ink, and that is what makes one palette
+ * safe on twenty presets.** The first version washed a translucent colour over
+ * the page and let the theme's own text show through, which reads well on paper
+ * the colour of paper and fails on dark themes: the wash lifts the background
+ * towards the light text sitting on it, and on Solarized Dark it took a 5.61:1
+ * body contrast down to 2.44:1. Compositing over an unknown background can only
+ * ever be argued preset by preset, and there are forty halves to argue. Painting
+ * the background *and* the ink makes the contrast a property of this function
+ * alone — 8.65:1 at worst, whatever the paper — and `theme.test.ts` checks both
+ * that and visibility against every preset rather than trusting this paragraph.
+ * `::highlight(lindo-md-find-active)` in `styles.css` already worked this way.
+ *
+ * The names are slots, not descriptions. What `annotations.rs` stores is which
+ * slot a mark uses, so re-theming these values re-paints existing marks instead
+ * of stranding them on a colour that no longer belongs to the page.
+ */
+export function markTokens(): Record<string, string> {
+  return {
+    "--doc-mark-yellow": "oklch(0.88 0.15 95)",
+    "--doc-mark-green": "oklch(0.86 0.14 148)",
+    "--doc-mark-blue": "oklch(0.85 0.1 235)",
+    "--doc-mark-pink": "oklch(0.84 0.11 5)",
+    "--doc-mark-purple": "oklch(0.82 0.11 305)",
+    // The ink every mark is read in. Near-black rather than the theme's own text
+    // colour, because the whole point is that the pair is fixed.
+    "--doc-mark-ink": "oklch(0.26 0.015 60)",
+  };
+}
+
+/** The slot names, in the order the menu offers them. */
+export const MARK_SLOTS = ["yellow", "green", "blue", "pink", "purple"] as const;
+export type MarkSlot = (typeof MARK_SLOTS)[number];
+
 function indented(type: Theme["typography"]): boolean {
   return type.paragraphStyle === "indented";
 }
@@ -153,6 +201,9 @@ export function applyTheme(theme: Theme, target: HTMLElement, view: Partial<DocV
     target.style.setProperty(property, value);
   }
   for (const [property, value] of Object.entries(viewTokens(resolved))) {
+    target.style.setProperty(property, value);
+  }
+  for (const [property, value] of Object.entries(markTokens())) {
     target.style.setProperty(property, value);
   }
   target.style.setProperty("--doc-size", `${round(theme.typography.baseSize * resolved.zoom)}px`);

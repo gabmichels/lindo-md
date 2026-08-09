@@ -685,14 +685,55 @@ Three things are load-bearing, and each is invisible at the point where it would
 
 Two more that shape what can be built on top:
 
-- **Painting must use the CSS Custom Highlight API**, as `useFind` already does. It paints
-  ranges without inserting a node, so `mirror`'s positional block tracking, `enhance()`'s
-  per-node bookkeeping and `restamp`'s `data-sourcepos` pairing are all untouched. Wrapping a
-  selection in `<mark>` would quietly break all three — see the entry under Gotchas about
-  anything the app adds to the canvas.
+- **Painting uses the CSS Custom Highlight API**, as `useFind` already does. It paints ranges
+  without inserting a node, so `mirror`'s positional block tracking, `enhance()`'s per-node
+  bookkeeping and `restamp`'s `data-sourcepos` pairing are all untouched. Wrapping a selection
+  in `<mark>` would quietly break all three — see the entry under Gotchas about anything the
+  app adds to the canvas. One registered highlight **per colour slot**, not per mark: the
+  registry maps a name to a set of ranges, and the name is what CSS selects on.
 - **`color` is a theme slot name, not a colour.** A theme rewrites every `--doc-*` token, so
   storing `#ffee00` would freeze a mark to a colour that clashes with whatever the reader
-  picks next.
+  picks next. A slot this build does not know paints in the first one rather than not at all,
+  because an invisible highlight reads as data loss.
+
+Three things about painting that are easy to get subtly wrong:
+
+- **Repaint after every render of the document, not only when the marks change.** A `Range`
+  holds the *node* it was built over, and `mirror` replaces the blocks an edit touched. A
+  replaced node leaves its range pointing at something no longer in the tree, which paints
+  nothing and reports nothing.
+- **A mark whose ends cannot be placed is dropped, not approximated.** `domPositionOf` falls
+  back to the nearest position it can find, and for a caret that is right — being a character
+  out beats being thrown to the top of the document. A highlight has no such excuse: the
+  fallback collapses the range or puts it somewhere arbitrary, which is the same wrong-words
+  failure the orphan rule exists to prevent.
+- **Highlights are global to the page**, so a document leaving the screen has to take its own
+  off. Otherwise switching tabs leaves the previous document's marks registered against nodes
+  that are no longer there.
+
+**The highlight palette is the one set of `--doc-*` values not drawn from the theme.** They
+are constants in `markTokens()`. Making them theme fields means five required colours in
+`ThemeColorsSchema` — twenty presets times two halves, and five more decisions for anyone
+authoring a theme — for a palette with no UI to change it. Promoting them later is an optional
+field whose default is exactly what is written there.
+
+**A mark is opaque and carries its own ink**, and that is what makes one palette safe on
+twenty presets rather than a claim to re-check whenever a preset lands. The first version
+washed a translucent colour over the page and let the theme's own text show through: fine on
+paper the colour of paper, and on a dark theme the wash lifts the background towards the light
+text sitting on it — Solarized Dark went from 5.61:1 body contrast to 2.44:1. Compositing over
+an unknown background can only be argued preset by preset, and there are forty halves to
+argue. Painting the ground *and* the ink makes contrast a property of `markTokens` alone.
+`::highlight(lindo-md-find-active)` already worked this way.
+
+`theme.test.ts` checks three things rather than trusting that paragraph: each slot against its
+own ink (≥ 4.5:1), each slot against every preset's paper (visibly different), and that
+`document.css` really sets both halves of the pair. **That third one is what makes the first
+meaningful** — `toHex` drops alpha, so a translucent palette scores identically against the
+ink, and the contrast number is only true on the page if the stylesheet paints both.
+
+The context menu's swatches are drawn from a **separate `--ui-mark-*` set**, because chrome may
+not read the paper's tokens (DESIGN.md) and a swatch is chrome.
 
 `annotationRange` in `lib/edit/selection.ts` sits beside `selectionRange` rather than
 replacing it, and the difference between them is the difference between describing a range

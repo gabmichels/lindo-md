@@ -50,6 +50,18 @@
   --ui-ember-dim: oklch(0.62 0.12 62);
   --ui-ember-wash: color-mix(in oklab, oklch(0.74 0.15 62) 14%, transparent);
 
+  /* The highlight palette as the *tool* draws it, for the swatches in the
+     context menu. Deliberately a second set rather than a reference to
+     `--doc-mark-*`: chrome may not read the paper's tokens (DESIGN.md), and a
+     swatch is chrome. Kept in step with the paper's by eye, not by reference —
+     `theme.test.ts` pins that a slot exists on both sides, not that the values
+     match, because the menu's surface is not the page. */
+  --ui-mark-yellow: oklch(0.88 0.15 95);
+  --ui-mark-green: oklch(0.86 0.14 148);
+  --ui-mark-blue: oklch(0.85 0.1 235);
+  --ui-mark-pink: oklch(0.84 0.11 5);
+  --ui-mark-purple: oklch(0.82 0.11 305);
+
   --ui-danger: oklch(0.58 0.2 25);
 
   /* Tab-group colours — the one other colour family in the chrome, and the
@@ -109,6 +121,17 @@
   --doc-alert-important: oklch(0.52 0.13 300);
   --doc-alert-warning: oklch(0.62 0.13 75);
   --doc-alert-caution: oklch(0.55 0.16 25);
+
+  /* Highlight slots. Opaque, and paired with their own ink, so that one palette
+     is legible on all twenty presets without compositing over an unknown
+     background — these are the only --doc-* values not drawn from the theme, and
+     `markTokens` in lib/theme/apply.ts says why. */
+  --doc-mark-yellow: oklch(0.88 0.15 95);
+  --doc-mark-green: oklch(0.86 0.14 148);
+  --doc-mark-blue: oklch(0.85 0.1 235);
+  --doc-mark-pink: oklch(0.84 0.11 5);
+  --doc-mark-purple: oklch(0.82 0.11 305);
+  --doc-mark-ink: oklch(0.26 0.015 60);
 
   --doc-font-body: "Source Serif 4 Variable", Georgia, serif;
   --doc-font-heading: "Inter Tight Variable", system-ui, sans-serif;
