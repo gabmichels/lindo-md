@@ -32,6 +32,18 @@ export interface TabRuntime {
   error: string | null;
   /** Anchor to scroll to once the document has rendered, if the link had one. */
   pendingAnchor: string | null;
+  /**
+   * A mark to scroll to once the document has rendered, set by clicking a row in
+   * the notes panel.
+   *
+   * Separate from `pendingAnchor` rather than folded into it, because the two
+   * are consumed at different moments. An anchor is an element id and is
+   * reachable as soon as the HTML is in the DOM; a mark is a pair of source
+   * offsets that only becomes a place on screen once its annotation has been
+   * loaded and re-anchored, which is a round trip later. One field would mean
+   * whichever consumer ran first clearing the other's work.
+   */
+  pendingMark: number | null;
   history: string[];
   cursor: number;
   scrollTop: number;
@@ -54,6 +66,7 @@ const BLANK: TabRuntime = {
   loading: false,
   error: null,
   pendingAnchor: null,
+  pendingMark: null,
   history: [],
   cursor: 0,
   scrollTop: 0,
@@ -78,6 +91,9 @@ export interface TabDocuments {
   canGoForward: (id: string) => boolean;
   rememberScroll: (id: string, scrollTop: number) => void;
   clearPendingAnchor: (id: string) => void;
+  /** Asks a tab to scroll to one of its marks, once it has one to scroll to. */
+  revealMark: (id: string, annotationId: number) => void;
+  clearPendingMark: (id: string) => void;
   /** Writes edited Markdown for a tab's document. Resolves false if the write
    *  was refused, so the caller can take its optimistic change back. */
   save: (id: string, source: string) => Promise<boolean>;
@@ -416,6 +432,18 @@ export function useTabDocuments(
     clearPendingAnchor: useCallback(
       (id) => {
         patch(id, { pendingAnchor: null });
+      },
+      [patch],
+    ),
+    revealMark: useCallback(
+      (id, annotationId) => {
+        patch(id, { pendingMark: annotationId });
+      },
+      [patch],
+    ),
+    clearPendingMark: useCallback(
+      (id) => {
+        patch(id, { pendingMark: null });
       },
       [patch],
     ),

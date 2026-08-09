@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useAnnotationRevision } from "@/hooks/useAnnotationRevision";
 import { createAnchor, overlaps, resolveAnchor } from "@/lib/annotate/anchor";
 import {
   applyHighlights,
@@ -71,6 +72,11 @@ export function useAnnotations(
   const [error, setError] = useState<string | null>(null);
   const supported = useRef(supportsHighlights());
 
+  // The panel writes to the same store this hook is reading, so a note edited or
+  // a mark deleted over there has to arrive here. See the module docs on the
+  // provider for why what travels is a number rather than the rows themselves.
+  const { revision, bump } = useAnnotationRevision();
+
   /**
    * Which document `marks` describes.
    *
@@ -131,7 +137,18 @@ export function useAnnotations(
       // Nothing here may mean nothing was ever marked, or may mean this file has
       // been renamed out from under its marks. Only worth asking in the empty
       // case, which is also the only case `relink` will act on.
-      if (stored.length === 0 && contentHash.length > 0) {
+      //
+      // **And only on a first look at this document.** This effect also re-runs
+      // whenever anything writes to the store, which means deleting the last
+      // mark in a document lands here immediately afterwards — and `relink`
+      // would then go looking for a file that had been renamed away, on the
+      // strength of a document the reader had just deliberately emptied. A
+      // byte-identical copy elsewhere is all it would take for the marks to
+      // reappear a moment after being deleted. `describes` already holds the
+      // version the current marks were resolved against, so it is exactly the
+      // "have I seen this document before" this needs.
+      const firstLook = describes.current !== key(path!, contentHash);
+      if (firstLook && stored.length === 0 && contentHash.length > 0) {
         await relinkAnnotations(path!, contentHash);
         if (!live.current) return;
         // Listed again unconditionally, rather than only when the call reported
@@ -190,7 +207,12 @@ export function useAnnotations(
     return () => {
       live.current = false;
     };
-  }, [path, source, contentHash]);
+    // `revision` re-runs the load after any write anywhere, including this
+    // hook's own: an optimistic append holds an id and timestamps guessed
+    // locally, and the row SQLite actually wrote is the one the panel is
+    // showing. Costs one indexed query on a document whose marks are already
+    // resolved.
+  }, [path, source, contentHash, revision]);
 
   // Paint after every render of the document, not only when the marks change:
   // `mirror` replaces the blocks an edit touched, and a Range holds the *node*
@@ -260,6 +282,10 @@ export function useAnnotations(
             { ...made, range: { start: anchor.startOffset, end: anchor.endOffset } },
           ]);
           setError(null);
+          // Appended first and announced second: the highlight has to appear
+          // under the reader's selection now, and the panel can be a round trip
+          // behind without anyone noticing.
+          bump();
         })
         .catch((cause: unknown) => {
           // Otherwise picking a colour is a silent no-op, which is the failure
@@ -267,7 +293,7 @@ export function useAnnotations(
           setError(message(cause));
         });
     },
-    [path, source, contentHash],
+    [path, source, contentHash, bump],
   );
 
   // The marks are read from a ref rather than from a state updater: a `setState`
@@ -277,21 +303,26 @@ export function useAnnotations(
   const latest = useRef(marks);
   latest.current = marks;
 
-  const removeAt = useCallback((range: SourceRange) => {
-    const gone = latest.current.filter((mark) => overlaps(mark.range, range));
-    if (gone.length === 0) return;
+  const removeAt = useCallback(
+    (range: SourceRange) => {
+      const gone = latest.current.filter((mark) => overlaps(mark.range, range));
+      if (gone.length === 0) return;
 
-    setMarks((current) => current.filter((mark) => !gone.includes(mark)));
-    for (const mark of gone) {
-      void deleteAnnotation(mark.id).catch((cause: unknown) => {
-        // Put it back rather than leaving the reader with a mark that is gone
-        // from the page and still in the database — it would reappear on the
-        // next load with no explanation.
-        setMarks((current) => (current.includes(mark) ? current : [...current, mark]));
-        setError(message(cause));
-      });
-    }
-  }, []);
+      setMarks((current) => current.filter((mark) => !gone.includes(mark)));
+      for (const mark of gone) {
+        void deleteAnnotation(mark.id)
+          .then(bump)
+          .catch((cause: unknown) => {
+            // Put it back rather than leaving the reader with a mark that is gone
+            // from the page and still in the database — it would reappear on the
+            // next load with no explanation.
+            setMarks((current) => (current.includes(mark) ? current : [...current, mark]));
+            setError(message(cause));
+          });
+      }
+    },
+    [bump],
+  );
 
   return { marks, highlight, removeAt, supported: supported.current, error };
 }

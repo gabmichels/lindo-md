@@ -57,6 +57,11 @@ interface FormatMenuProps {
   /** True when the right-click landed on an existing mark. */
   canRemoveHighlight?: boolean;
   onRemoveHighlight?: () => void;
+  /** Opens the notes panel on the mark under the pointer, ready to type. */
+  onAddNote?: () => void;
+  /** "Add note…" or "Edit note…", decided by the caller because only it knows
+   *  whether the mark already carries one. */
+  noteLabel?: string;
 }
 
 /** Nouns, like every other row here. The slot names are lowercase in the
@@ -80,6 +85,8 @@ export function FormatMenu({
   markColors,
   canRemoveHighlight = false,
   onRemoveHighlight,
+  onAddNote,
+  noteLabel = "Add note…",
 }: FormatMenuProps) {
   return (
     <ContextMenu.Root>
@@ -231,6 +238,15 @@ export function FormatMenu({
                   teaches nothing; an absent one asks no question. */}
               {canRemoveHighlight && onRemoveHighlight && (
                 <ContextItem onSelect={onRemoveHighlight}>Remove highlight</ContextItem>
+              )}
+
+              {/* Same gate as removal, and for the same reason: a note is
+                  written onto a mark, so there has to be one under the pointer.
+                  It opens the panel with that mark's editor showing rather than
+                  putting a text box on the page — the note lives in the panel,
+                  and two places to write one is two places to look for it. */}
+              {canRemoveHighlight && onAddNote && (
+                <ContextItem onSelect={onAddNote}>{noteLabel}</ContextItem>
               )}
             </>
           )}

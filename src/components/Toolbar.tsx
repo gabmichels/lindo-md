@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Code2,
   Columns2,
+  Highlighter,
   Search,
   SlidersHorizontal,
 } from "lucide-react";
@@ -45,6 +46,8 @@ interface ToolbarProps {
   /** True while the comparison pane is showing a second document. */
   compareOpen: boolean;
   onToggleCompare: () => void;
+  notesOpen: boolean;
+  onToggleNotes: () => void;
 }
 
 export function Toolbar({
@@ -61,6 +64,8 @@ export function Toolbar({
   readOnlyReason,
   compareOpen,
   onToggleCompare,
+  notesOpen,
+  onToggleNotes,
 }: ToolbarProps) {
   return (
     <div className="flex h-[var(--ui-toolbar-h)] shrink-0 items-center gap-1 px-2">
@@ -89,6 +94,15 @@ export function Toolbar({
         icon={Columns2}
         active={compareOpen}
         onClick={onToggleCompare}
+      />
+      <NavButton
+        // Not gated on the document being annotatable. The panel spans every
+        // folder, so it has something to show while a plain-text file — which
+        // cannot be marked at all — is the one on screen.
+        label={notesOpen ? "Hide notes" : "Show notes"}
+        icon={Highlighter}
+        active={notesOpen}
+        onClick={onToggleNotes}
       />
       <NavButton label="Find in document" icon={Search} onClick={onFind} />
       <NavButton label="Appearance" icon={SlidersHorizontal} onClick={onAppearance} />

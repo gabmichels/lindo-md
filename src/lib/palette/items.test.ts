@@ -328,6 +328,7 @@ describe("commandItems", () => {
     onSettings: vi.fn(),
     onAbout: vi.fn(),
     onToggleRail: vi.fn(),
+    onToggleNotes: vi.fn(),
     onRevealInFolder: vi.fn(),
   });
 
@@ -341,6 +342,7 @@ describe("commandItems", () => {
     canGoBack: true,
     canGoForward: true,
     railCollapsed: false,
+    notesOpen: false,
     mod: "Ctrl",
   };
 
@@ -371,6 +373,8 @@ describe("commandItems", () => {
     expect(labels({ railCollapsed: true })).toContain("Show the sidebar");
     expect(labels({ railCollapsed: false })).toContain("Hide the sidebar");
     expect(labels({ sourceMode: true })).toContain("Show the rendered document");
+    expect(labels({ notesOpen: true })).toContain("Hide notes");
+    expect(labels({ notesOpen: false })).toContain("Show notes");
   });
 
   it("spells chords with the host's own modifier", () => {
@@ -414,6 +418,7 @@ describe("commandItems", () => {
     ["cmd:zoom-out", "onZoomOut"],
     ["cmd:zoom-reset", "onZoomReset"],
     ["cmd:rail", "onToggleRail"],
+    ["cmd:notes", "onToggleNotes"],
     ["cmd:appearance", "onAppearance"],
     ["cmd:settings", "onSettings"],
     ["cmd:about", "onAbout"],
@@ -484,6 +489,7 @@ describe("commandItems", () => {
       "cmd:zoom-in": "Ctrl++",
       "cmd:zoom-out": "Ctrl+−",
       "cmd:zoom-reset": "Ctrl+0",
+      "cmd:notes": "Ctrl+Shift+A",
       "cmd:appearance": "Ctrl+Shift+,",
       "cmd:settings": "Ctrl+,",
     });

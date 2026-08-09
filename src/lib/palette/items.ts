@@ -290,6 +290,7 @@ export interface PaletteActions {
   onSettings: () => void;
   onAbout: () => void;
   onToggleRail: () => void;
+  onToggleNotes: () => void;
   onRevealInFolder: () => void;
 }
 
@@ -306,6 +307,9 @@ export interface PaletteState {
   canGoBack: boolean;
   canGoForward: boolean;
   railCollapsed: boolean;
+  /** Whether the notes panel is open, which decides which way the one row
+   *  reads — the same arrangement as the sidebar's. */
+  notesOpen: boolean;
   /** `⌘` on macOS, `Ctrl` everywhere else. */
   mod: string;
 }
@@ -491,6 +495,16 @@ export function commandItems(actions: PaletteActions, state: PaletteState): Pale
       keywords: "rail outline tree toggle",
       group: "Commands",
       run: actions.onToggleRail,
+    },
+    {
+      id: "cmd:notes",
+      label: state.notesOpen ? "Hide notes" : "Show notes",
+      chord: `${mod}+Shift+A`,
+      // "annotation" and "highlight" are what a reader would type; the panel is
+      // called Notes because that is what is in it once they have written one.
+      keywords: "notes annotations highlights marks panel",
+      group: "Commands",
+      run: actions.onToggleNotes,
     },
     {
       id: "cmd:appearance",

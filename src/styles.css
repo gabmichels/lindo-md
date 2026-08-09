@@ -79,6 +79,9 @@
   /* 4px base grid. */
   --ui-rail-w: 264px;
   --ui-rail-collapsed-w: 52px;
+  /* The notes panel. Narrower than the rail: it holds quotes and notes, which
+     are prose and want a short measure, not paths, which want a long one. */
+  --ui-notes-w: 248px;
   --ui-row-h: 30px;
   --ui-pad: 10px;
   --ui-titlebar-h: 38px;

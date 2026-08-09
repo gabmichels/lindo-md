@@ -4,9 +4,10 @@ import type { Document } from "@/lib/ipc";
 import type { Theme } from "@/lib/theme/schema";
 import { FormatMenu } from "@/components/FormatMenu";
 import { Frontmatter } from "@/components/Frontmatter";
-import { useAnnotations } from "@/hooks/useAnnotations";
+import { useAnnotations, type ResolvedAnnotation } from "@/hooks/useAnnotations";
 import { useDocumentTyping } from "@/hooks/useDocumentTyping";
 import { overlaps } from "@/lib/annotate/anchor";
+import { domRangeOf } from "@/lib/annotate/paint";
 import { applyFormat, type FormatCommand } from "@/lib/edit/format";
 import {
   annotationRange,
@@ -44,6 +45,16 @@ interface DocumentViewProps {
   blockRemoteImages: boolean;
   pendingAnchor: string | null;
   onAnchorConsumed: () => void;
+  /** A mark the notes panel asked to be shown, scrolled to once it resolves.
+   *  Not `pendingMark`: that name is taken below by the right-click's own range,
+   *  and two different meanings of "the mark being dealt with" in one file is a
+   *  bug waiting for whoever reads it next. */
+  pendingReveal?: number | null;
+  onRevealConsumed?: () => void;
+  /** Write a note on this mark: opens the panel with its editor showing. The
+   *  note lives over there, and a second place to write one would be a second
+   *  place to go looking for it. */
+  onRequestNote?: (annotationId: number) => void;
   onOpenDocument: (path: string, fragment: string) => void;
   onScrollerReady: (element: HTMLElement | null) => void;
   /** Writes edited Markdown. Resolves false if the write was refused. */
@@ -77,6 +88,9 @@ export function DocumentView({
   blockRemoteImages,
   pendingAnchor,
   onAnchorConsumed,
+  pendingReveal = null,
+  onRevealConsumed,
+  onRequestNote,
   onOpenDocument,
   onScrollerReady,
   onSave,
@@ -262,6 +276,9 @@ export function DocumentView({
   const pendingMark = useRef<SourceRange | null>(null);
   const [canHighlight, setCanHighlight] = useState(false);
   const [canRemoveHighlight, setCanRemoveHighlight] = useState(false);
+  /** The mark the right-click landed on, so the note row can name what it will
+   *  do — a mark that already has a note is edited, not added to. */
+  const [markUnderPointer, setMarkUnderPointer] = useState<ResolvedAnnotation | null>(null);
 
   const onContextMenu = () => {
     const range = selectionRange(doc.blocks, window.getSelection());
@@ -274,7 +291,10 @@ export function DocumentView({
     // Removal works off the caret as well as a selection, so that clicking
     // inside a mark offers to take it off without selecting it first.
     const at = mark ?? selectionRange(doc.blocks, window.getSelection());
-    setCanRemoveHighlight(at !== null && annotations.marks.some((m) => overlaps(m.range, at)));
+    const under =
+      at === null ? null : (annotations.marks.find((m) => overlaps(m.range, at)) ?? null);
+    setCanRemoveHighlight(under !== null);
+    setMarkUnderPointer(under);
   };
 
   const formatRange = (range: SourceRange | null, command: FormatCommand) => {
@@ -445,6 +465,58 @@ export function DocumentView({
     };
   }, [pendingAnchor, doc.path, onAnchorConsumed]);
 
+  /**
+   * A mark the panel asked to be shown.
+   *
+   * Waits for the annotation rather than for the render, which is what makes
+   * this a separate effect from the anchor one above. Clicking a row in a file
+   * that is not open sets this while the document is still loading; the marks
+   * arrive a round trip after the HTML, so the effect re-runs when they do and
+   * the request is only consumed once it has actually been honoured.
+   *
+   * An orphan is consumed without scrolling. Its words are gone from the
+   * document, so there is nowhere honest to go, and leaving the request pending
+   * would make the next mark in that tab scroll for this one instead.
+   */
+  useEffect(() => {
+    if (pendingReveal === null || !onRevealConsumed) return;
+    // Only the tab on screen. A background tab is `display: none`, so every
+    // rectangle in it measures zero — the arithmetic below would resolve to
+    // "scroll to the top", consume the request, and leave the reader at the top
+    // of the document when they came back rather than at the mark they asked
+    // for. Reaching this while hidden takes switching tabs in the moment between
+    // the click and the marks arriving, which is small and not impossible.
+    if (!visible) return;
+    const scroller = scrollerRef.current;
+    const article = articleRef.current;
+    if (!scroller || !article) return;
+
+    const mark = annotations.marks.find((candidate) => candidate.id === pendingReveal);
+    if (!mark) return;
+    if (!mark.range) {
+      onRevealConsumed();
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      const range = domRangeOf(article, doc.blocks, mark.range!);
+      // Placed relative to the scroller rather than the viewport: this element
+      // is the scrolling box, and on a background tab it is `display: none`, so
+      // `getBoundingClientRect` alone would be measuring a collapsed layout.
+      if (range) {
+        const top = range.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+        scroller.scrollTo({ top: Math.max(0, scroller.scrollTop + top - 96), behavior: "smooth" });
+      }
+      onRevealConsumed();
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+    // `visible` is a dependency as well as a guard, so a request that arrived
+    // while this tab was hidden is honoured when the reader comes back to it
+    // rather than being dropped.
+  }, [pendingReveal, onRevealConsumed, annotations.marks, doc.blocks, visible]);
+
   return (
     <div
       ref={scrollerRef}
@@ -546,6 +618,16 @@ export function DocumentView({
           const at = pendingMark.current ?? pending.current;
           if (at) annotations.removeAt(at);
         }}
+        onAddNote={
+          markUnderPointer && onRequestNote
+            ? () => {
+                onRequestNote(markUnderPointer.id);
+              }
+            : undefined
+        }
+        noteLabel={
+          markUnderPointer && markUnderPointer.body.length > 0 ? "Edit note…" : "Add note…"
+        }
         onEditSource={editable ? onToggleSource : undefined}
         // The menu asks once, when it opens: a selection can be gone by the
         // time a row is chosen, and greying the rows out afterwards would be

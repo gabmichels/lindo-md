@@ -30,6 +30,8 @@ interface DocumentDeckProps {
   blockRemoteImages: boolean;
   onOpenDocument: (tabId: string, path: string, fragment: string) => void;
   onAnchorConsumed: (tabId: string) => void;
+  onRevealConsumed: (tabId: string) => void;
+  onRequestNote: (annotationId: number) => void;
   onScrollChange: (tabId: string, scrollTop: number) => void;
   onScrollerReady: (element: HTMLElement | null) => void;
   onSave: (tabId: string, source: string) => Promise<boolean>;
@@ -45,6 +47,8 @@ export function DocumentDeck({
   blockRemoteImages,
   onOpenDocument,
   onAnchorConsumed,
+  onRevealConsumed,
+  onRequestNote,
   onScrollChange,
   onScrollerReady,
   onSave,
@@ -72,11 +76,16 @@ export function DocumentDeck({
             theme={theme}
             blockRemoteImages={blockRemoteImages}
             pendingAnchor={runtime.pendingAnchor}
+            pendingReveal={runtime.pendingMark}
             visible={tab.id === active}
             restoreScrollTop={runtime.scrollTop}
             onAnchorConsumed={() => {
               onAnchorConsumed(tab.id);
             }}
+            onRevealConsumed={() => {
+              onRevealConsumed(tab.id);
+            }}
+            onRequestNote={onRequestNote}
             onOpenDocument={(path, fragment) => {
               onOpenDocument(tab.id, path, fragment);
             }}
