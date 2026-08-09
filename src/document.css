@@ -721,8 +721,15 @@
      quietly pull the chrome's text colour down into the document canvas — the
      one thing DESIGN.md forbids outright. */
   color: var(--doc-text-muted);
-  font-family: var(--doc-font-heading);
-  font-size: 12.5px;
+  /* **The body font and size, on a block that shows neither.** `--doc-page` is
+     `calc(66ch * 1.5)`, and `ch` is resolved against the element's *own* font —
+     so setting the small heading face here made the identical token compute to
+     715px against `.doc`'s 1021px, and the block sat 153px inside the prose it
+     is supposed to line up with. Anything that has to share the page measure has
+     to share the font context the measure is written in. The visible text takes
+     its own size below. */
+  font-family: var(--doc-font-body);
+  font-size: var(--doc-size);
 }
 
 .doc-frontmatter summary {
@@ -734,6 +741,8 @@
   color: var(--doc-text-muted);
   cursor: pointer;
   list-style: none;
+  font-family: var(--doc-font-heading);
+  font-size: 12.5px;
   letter-spacing: 0.02em;
   user-select: none;
 }
@@ -768,6 +777,12 @@
 .doc-frontmatter pre {
   margin-block: 0.5rem 0;
   padding: 0.7rem 0.9rem;
+  /* Sized by its contents, not by the measure. Frontmatter is usually three or
+     four short lines, and a panel drawn the full width of the page promises far
+     more than it holds — it reads as an empty box rather than as a caption. It
+     still stops at the measure when a document has a long value in it. */
+  width: fit-content;
+  max-width: 100%;
   overflow-x: auto;
   border-radius: 7px;
   background: var(--doc-code-bg);
