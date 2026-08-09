@@ -4,9 +4,16 @@ import type { Document } from "@/lib/ipc";
 import type { Theme } from "@/lib/theme/schema";
 import { FormatMenu } from "@/components/FormatMenu";
 import { Frontmatter } from "@/components/Frontmatter";
+import { useAnnotations } from "@/hooks/useAnnotations";
 import { useDocumentTyping } from "@/hooks/useDocumentTyping";
+import { overlaps } from "@/lib/annotate/anchor";
 import { applyFormat, type FormatCommand } from "@/lib/edit/format";
-import { restoreSelection, selectionRange, type SourceRange } from "@/lib/edit/selection";
+import {
+  annotationRange,
+  restoreSelection,
+  selectionRange,
+  type SourceRange,
+} from "@/lib/edit/selection";
 import { taskClickHandler } from "@/lib/edit/tasks";
 import { enhance } from "@/lib/render/enhance";
 import { hasBlockedImages, loadBlockedImages } from "@/lib/render/images";
@@ -90,6 +97,28 @@ export function DocumentView({
    *  checkboxes and the source view together — four affordances that would
    *  otherwise each need remembering. */
   const editable = doc.editable && !readOnly;
+
+  /**
+   * Whether this view offers annotating, which is **not** the same question as
+   * `editable`.
+   *
+   * A mark writes to its own database and never to the file, so a document being
+   * unwritable is no reason to refuse one. What is a reason is having nothing to
+   * anchor against: `files.rs` builds a block map only for Markdown, so plain
+   * text and MDX have no offsets a mark could survive an edit with.
+   *
+   * The comparison pane is excluded separately and for a different reason — it
+   * is a reference held still beside your work, with no panel to show a note in.
+   */
+  const canAnnotate = doc.blocks.length > 0 && !readOnly;
+
+  // The article as state rather than only a ref, because painting has to re-run
+  // when it arrives and a ref does not cause a render.
+  const [articleElement, setArticleElement] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setArticleElement(articleRef.current);
+  }, []);
+  const annotations = useAnnotations(canAnnotate ? doc : null, articleElement);
 
   useEffect(() => {
     if (!visible) return;
@@ -228,10 +257,24 @@ export function DocumentView({
   const pending = useRef<SourceRange | null>(null);
   const [canFormat, setCanFormat] = useState(false);
 
+  /** The same right-click, resolved the annotation way: both ends may sit in
+   *  different blocks, because marking a span rewrites nothing. */
+  const pendingMark = useRef<SourceRange | null>(null);
+  const [canHighlight, setCanHighlight] = useState(false);
+  const [canRemoveHighlight, setCanRemoveHighlight] = useState(false);
+
   const onContextMenu = () => {
     const range = selectionRange(doc.blocks, window.getSelection());
     pending.current = range;
     setCanFormat(range !== null && range.end > range.start);
+
+    const mark = annotationRange(doc.blocks, window.getSelection());
+    pendingMark.current = mark;
+    setCanHighlight(mark !== null);
+    // Removal works off the caret as well as a selection, so that clicking
+    // inside a mark offers to take it off without selecting it first.
+    const at = mark ?? selectionRange(doc.blocks, window.getSelection());
+    setCanRemoveHighlight(at !== null && annotations.marks.some((m) => overlaps(m.range, at)));
   };
 
   const formatRange = (range: SourceRange | null, command: FormatCommand) => {
@@ -475,6 +518,22 @@ export function DocumentView({
         canFormat={canFormat && editable}
         onFormat={format}
         onCopy={copySelection}
+        // Offered wherever there is a source map to anchor to, which is a wider
+        // set than `editable`: a mark writes to its own database, never to the
+        // file. Absent entirely rather than disabled where annotating is off.
+        onHighlight={
+          canAnnotate && annotations.supported
+            ? (slot) => {
+                if (pendingMark.current) annotations.highlight(pendingMark.current, slot);
+              }
+            : undefined
+        }
+        canHighlight={canHighlight}
+        canRemoveHighlight={canRemoveHighlight}
+        onRemoveHighlight={() => {
+          const at = pendingMark.current ?? pending.current;
+          if (at) annotations.removeAt(at);
+        }}
         onEditSource={editable ? onToggleSource : undefined}
         // The menu asks once, when it opens: a selection can be gone by the
         // time a row is chosen, and greying the rows out afterwards would be

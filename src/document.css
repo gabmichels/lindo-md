@@ -1049,3 +1049,34 @@
   font-size: 12px;
   color: var(--doc-text-muted);
 }
+
+/* Annotation highlights.
+
+   Painted by the CSS Custom Highlight API (see lib/annotate/paint.ts), which
+   inserts no elements — wrapping a mark in a <mark> would add a node comrak did
+   not emit to `.doc`, and `render/mirror.ts` tracks those positionally.
+
+   Scoped under `.doc-scroller` rather than written bare, because these read
+   `--doc-*` and DESIGN.md's rule is that document styles are the only place the
+   paper's tokens may be read. The find highlights in styles.css are the mirror
+   image of this: they are the tool acting on the document, so they are `--ui-*`
+   and live over there. */
+.doc-scroller ::highlight(lindo-md-mark-yellow) {
+  background-color: var(--doc-mark-yellow);
+}
+
+.doc-scroller ::highlight(lindo-md-mark-green) {
+  background-color: var(--doc-mark-green);
+}
+
+.doc-scroller ::highlight(lindo-md-mark-blue) {
+  background-color: var(--doc-mark-blue);
+}
+
+.doc-scroller ::highlight(lindo-md-mark-pink) {
+  background-color: var(--doc-mark-pink);
+}
+
+.doc-scroller ::highlight(lindo-md-mark-purple) {
+  background-color: var(--doc-mark-purple);
+}

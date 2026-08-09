@@ -8,6 +8,7 @@ import {
   Shortcut,
 } from "@/components/ui/menu";
 import type { FormatCommand } from "@/lib/edit/format";
+import { MARK_SLOTS, type MarkSlot } from "@/lib/theme/apply";
 
 /**
  * The formatting menu, on a right-click inside the document.
@@ -31,7 +32,31 @@ interface FormatMenuProps {
    *  everything the rendered view will not edit. Absent until that view exists;
    *  a menu row that does nothing is worse than one that is not there. */
   onEditSource?: () => void;
+  /**
+   * Marks the selection. Absent where annotating is not offered at all — the
+   * comparison pane, and any document with no source map to anchor against.
+   *
+   * Separate from `canFormat` on purpose, and the difference is the point: a
+   * selection spanning two paragraphs cannot be *formatted*, because wrapping the
+   * markup between them rewrites the document, but it can perfectly well be
+   * *marked*. See `annotationRange` beside `selectionRange`.
+   */
+  onHighlight?: (slot: MarkSlot) => void;
+  canHighlight?: boolean;
+  /** True when the right-click landed on an existing mark. */
+  canRemoveHighlight?: boolean;
+  onRemoveHighlight?: () => void;
 }
+
+/** Nouns, like every other row here. The slot names are lowercase in the
+ *  database because they are identifiers, not labels. */
+const SLOT_LABELS: Record<MarkSlot, string> = {
+  yellow: "Yellow",
+  green: "Green",
+  blue: "Blue",
+  pink: "Pink",
+  purple: "Purple",
+};
 
 export function FormatMenu({
   children,
@@ -39,6 +64,10 @@ export function FormatMenu({
   onFormat,
   onCopy,
   onEditSource,
+  onHighlight,
+  canHighlight = false,
+  canRemoveHighlight = false,
+  onRemoveHighlight,
 }: FormatMenuProps) {
   return (
     <ContextMenu.Root>
@@ -155,6 +184,46 @@ export function FormatMenu({
           >
             Quote
           </ContextItem>
+
+          {onHighlight && (
+            <>
+              <ContextSeparator />
+
+              <ContextMenu.Sub>
+                <ContextMenu.SubTrigger className={ITEM_CLASS} disabled={!canHighlight}>
+                  Highlight
+                  <span className="ml-auto pl-4 text-ui-text-faint">›</span>
+                </ContextMenu.SubTrigger>
+                <ContextMenu.Portal>
+                  <ContextMenu.SubContent className={MENU_CLASS}>
+                    {MARK_SLOTS.map((slot) => (
+                      <ContextItem
+                        key={slot}
+                        onSelect={() => {
+                          onHighlight(slot);
+                        }}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="mr-2 inline-block size-3 rounded-ui-sm"
+                          // The swatch is the tool's copy of the palette, never
+                          // the paper's — see `--ui-mark-*` in styles.css.
+                          style={{ background: `var(--ui-mark-${slot})` }}
+                        />
+                        {SLOT_LABELS[slot]}
+                      </ContextItem>
+                    ))}
+                  </ContextMenu.SubContent>
+                </ContextMenu.Portal>
+              </ContextMenu.Sub>
+
+              {/* Only when there is one to remove. A permanently greyed row
+                  teaches nothing; an absent one asks no question. */}
+              {canRemoveHighlight && onRemoveHighlight && (
+                <ContextItem onSelect={onRemoveHighlight}>Remove highlight</ContextItem>
+              )}
+            </>
+          )}
 
           <ContextSeparator />
 

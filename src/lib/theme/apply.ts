@@ -126,6 +126,41 @@ export function docTokens(theme: Theme): Record<string, string> {
   return { ...tokens, ...componentTokens(theme) };
 }
 
+/**
+ * The colours a highlight can be painted in.
+ *
+ * Split out of `docTokens` for the same reason `viewTokens` is — so the split is
+ * enforced rather than remembered — but the split here is a different one. These
+ * are `--doc-*` because a highlight is on the paper, not on the tool: it is
+ * content the reader added, and it exports into the Markdown. They are **not**
+ * drawn from the theme, which every other `--doc-*` value is.
+ *
+ * That is a deliberate, reversible shortcut. Making them theme fields means a
+ * required five colours in `ThemeColorsSchema`, which is nineteen presets times
+ * two halves to fill in and five more decisions for anyone authoring a theme —
+ * for a palette that has no UI to change it yet. Each value is translucent, so it
+ * sits legibly on bone-white and near-black paper alike rather than needing a
+ * per-theme answer. Promoting them later is an optional schema field whose
+ * default is exactly what is written here.
+ *
+ * The names are slots, not descriptions. What `annotations.rs` stores is which
+ * slot a mark uses, so re-theming these values re-paints existing marks instead
+ * of stranding them on a colour that no longer belongs to the page.
+ */
+export function markTokens(): Record<string, string> {
+  return {
+    "--doc-mark-yellow": "oklch(0.85 0.16 95 / 0.35)",
+    "--doc-mark-green": "oklch(0.8 0.16 145 / 0.32)",
+    "--doc-mark-blue": "oklch(0.75 0.14 240 / 0.32)",
+    "--doc-mark-pink": "oklch(0.75 0.18 5 / 0.3)",
+    "--doc-mark-purple": "oklch(0.7 0.16 300 / 0.32)",
+  };
+}
+
+/** The slot names, in the order the menu offers them. */
+export const MARK_SLOTS = ["yellow", "green", "blue", "pink", "purple"] as const;
+export type MarkSlot = (typeof MARK_SLOTS)[number];
+
 function indented(type: Theme["typography"]): boolean {
   return type.paragraphStyle === "indented";
 }
@@ -153,6 +188,9 @@ export function applyTheme(theme: Theme, target: HTMLElement, view: Partial<DocV
     target.style.setProperty(property, value);
   }
   for (const [property, value] of Object.entries(viewTokens(resolved))) {
+    target.style.setProperty(property, value);
+  }
+  for (const [property, value] of Object.entries(markTokens())) {
     target.style.setProperty(property, value);
   }
   target.style.setProperty("--doc-size", `${round(theme.typography.baseSize * resolved.zoom)}px`);

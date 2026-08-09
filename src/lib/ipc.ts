@@ -296,9 +296,50 @@ export const AnnotationListSchema = z.unknown().transform((value): Annotation[] 
   });
 });
 
-// The `invoke` wrappers for the six annotation commands land with the code that
-// calls them. `pnpm knip` refuses an export nothing reaches, and it is right to:
-// a binding written a release before its caller is a binding nobody has run.
+/** What an annotation needs before the store gives it an id and timestamps. */
+export interface NewAnnotation {
+  path: string;
+  color: string;
+  body: string;
+  quote: string;
+  prefix: string;
+  suffix: string;
+  startOffset: number;
+  endOffset: number;
+  anchoredHash: string;
+}
+
+/** One annotation's offsets, re-found after the document changed under it. */
+export interface Reanchor {
+  id: number;
+  startOffset: number;
+  endOffset: number;
+  anchoredHash: string;
+}
+
+export function listAnnotations(path: string): Promise<Annotation[]> {
+  return call("list_annotations", AnnotationListSchema, { path });
+}
+
+export function createAnnotation(annotation: NewAnnotation): Promise<Annotation> {
+  return call("create_annotation", AnnotationSchema, { annotation });
+}
+
+/** Persists offsets re-found after an edit, so the search runs once rather than
+ *  on every load. Applied in one transaction: half a document's marks agreeing
+ *  with the new file and half still claiming the old hash is worse than none. */
+export function reanchorAnnotations(updates: Reanchor[]): Promise<void> {
+  return call("reanchor_annotations", z.void(), { updates });
+}
+
+export function deleteAnnotation(id: number): Promise<void> {
+  return call("delete_annotation", z.void(), { id });
+}
+
+// `all_annotations` and `update_annotation` are registered in Rust and reached
+// by nothing yet — the cross-document panel and the note editor are the next two
+// PRs. Their wrappers land with the code that calls them, because `pnpm knip`
+// refuses an export nothing reaches and it is right to.
 
 // --- system integration -----------------------------------------------------
 

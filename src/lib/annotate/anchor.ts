@@ -141,6 +141,22 @@ function search(source: string, anchor: Anchor): number | null {
   return best === null || ambiguous ? null : best.at;
 }
 
+/**
+ * Whether a mark covers any of `range` — which is how "remove the highlight I am
+ * pointing at" decides what the reader means.
+ *
+ * Touching does not count. A highlight that ends exactly where the next one
+ * begins is a different mark, and a caret resting on the seam belongs to
+ * neither; treating a shared boundary as an overlap would delete a mark the
+ * reader was not inside. A collapsed range is a caret rather than a selection,
+ * so it has to sit *strictly* within a mark.
+ */
+export function overlaps(mark: SourceRange | null, range: SourceRange): boolean {
+  if (!mark) return false;
+  if (range.start === range.end) return range.start > mark.start && range.start < mark.end;
+  return range.start < mark.end && range.end > mark.start;
+}
+
 /** How many characters the two strings share at their ends. */
 function commonSuffix(a: string, b: string): number {
   let shared = 0;

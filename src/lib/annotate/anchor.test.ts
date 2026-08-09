@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CONTEXT, createAnchor, resolveAnchor, type Anchor } from "./anchor";
+import { CONTEXT, createAnchor, overlaps, resolveAnchor, type Anchor } from "./anchor";
 
 /** An anchor over the first occurrence of `quote`, as the app would make one. */
 function anchorOn(source: string, quote: string, hash = "h1"): Anchor {
@@ -169,5 +169,33 @@ describe("resolveAnchor", () => {
 
     expect(normalized.slice(anchor.startOffset, anchor.endOffset)).toBe("the marked words");
     expect(resolveAnchor(normalized, "h1", anchor).status).toBe("exact");
+  });
+});
+
+describe("overlaps", () => {
+  const mark = { start: 10, end: 20 };
+
+  it("finds a selection that covers part of a mark", () => {
+    expect(overlaps(mark, { start: 15, end: 25 })).toBe(true);
+    expect(overlaps(mark, { start: 5, end: 12 })).toBe(true);
+    expect(overlaps(mark, { start: 0, end: 30 })).toBe(true);
+  });
+
+  it("does not count touching as overlapping", () => {
+    // A highlight ending exactly where the next begins is a different mark, so
+    // treating a shared boundary as an overlap would remove one the reader is
+    // not inside.
+    expect(overlaps(mark, { start: 20, end: 24 })).toBe(false);
+    expect(overlaps(mark, { start: 6, end: 10 })).toBe(false);
+  });
+
+  it("puts a caret inside a mark only when it is strictly within", () => {
+    expect(overlaps(mark, { start: 15, end: 15 })).toBe(true);
+    expect(overlaps(mark, { start: 10, end: 10 })).toBe(false);
+    expect(overlaps(mark, { start: 20, end: 20 })).toBe(false);
+  });
+
+  it("never matches an orphan, which is nowhere in the document", () => {
+    expect(overlaps(null, { start: 0, end: 100 })).toBe(false);
   });
 });

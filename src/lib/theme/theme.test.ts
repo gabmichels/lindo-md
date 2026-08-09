@@ -1,7 +1,15 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { applyTheme, docTokens, mermaidThemeVariables, viewTokens, type DocView } from "./apply";
+import {
+  applyTheme,
+  docTokens,
+  markTokens,
+  mermaidThemeVariables,
+  viewTokens,
+  type DocView,
+} from "./apply";
+import { MARK_SLOTS } from "./apply";
 import { toHex } from "./color";
 import { BUNDLED_FONTS } from "./fonts";
 import { DEFAULT_PRESET_ID, PRESETS, findPreset, resolveTheme } from "./presets";
@@ -503,9 +511,14 @@ describe("the two token namespaces stay apart", () => {
   it("gives styles.css a House default for every token applyTheme writes", () => {
     // Otherwise a token would fall back to nothing before React mounts, and the
     // first paint would be subtly wrong in a way that is hard to spot.
+    // markTokens is in here for the same reason the other two are: applyTheme
+    // writes it. Leaving it out would let a highlight slot ship with no default,
+    // and the failure is invisible — a mark that paints nothing looks like a
+    // mark that was never saved.
     const written = {
       ...docTokens(house.light),
       ...viewTokens({ zoom: 1, contentWidth: "standard" }),
+      ...markTokens(),
     };
     for (const property of Object.keys(written)) {
       // Heading sizes are computed per theme, not defaulted in CSS.
@@ -529,6 +542,30 @@ describe("the two token namespaces stay apart", () => {
       expect(keys(preset.light), `${preset.id} writes a different set to House`).toEqual(
         keys(house.light),
       );
+    }
+  });
+});
+
+describe("markTokens", () => {
+  it("emits only --doc-* properties, like every other value on the paper", () => {
+    for (const property of Object.keys(markTokens())) {
+      expect(property.startsWith("--doc-"), property).toBe(true);
+    }
+  });
+
+  it("covers every slot the menu offers, so no colour can paint as nothing", () => {
+    const tokens = markTokens();
+    for (const slot of MARK_SLOTS) {
+      expect(tokens[`--doc-mark-${slot}`], slot).toBeTruthy();
+    }
+  });
+
+  it("gives the tool its own copy of the palette rather than reading the paper's", () => {
+    // DESIGN.md: chrome must never read a --doc-* variable. The context menu
+    // draws swatches, so it needs --ui-mark-* to draw them from.
+    const css = readFileSync("src/styles.css", "utf8");
+    for (const slot of MARK_SLOTS) {
+      expect(css, `--ui-mark-${slot} has no definition`).toContain(`--ui-mark-${slot}:`);
     }
   });
 });

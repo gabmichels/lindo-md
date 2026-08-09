@@ -685,14 +685,40 @@ Three things are load-bearing, and each is invisible at the point where it would
 
 Two more that shape what can be built on top:
 
-- **Painting must use the CSS Custom Highlight API**, as `useFind` already does. It paints
-  ranges without inserting a node, so `mirror`'s positional block tracking, `enhance()`'s
-  per-node bookkeeping and `restamp`'s `data-sourcepos` pairing are all untouched. Wrapping a
-  selection in `<mark>` would quietly break all three — see the entry under Gotchas about
-  anything the app adds to the canvas.
+- **Painting uses the CSS Custom Highlight API**, as `useFind` already does. It paints ranges
+  without inserting a node, so `mirror`'s positional block tracking, `enhance()`'s per-node
+  bookkeeping and `restamp`'s `data-sourcepos` pairing are all untouched. Wrapping a selection
+  in `<mark>` would quietly break all three — see the entry under Gotchas about anything the
+  app adds to the canvas. One registered highlight **per colour slot**, not per mark: the
+  registry maps a name to a set of ranges, and the name is what CSS selects on.
 - **`color` is a theme slot name, not a colour.** A theme rewrites every `--doc-*` token, so
   storing `#ffee00` would freeze a mark to a colour that clashes with whatever the reader
-  picks next.
+  picks next. A slot this build does not know paints in the first one rather than not at all,
+  because an invisible highlight reads as data loss.
+
+Three things about painting that are easy to get subtly wrong:
+
+- **Repaint after every render of the document, not only when the marks change.** A `Range`
+  holds the *node* it was built over, and `mirror` replaces the blocks an edit touched. A
+  replaced node leaves its range pointing at something no longer in the tree, which paints
+  nothing and reports nothing.
+- **A mark whose ends cannot be placed is dropped, not approximated.** `domPositionOf` falls
+  back to the nearest position it can find, and for a caret that is right — being a character
+  out beats being thrown to the top of the document. A highlight has no such excuse: the
+  fallback collapses the range or puts it somewhere arbitrary, which is the same wrong-words
+  failure the orphan rule exists to prevent.
+- **Highlights are global to the page**, so a document leaving the screen has to take its own
+  off. Otherwise switching tabs leaves the previous document's marks registered against nodes
+  that are no longer there.
+
+**The highlight palette is the one set of `--doc-*` values not drawn from the theme.** They
+are constants in `markTokens()`, translucent so a single set sits legibly on bone-white and
+near-black paper alike. Making them theme fields means five required colours in
+`ThemeColorsSchema` — nineteen presets times two halves, and five more decisions for anyone
+authoring a theme — for a palette with no UI to change it. Promoting them later is an optional
+field whose default is exactly what is written there. The context menu's swatches are drawn
+from a **separate `--ui-mark-*` set**, because chrome may not read the paper's tokens
+(DESIGN.md) and a swatch is chrome; `theme.test.ts` pins both halves.
 
 `annotationRange` in `lib/edit/selection.ts` sits beside `selectionRange` rather than
 replacing it, and the difference between them is the difference between describing a range
