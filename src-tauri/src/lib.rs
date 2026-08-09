@@ -27,6 +27,7 @@
     )
 )]
 
+mod annotations;
 mod assoc;
 mod commands;
 mod config;
@@ -92,6 +93,9 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(WatchState::default())
+        // Empty until the first annotation call — the database file is created by
+        // a reader who marks something up, not by every launch.
+        .manage(annotations::Store::default())
         // Reads argv now, so the launch argument is already queued before the
         // webview that collects it exists — see `OpenQueue::from_launch`.
         .manage(assoc::OpenQueue::from_launch());
@@ -138,6 +142,12 @@ pub fn run() {
             commands::get_pending_documents,
             commands::get_default_app_status,
             commands::request_default_app,
+            commands::list_annotations,
+            commands::all_annotations,
+            commands::create_annotation,
+            commands::update_annotation,
+            commands::reanchor_annotations,
+            commands::delete_annotation,
         ])
         .build(tauri::generate_context!())
         .expect("error while building lindo-md")

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { BlockMap } from "@/lib/ipc";
 import {
+  annotationRange,
   domPositionOf,
   restoreSelection,
   selectionRange,
@@ -236,5 +237,88 @@ describe("selectionRange", () => {
     );
     const text = root.querySelector("code")!.firstChild!;
     expect(rangeOf([plain], [text, 0], [text, 3])).toBeNull();
+  });
+});
+
+describe("annotationRange", () => {
+  /** Two paragraphs, `first` and `second`, seven characters apart in the file. */
+  function twoParagraphs() {
+    const root = article(
+      `<p data-sourcepos="1:1-1:5">first</p><p data-sourcepos="3:1-3:6">second</p>`,
+    );
+    const [one, two] = [...root.querySelectorAll("p")];
+    const blocks: BlockMap[] = [
+      {
+        sourcepos: "1:1-1:5",
+        aligned: true,
+        runs: [{ text: "first", sourceStart: 0, sourceEnd: 5 }],
+      },
+      {
+        sourcepos: "3:1-3:6",
+        aligned: true,
+        runs: [{ text: "second", sourceStart: 7, sourceEnd: 13 }],
+      },
+    ];
+    return { blocks, one: one!.firstChild!, two: two!.firstChild! };
+  }
+
+  function annotate(blocks: BlockMap[], start: [Node, number], end: [Node, number]) {
+    const range = document.createRange();
+    range.setStart(start[0], start[1]);
+    range.setEnd(end[0], end[1]);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return annotationRange(blocks, selection);
+  }
+
+  it("resolves a selection inside one block, like selectionRange does", () => {
+    const root = article(`<p data-sourcepos="1:1-1:11">Hello world</p>`);
+    const text = root.querySelector("p")!.firstChild!;
+    expect(annotate([plain], [text, 0], [text, 5])).toEqual({ start: 0, end: 5 });
+  });
+
+  it("spans two blocks, which is the whole reason it exists", () => {
+    // `selectionRange` refuses exactly this — see the test above — because
+    // wrapping the blank line between two paragraphs in `**` would rewrite the
+    // document. Describing that span costs the document nothing.
+    const { blocks, one, two } = twoParagraphs();
+    expect(annotate(blocks, [one, 2], [two, 3])).toEqual({ start: 2, end: 10 });
+  });
+
+  it("refuses a collapsed selection", () => {
+    const root = article(`<p data-sourcepos="1:1-1:11">Hello world</p>`);
+    const text = root.querySelector("p")!.firstChild!;
+    expect(annotate([plain], [text, 4], [text, 4])).toBeNull();
+  });
+
+  it("refuses a span that runs backwards in the file", () => {
+    // A footnote definition renders at the foot of the document from source that
+    // may sit anywhere in it, so later on screen does not mean later in the file.
+    const root = article(
+      `<p data-sourcepos="9:1-9:5">body</p><li data-sourcepos="2:1-2:4">note</li>`,
+    );
+    const [body, note] = [root.querySelector("p")!, root.querySelector("li")!];
+    const blocks: BlockMap[] = [
+      {
+        sourcepos: "9:1-9:5",
+        aligned: true,
+        runs: [{ text: "body", sourceStart: 40, sourceEnd: 44 }],
+      },
+      {
+        sourcepos: "2:1-2:4",
+        aligned: true,
+        runs: [{ text: "note", sourceStart: 5, sourceEnd: 9 }],
+      },
+    ];
+    expect(annotate(blocks, [body.firstChild!, 0], [note.firstChild!, 4])).toBeNull();
+  });
+
+  it("still refuses an atom", () => {
+    const root = article(
+      `<pre class="code-block" data-sourcepos="1:1-3:3"><code>let x = 1;</code></pre>`,
+    );
+    const text = root.querySelector("code")!.firstChild!;
+    expect(annotate([plain], [text, 0], [text, 3])).toBeNull();
   });
 });

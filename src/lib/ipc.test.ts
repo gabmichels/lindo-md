@@ -3,7 +3,12 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { FALLBACK } from "../hooks/useConfig";
-import { AppConfigSchema, StoredCustomThemesSchema } from "./ipc";
+import {
+  AnnotationListSchema,
+  AnnotationSchema,
+  AppConfigSchema,
+  StoredCustomThemesSchema,
+} from "./ipc";
 import { PRESETS } from "./theme/presets";
 import { EMPTY_SESSION } from "./tabs/model";
 
@@ -176,5 +181,43 @@ describe("the config contract with Rust", () => {
     for (const key of ["themeId", "appearance", "railWidth", "zoom", "blockRemoteImages"]) {
       expect(FALLBACK[key as keyof typeof FALLBACK], key).toEqual(fixture[key]);
     }
+  });
+});
+
+describe("AnnotationSchema", () => {
+  /** One row exactly as `annotations::Annotation` serializes it. */
+  const row = {
+    id: 1,
+    path: "C:/notes/a.md",
+    color: "yellow",
+    body: "",
+    quote: "the marked words",
+    prefix: "before ",
+    suffix: " after",
+    startOffset: 10,
+    endOffset: 26,
+    anchoredHash: "abc123",
+    createdAt: 1_700_000_000_000,
+    updatedAt: 1_700_000_000_000,
+  };
+
+  it("accepts a row as Rust sends it", () => {
+    const parsed = AnnotationSchema.safeParse(row);
+    expect(parsed.success, parsed.success ? "" : JSON.stringify(parsed.error.issues)).toBe(true);
+  });
+
+  it("drops an unreadable row rather than the whole list", () => {
+    // These rows are the reader's own notes and they outlive any single release,
+    // so tightening this schema — adding a colour-slot enum, say — must not take
+    // out every other mark on the document. Same rule as `customThemes`.
+    const list = AnnotationListSchema.parse([row, { id: 2 }, { ...row, id: 3 }]);
+
+    expect(list.map((a) => a.id)).toEqual([1, 3]);
+  });
+
+  it("refuses a negative offset", () => {
+    // An offset below zero cannot index a string, so a row carrying one would
+    // paint nothing and search from a nonsense position.
+    expect(AnnotationSchema.safeParse({ ...row, startOffset: -1 }).success).toBe(false);
   });
 });

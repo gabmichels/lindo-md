@@ -59,6 +59,17 @@ pub enum LindoError {
     )]
     NetworkPath { path: String },
 
+    /// Carries the reason as a string rather than a `rusqlite::Error` so that the
+    /// error type of every command in the app does not acquire a dependency on the
+    /// database. The message is the whole value here anyway — there is no variant
+    /// a caller would handle differently.
+    #[error(
+        "The annotations database at {path} could not be opened: {message}. \
+         lindo-md will not replace it, because the notes in it are not \
+         recoverable from anywhere else. Move it aside to start fresh."
+    )]
+    AnnotationStore { path: String, message: String },
+
     #[error("Settings file at {path} is not valid JSON: {source}. Fix or delete it — lindo-md will not overwrite it automatically.")]
     ConfigParse {
         path: String,
