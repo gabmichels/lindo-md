@@ -831,9 +831,26 @@
   /* Printed open whether or not the reader expanded it, for the same reason the
      HTML export writes it open: a print is a copy of the document, and the
      document has this in it. A collapsed block on paper is a disclosure control
-     nobody can operate — which makes it just a way of losing the content. */
+     nobody can operate — which makes it just a way of losing the content.
+
+     `::details-content` is the rule that does the work. Chromium slots a closed
+     `<details>`'s children into that pseudo-element and hides them with
+     `content-visibility: hidden`, which nothing set on the children themselves
+     can override — so the obvious `display: block` below is a fallback for older
+     engines, not the fix. */
+  .doc-frontmatter::details-content {
+    content-visibility: visible !important;
+  }
+
   .doc-frontmatter > :not(summary) {
     display: block !important;
+  }
+
+  /* `.doc` drops its measure and padding for paper; this has to follow, or the
+     frontmatter prints narrower than and indented against the prose under it. */
+  .doc-frontmatter {
+    max-width: none;
+    padding: 0 0 0.5rem;
   }
 
   .doc-frontmatter summary::before {

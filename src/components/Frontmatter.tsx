@@ -16,7 +16,10 @@
  * text is passed through exactly as it was written and the reader can judge it.
  *
  * **Collapsed by default**, because on most documents this is not what the
- * reader came for. Open it and it stays open for that document only.
+ * reader came for. The open state is the `<details>` element's own, so it lasts
+ * as long as this element does: the caller keys it on the document's path, which
+ * is what stops one document's expanded block from greeting the next one opened
+ * in the same tab. It does not survive switching to the source view and back.
  */
 export function Frontmatter({ text }: { text: string }) {
   return (

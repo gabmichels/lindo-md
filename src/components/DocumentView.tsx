@@ -444,7 +444,13 @@ export function DocumentView({
 
           Hidden with the source view, where the raw file is on screen with its
           frontmatter already in it. */}
-      {doc.frontmatter !== null && draft === null && <Frontmatter text={doc.frontmatter} />}
+      {/* Truthy rather than `!== null`, to agree with the exporter: a document
+          that opens `---\n---` has *empty* frontmatter, and an empty disclosure
+          is a control with nothing behind it. Keyed on the path because
+          `<details>` holds its own open state — this component is reused when a
+          link re-points the same tab, so without the key the next document
+          arrives with its frontmatter already expanded. */}
+      {doc.frontmatter && draft === null && <Frontmatter key={doc.path} text={doc.frontmatter} />}
 
       {draft !== null && (
         <textarea

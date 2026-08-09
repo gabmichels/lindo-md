@@ -134,6 +134,20 @@ export function findRanges(root: HTMLElement, query: string): Range[] {
       // Skip the copy buttons and other chrome we injected into the document.
       const parent = node.parentElement;
       if (!parent || parent.closest(".code-copy")) return NodeFilter.FILTER_REJECT;
+      // Text inside a collapsed disclosure is in the DOM but not on the page, and
+      // a match there is worse than no match: the Custom Highlight API paints
+      // nothing inside a `content-visibility: hidden` subtree, so the count goes
+      // up, `scrollIntoView` goes nowhere, and Enter appears to do nothing. This
+      // covers the frontmatter block and any `<details>` a document writes itself.
+      //
+      // The summary is the exception, since that is the part still on screen —
+      // and it has to be *that* disclosure's own summary. Nested inside another
+      // closed one it is just as hidden as everything else.
+      const collapsed = parent.closest("details:not([open])");
+      if (collapsed) {
+        const summary = parent.closest("summary");
+        if (summary?.parentElement !== collapsed) return NodeFilter.FILTER_REJECT;
+      }
       return node.nodeValue && node.nodeValue.trim().length > 0
         ? NodeFilter.FILTER_ACCEPT
         : NodeFilter.FILTER_REJECT;
