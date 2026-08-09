@@ -12,7 +12,7 @@ import { toHexStrict } from "./color";
  *
  * Everything here maps 1:1 onto a `--doc-*` CSS custom property in
  * `lib/theme/apply.ts`. Adding a field means adding it there too, and
- * `apply.test.ts` fails if the two drift.
+ * `theme.test.ts` fails if the two drift.
  */
 
 /**
@@ -297,7 +297,7 @@ export const ThemeComponentsSchema = z.object({
 });
 export type ThemeComponents = z.infer<typeof ThemeComponentsSchema>;
 
-/** The defaults, as one object — presets spread it, and `apply.test.ts` uses it
+/** The defaults, as one object — presets spread it, and `theme.test.ts` uses it
  *  to assert that an unset group still produces today's tokens. */
 export const DEFAULT_COMPONENTS: ThemeComponents = ThemeComponentsSchema.parse({});
 

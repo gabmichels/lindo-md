@@ -21,7 +21,10 @@ This is enforced, not merely intended, by two token namespaces:
 
 **A chrome component must never read a `--doc-*` variable, and nothing inside the document canvas
 may read a `--ui-*` variable.** The single exception is the reading-progress hairline, which is
-Ember by design. `src/lib/theme/apply.test.ts` fails the build if the rule is broken.
+Ember by design. `src/lib/theme/theme.test.ts` fails the build if the rule is broken — it
+reads `document.css` for a `--ui-*` read and every component for a `--doc-*` one. That check was
+named here for a long time before it existed, which is how a context-menu swatch reading a
+`--doc-*` token got as far as review.
 
 `--ui-*` lives in `src/styles.css` and is static. `--doc-*` is written at runtime by
 `src/lib/theme/apply.ts`; the House Light values are duplicated as defaults in `styles.css` so the

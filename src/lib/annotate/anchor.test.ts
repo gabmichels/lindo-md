@@ -97,6 +97,35 @@ describe("resolveAnchor", () => {
     });
   });
 
+  it("will not re-anchor into source no run covers", () => {
+    // The reader marked the words in prose; the sentence is later deleted and the
+    // only remaining occurrence is inside a wikilink target, which no run covers.
+    // Re-anchoring there is worse than orphaning: `useAnnotations` persists the
+    // new offsets and hash, after which it resolves "exact" for ever and is never
+    // searched again — permanently bound to bytes nothing can paint.
+    const before = "Ask about Roadmap#Q3 today.";
+    const anchor = anchorOn(before, "Roadmap#Q3");
+    const after = "Nothing here now. See [[Roadmap#Q3|Roadmap]].";
+    // Runs cover the prose either side of the link, never the target itself.
+    const covered = [
+      { start: 0, end: 22 },
+      { start: 42, end: after.length },
+    ];
+
+    expect(resolveAnchor(after, "h2", anchor, covered)).toEqual({ status: "orphaned" });
+    // Without the map it happily lands inside the link — the behaviour this guards.
+    expect(resolveAnchor(after, "h2", anchor).status).toBe("moved");
+  });
+
+  it("still re-anchors when the match is inside addressable text", () => {
+    const source = "The quick brown fox jumps over the lazy dog.";
+    const anchor = anchorOn(source, "brown fox");
+    const edited = `A new opening. ${source}`;
+    const covered = [{ start: 0, end: edited.length }];
+
+    expect(resolveAnchor(edited, "h2", anchor, covered).status).toBe("moved");
+  });
+
   it("orphans a mark whose text is gone", () => {
     const anchor = anchorOn(source, "brown fox");
 
