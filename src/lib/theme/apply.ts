@@ -136,12 +136,22 @@ export function docTokens(theme: Theme): Record<string, string> {
  * drawn from the theme, which every other `--doc-*` value is.
  *
  * That is a deliberate, reversible shortcut. Making them theme fields means a
- * required five colours in `ThemeColorsSchema`, which is nineteen presets times
- * two halves to fill in and five more decisions for anyone authoring a theme —
- * for a palette that has no UI to change it yet. Each value is translucent, so it
- * sits legibly on bone-white and near-black paper alike rather than needing a
- * per-theme answer. Promoting them later is an optional schema field whose
- * default is exactly what is written here.
+ * required five colours in `ThemeColorsSchema`, which is twenty presets times two
+ * halves to fill in and five more decisions for anyone authoring a theme — for a
+ * palette that has no UI to change it yet. Promoting them later is an optional
+ * schema field whose default is exactly what is written here.
+ *
+ * **A mark is opaque and carries its own ink, and that is what makes one palette
+ * safe on twenty presets.** The first version washed a translucent colour over
+ * the page and let the theme's own text show through, which reads well on paper
+ * the colour of paper and fails on dark themes: the wash lifts the background
+ * towards the light text sitting on it, and on Solarized Dark it took a 5.61:1
+ * body contrast down to 2.44:1. Compositing over an unknown background can only
+ * ever be argued preset by preset, and there are forty halves to argue. Painting
+ * the background *and* the ink makes the contrast a property of this function
+ * alone — 8.65:1 at worst, whatever the paper — and `theme.test.ts` checks both
+ * that and visibility against every preset rather than trusting this paragraph.
+ * `::highlight(lindo-md-find-active)` in `styles.css` already worked this way.
  *
  * The names are slots, not descriptions. What `annotations.rs` stores is which
  * slot a mark uses, so re-theming these values re-paints existing marks instead
@@ -149,11 +159,14 @@ export function docTokens(theme: Theme): Record<string, string> {
  */
 export function markTokens(): Record<string, string> {
   return {
-    "--doc-mark-yellow": "oklch(0.85 0.16 95 / 0.35)",
-    "--doc-mark-green": "oklch(0.8 0.16 145 / 0.32)",
-    "--doc-mark-blue": "oklch(0.75 0.14 240 / 0.32)",
-    "--doc-mark-pink": "oklch(0.75 0.18 5 / 0.3)",
-    "--doc-mark-purple": "oklch(0.7 0.16 300 / 0.32)",
+    "--doc-mark-yellow": "oklch(0.88 0.15 95)",
+    "--doc-mark-green": "oklch(0.86 0.14 148)",
+    "--doc-mark-blue": "oklch(0.85 0.1 235)",
+    "--doc-mark-pink": "oklch(0.84 0.11 5)",
+    "--doc-mark-purple": "oklch(0.82 0.11 305)",
+    // The ink every mark is read in. Near-black rather than the theme's own text
+    // colour, because the whole point is that the pair is fixed.
+    "--doc-mark-ink": "oklch(0.26 0.015 60)",
   };
 }
 

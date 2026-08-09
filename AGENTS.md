@@ -712,13 +712,28 @@ Three things about painting that are easy to get subtly wrong:
   that are no longer there.
 
 **The highlight palette is the one set of `--doc-*` values not drawn from the theme.** They
-are constants in `markTokens()`, translucent so a single set sits legibly on bone-white and
-near-black paper alike. Making them theme fields means five required colours in
-`ThemeColorsSchema` — nineteen presets times two halves, and five more decisions for anyone
+are constants in `markTokens()`. Making them theme fields means five required colours in
+`ThemeColorsSchema` — twenty presets times two halves, and five more decisions for anyone
 authoring a theme — for a palette with no UI to change it. Promoting them later is an optional
-field whose default is exactly what is written there. The context menu's swatches are drawn
-from a **separate `--ui-mark-*` set**, because chrome may not read the paper's tokens
-(DESIGN.md) and a swatch is chrome; `theme.test.ts` pins both halves.
+field whose default is exactly what is written there.
+
+**A mark is opaque and carries its own ink**, and that is what makes one palette safe on
+twenty presets rather than a claim to re-check whenever a preset lands. The first version
+washed a translucent colour over the page and let the theme's own text show through: fine on
+paper the colour of paper, and on a dark theme the wash lifts the background towards the light
+text sitting on it — Solarized Dark went from 5.61:1 body contrast to 2.44:1. Compositing over
+an unknown background can only be argued preset by preset, and there are forty halves to
+argue. Painting the ground *and* the ink makes contrast a property of `markTokens` alone.
+`::highlight(lindo-md-find-active)` already worked this way.
+
+`theme.test.ts` checks three things rather than trusting that paragraph: each slot against its
+own ink (≥ 4.5:1), each slot against every preset's paper (visibly different), and that
+`document.css` really sets both halves of the pair. **That third one is what makes the first
+meaningful** — `toHex` drops alpha, so a translucent palette scores identically against the
+ink, and the contrast number is only true on the page if the stylesheet paints both.
+
+The context menu's swatches are drawn from a **separate `--ui-mark-*` set**, because chrome may
+not read the paper's tokens (DESIGN.md) and a swatch is chrome.
 
 `annotationRange` in `lib/edit/selection.ts` sits beside `selectionRange` rather than
 replacing it, and the difference between them is the difference between describing a range

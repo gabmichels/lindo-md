@@ -1056,6 +1056,12 @@
    inserts no elements — wrapping a mark in a <mark> would add a node comrak did
    not emit to `.doc`, and `render/mirror.ts` tracks those positionally.
 
+   Each rule sets the ink as well as the ground. That pairing is the whole reason
+   one palette is safe on every preset: a translucent wash composited over an
+   unknown background can only be argued preset by preset, and on a dark theme it
+   lifts the page towards the light text sitting on it. Painting both makes the
+   contrast a property of the tokens rather than of the paper.
+
    Scoped under `.doc-scroller` rather than written bare, because these read
    `--doc-*` and DESIGN.md's rule is that document styles are the only place the
    paper's tokens may be read. The find highlights in styles.css are the mirror
@@ -1063,20 +1069,25 @@
    and live over there. */
 .doc-scroller ::highlight(lindo-md-mark-yellow) {
   background-color: var(--doc-mark-yellow);
+  color: var(--doc-mark-ink);
 }
 
 .doc-scroller ::highlight(lindo-md-mark-green) {
   background-color: var(--doc-mark-green);
+  color: var(--doc-mark-ink);
 }
 
 .doc-scroller ::highlight(lindo-md-mark-blue) {
   background-color: var(--doc-mark-blue);
+  color: var(--doc-mark-ink);
 }
 
 .doc-scroller ::highlight(lindo-md-mark-pink) {
   background-color: var(--doc-mark-pink);
+  color: var(--doc-mark-ink);
 }
 
 .doc-scroller ::highlight(lindo-md-mark-purple) {
   background-color: var(--doc-mark-purple);
+  color: var(--doc-mark-ink);
 }
