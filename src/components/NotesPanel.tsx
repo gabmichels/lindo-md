@@ -101,15 +101,28 @@ export function NotesPanel({
         </button>
       </div>
 
-      {/* Offered only once there is enough to need it. A search box over three
-          rows is a control that costs more attention than it saves. */}
-      {total > 6 && (
+      {/* Offered only once there is enough to need it — a search box over three
+          rows costs more attention than it saves — but never taken away while
+          something is typed in it. Deleting rows until the total drops below the
+          threshold would otherwise unmount the box with a query still applied,
+          leaving a filtered list and nothing to clear it with. */}
+      {(total > 6 || query.length > 0) && (
         <div className="px-[var(--ui-pad)] pb-2">
           <input
             type="search"
             value={query}
             onChange={(event) => {
               setQuery(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setQuery("");
+              // Every chord in the app is registered on `window`, and the key
+              // handler only steps aside for *unmodified* keys typed into a
+              // field — so Ctrl+W typed while filtering closes the tab behind
+              // this panel. The note editor below guards the same way.
+              if (event.ctrlKey || event.metaKey || event.key === "Escape") {
+                event.stopPropagation();
+              }
             }}
             placeholder="Filter notes"
             aria-label="Filter notes"

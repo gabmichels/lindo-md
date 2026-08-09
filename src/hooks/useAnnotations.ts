@@ -137,7 +137,18 @@ export function useAnnotations(
       // Nothing here may mean nothing was ever marked, or may mean this file has
       // been renamed out from under its marks. Only worth asking in the empty
       // case, which is also the only case `relink` will act on.
-      if (stored.length === 0 && contentHash.length > 0) {
+      //
+      // **And only on a first look at this document.** This effect also re-runs
+      // whenever anything writes to the store, which means deleting the last
+      // mark in a document lands here immediately afterwards — and `relink`
+      // would then go looking for a file that had been renamed away, on the
+      // strength of a document the reader had just deliberately emptied. A
+      // byte-identical copy elsewhere is all it would take for the marks to
+      // reappear a moment after being deleted. `describes` already holds the
+      // version the current marks were resolved against, so it is exactly the
+      // "have I seen this document before" this needs.
+      const firstLook = describes.current !== key(path!, contentHash);
+      if (firstLook && stored.length === 0 && contentHash.length > 0) {
         await relinkAnnotations(path!, contentHash);
         if (!live.current) return;
         // Listed again unconditionally, rather than only when the call reported

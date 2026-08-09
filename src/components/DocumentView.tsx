@@ -480,6 +480,13 @@ export function DocumentView({
    */
   useEffect(() => {
     if (pendingReveal === null || !onRevealConsumed) return;
+    // Only the tab on screen. A background tab is `display: none`, so every
+    // rectangle in it measures zero — the arithmetic below would resolve to
+    // "scroll to the top", consume the request, and leave the reader at the top
+    // of the document when they came back rather than at the mark they asked
+    // for. Reaching this while hidden takes switching tabs in the moment between
+    // the click and the marks arriving, which is small and not impossible.
+    if (!visible) return;
     const scroller = scrollerRef.current;
     const article = articleRef.current;
     if (!scroller || !article) return;
@@ -505,7 +512,10 @@ export function DocumentView({
     return () => {
       cancelAnimationFrame(frame);
     };
-  }, [pendingReveal, onRevealConsumed, annotations.marks, doc.blocks]);
+    // `visible` is a dependency as well as a guard, so a request that arrived
+    // while this tab was hidden is honoured when the reader comes back to it
+    // rather than being dropped.
+  }, [pendingReveal, onRevealConsumed, annotations.marks, doc.blocks, visible]);
 
   return (
     <div
