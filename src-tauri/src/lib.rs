@@ -93,8 +93,10 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(WatchState::default())
-        // Empty until the first annotation call — the database file is created by
-        // a reader who marks something up, not by every launch.
+        // Empty until the first annotation call, which is the first document
+        // opened rather than the first mark made: the frontend lists a document's
+        // annotations as it loads, so the file exists for anyone who opens
+        // anything. The claim it used to make here was simply not true.
         .manage(annotations::Store::default())
         // Reads argv now, so the launch argument is already queued before the
         // webview that collects it exists — see `OpenQueue::from_launch`.

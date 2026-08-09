@@ -10,10 +10,10 @@ import {
   type DocView,
 } from "./apply";
 import { MARK_SLOTS } from "./apply";
-import { contrastRatio, toHex } from "./color";
+import { contrastRatio, toHex, toHexStrict } from "./color";
 import { BUNDLED_FONTS } from "./fonts";
 import { DEFAULT_PRESET_ID, PRESETS, findPreset, resolveTheme } from "./presets";
-import { ThemeFileSchema, ThemeSchema, type Theme } from "./schema";
+import { ThemeColorsSchema, ThemeFileSchema, ThemeSchema, type Theme } from "./schema";
 import { HOUSE_THEMES } from "./shiki-house";
 
 const house = findPreset("house")!;
@@ -598,7 +598,14 @@ describe("markTokens", () => {
     // The reason the ink is derived rather than chosen. Nothing stops someone
     // putting any of these in a theme they send to a friend, and a fixed ink
     // would be a guess that happened to suit the palette that shipped.
-    for (const hostile of ["#ffffff", "#000000", "#808080", "#7f7f00", "oklch(0.5 0.2 300)"]) {
+    for (const hostile of [
+      "#ffffff",
+      "#000000",
+      "#808080",
+      "#7d7d7d",
+      "#7f7f00",
+      "oklch(0.5 0.2 300)",
+    ]) {
       const theme = {
         ...house.light,
         colors: {
@@ -607,10 +614,54 @@ describe("markTokens", () => {
         },
       };
       const tokens = markTokens(theme);
+      expect(tokens["--doc-mark-yellow"], `${hostile} should be painted as given`).toBe(hostile);
       expect(
         contrastRatio(tokens["--doc-mark-yellow"]!, tokens["--doc-mark-ink-yellow"]!),
         hostile,
       ).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("refuses a mark colour it cannot reason about, rather than deriving an ink from a guess", () => {
+    // The defect this check exists for: `toHex` falls back to black for a form
+    // it cannot parse, so `white` reported luminance 0, the *light* ink was
+    // chosen, and the guarantee said 19.29:1 while the reader got about 1.02:1.
+    // Worse, the contrast assertion above used the same function, so it agreed.
+    // These are all legal under `isSafeCssValue`, and `var()`/`color-mix()` are
+    // used by the presets themselves.
+    for (const unreadable of [
+      "white",
+      "hsl(60 100% 50%)",
+      "color-mix(in oklab, white 90%, black)",
+      "var(--doc-bg)",
+      "#ffff00ff",
+      "rgba(255, 255, 0, 0.05)",
+      "oklch(0.9 0.15 95 / 0.1)",
+      "oklch(0.9 0.15 0.25turn)",
+    ]) {
+      expect(toHexStrict(unreadable), `${unreadable} must not parse`).toBeNull();
+
+      const parsed = ThemeColorsSchema.safeParse({
+        ...house.light.colors,
+        mark: { ...house.light.colors.mark, yellow: unreadable },
+      });
+      expect(parsed.success, `${unreadable} should still yield a usable theme`).toBe(true);
+      // Refused per slot and replaced by House's own, so one bad value costs the
+      // reader that colour and not every other one they chose.
+      const slot = parsed.success ? parsed.data.mark.yellow : "";
+      expect(slot, `${unreadable} should fall back`).toBe("oklch(0.88 0.15 95)");
+    }
+  });
+
+  it("still accepts the colour forms a theme legitimately uses for a mark", () => {
+    for (const fine of [
+      "#ffee00",
+      "#fe0",
+      "rgb(255, 238, 0)",
+      "oklch(0.88 0.15 95)",
+      "oklch(88% 0.15 95deg)",
+    ]) {
+      expect(toHexStrict(fine), `${fine} should parse`).not.toBeNull();
     }
   });
 

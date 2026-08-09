@@ -151,10 +151,21 @@ fn open(app: &AppHandle) -> LindoResult<Connection> {
         std::fs::create_dir_all(parent)?;
     }
     let connection = Connection::open(&path).map_err(|e| store_error(&path, &e.to_string()))?;
+    // A second copy of the app is unusual but reachable — `single-instance` never
+    // fires on macOS, and a portable build can sit beside an installed one.
+    // Without a timeout the loser of any overlap gets an immediate `SQLITE_BUSY`,
+    // which reaches the reader as "database is locked" for something that waiting
+    // would have absorbed. WAL is what lets a read and that other copy's write
+    // overlap at all, which is this app's actual access pattern.
+    let _ = connection.busy_timeout(std::time::Duration::from_secs(5));
+    let _ = connection.pragma_update(None, "journal_mode", "WAL");
     migrate(&connection).map_err(|e| store_error(&path, &e))?;
     Ok(connection)
 }
 
+/// Messages handed here are sentences in their own right — the wrapper adds no
+/// punctuation, because what to do about a lock differs from what to do about a
+/// newer schema.
 fn store_error(path: &Path, message: &str) -> LindoError {
     LindoError::AnnotationStore {
         path: path.display().to_string(),
@@ -179,7 +190,7 @@ fn migrate(connection: &Connection) -> Result<(), String> {
 
     if version > SCHEMA_VERSION {
         return Err(format!(
-            "it was written by a newer version of lindo-md (format {version}, this build reads {SCHEMA_VERSION})"
+            "it was written by a newer version of lindo-md (format {version}, this build reads {SCHEMA_VERSION}). Update lindo-md and it will open."
         ));
     }
     if version == SCHEMA_VERSION {
@@ -204,9 +215,18 @@ fn migrate(connection: &Connection) -> Result<(), String> {
                updated_at    INTEGER NOT NULL
              );
              CREATE INDEX IF NOT EXISTS annotation_path ON annotation(path);
-             PRAGMA user_version = 1;
              COMMIT;",
         )
+        .map_err(|e| e.to_string())?;
+
+    // Stamped from the constant rather than written into the batch above. A
+    // literal `1` there is correct exactly once: the day a second step is
+    // appended, an existing v1 database runs it, is stamped back to 1, and runs
+    // it again on the next open — where an `ALTER TABLE` fails as a duplicate
+    // column and `open` refuses the reader their own notes. A fresh install is
+    // unaffected, so it would ship green.
+    connection
+        .pragma_update(None, "user_version", SCHEMA_VERSION)
         .map_err(|e| e.to_string())
 }
 
@@ -225,6 +245,19 @@ fn key_for(path: &str) -> String {
     std::fs::canonicalize(path).map_or_else(|_| path.to_owned(), |p| p.display().to_string())
 }
 
+/// Whether the filesystem positively reports this path as not there.
+///
+/// Anything else — a permission error, an offline volume, an I/O failure — means
+/// the answer is unknown, and the only safe reading of "unknown" is to leave the
+/// marks where they are. They stay reachable by opening the original; a wrong
+/// move is not reversible, because the path they came from is gone from the row.
+fn is_definitely_absent(path: &Path) -> bool {
+    matches!(
+        std::fs::symlink_metadata(path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound
+    )
+}
+
 fn now_millis() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -234,20 +267,25 @@ fn now_millis() -> i64 {
 const COLUMNS: &str = "id, path, color, body, quote, prefix, suffix, \
                        start_offset, end_offset, anchored_hash, created_at, updated_at";
 
+/// By name rather than by position. Six of the twelve columns are adjacent
+/// `TEXT`, so inserting or reordering one in `COLUMNS` and forgetting to
+/// renumber here would not fail — `row.get::<_, String>` succeeds on any of them
+/// — it would quietly return the prefix in the suffix and the body in the quote,
+/// which `anchor.ts` then searches the document with.
 fn row_to_annotation(row: &rusqlite::Row<'_>) -> rusqlite::Result<Annotation> {
     Ok(Annotation {
-        id: row.get(0)?,
-        path: row.get(1)?,
-        color: row.get(2)?,
-        body: row.get(3)?,
-        quote: row.get(4)?,
-        prefix: row.get(5)?,
-        suffix: row.get(6)?,
-        start_offset: row.get(7)?,
-        end_offset: row.get(8)?,
-        anchored_hash: row.get(9)?,
-        created_at: row.get(10)?,
-        updated_at: row.get(11)?,
+        id: row.get("id")?,
+        path: row.get("path")?,
+        color: row.get("color")?,
+        body: row.get("body")?,
+        quote: row.get("quote")?,
+        prefix: row.get("prefix")?,
+        suffix: row.get("suffix")?,
+        start_offset: row.get("start_offset")?,
+        end_offset: row.get("end_offset")?,
+        anchored_hash: row.get("anchored_hash")?,
+        created_at: row.get("created_at")?,
+        updated_at: row.get("updated_at")?,
     })
 }
 
@@ -336,11 +374,16 @@ pub fn relink(connection: &Connection, path: &str, content_hash: &str) -> LindoR
         .collect::<rusqlite::Result<Vec<_>>>()
         .map_err(|e| LindoError::msg(format!("Could not look for moved annotations: {e}")))?;
 
-    // Only paths that have actually gone. A candidate still on disk is a copy,
-    // or the same file open under a second name, and its marks are not ours.
+    // Only paths confirmed absent. `Path::exists` is the obvious spelling and the
+    // wrong one: it is `metadata(..).is_ok()`, so it answers "no" to an unplugged
+    // drive, a sleeping NAS, a folder whose ACL denies traversal, and a cloud
+    // placeholder that has not been hydrated. Every one of those is a file that
+    // still exists and still owns its marks — and reading "no" as "renamed away"
+    // moved them onto an unrelated byte-identical copy, with no way back once the
+    // path they came from had been overwritten.
     let mut gone = candidates
         .into_iter()
-        .filter(|candidate| !Path::new(candidate).exists());
+        .filter(|candidate| is_definitely_absent(Path::new(candidate)));
     let (Some(from), None) = (gone.next(), gone.next()) else {
         return Ok(0);
     };
@@ -439,9 +482,15 @@ pub fn reanchor(connection: &mut Connection, updates: &[Reanchor]) -> LindoResul
 }
 
 pub fn delete(connection: &Connection, id: i64) -> LindoResult<()> {
-    connection
+    let removed = connection
         .execute("DELETE FROM annotation WHERE id = ?1", [id])
         .map_err(|e| LindoError::msg(format!("Could not delete the annotation: {e}")))?;
+    // Reported the way `update` reports it. The two were disagreeing about what a
+    // missing row means, so one condition surfaced as a success through one
+    // command and a failure through the other.
+    if removed == 0 {
+        return Err(LindoError::msg("That annotation no longer exists."));
+    }
     Ok(())
 }
 
@@ -671,6 +720,63 @@ mod tests {
             relink(&connection, "C:/notes/new-name.md", "content-after").unwrap(),
             0
         );
+    }
+
+    #[test]
+    fn a_path_that_cannot_be_read_is_not_treated_as_gone() {
+        let connection = store();
+        // A path under a directory that does not exist: `symlink_metadata` reports
+        // `NotFound`, so this one *is* absent and may be relinked.
+        let mut absent = sample("C:/definitely/not/here/old.md");
+        absent.anchored_hash = "same-content".to_owned();
+        create(&connection, &absent).unwrap();
+        assert_eq!(
+            relink(&connection, "C:/notes/new.md", "same-content").unwrap(),
+            1
+        );
+
+        // Whereas a path this process cannot stat for any *other* reason must be
+        // left alone. `is_definitely_absent` is what draws that line; `exists()`
+        // could not, which is how an unplugged drive lost its marks.
+        assert!(is_definitely_absent(Path::new(
+            "C:/definitely/not/here/old.md"
+        )));
+        assert!(!is_definitely_absent(Path::new(env!("CARGO_MANIFEST_DIR"))));
+    }
+
+    #[test]
+    fn the_schema_version_is_stamped_from_the_constant() {
+        // A literal in the batch is right exactly once. If this drifts, an
+        // existing database re-runs the migration on every open, and the second
+        // run of a future `ALTER TABLE` locks the reader out of their own notes.
+        let connection = store();
+        let stamped: i64 = connection
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(stamped, SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn every_column_comes_back_in_its_own_field() {
+        // `COLUMNS` and the row mapping used to be coupled by position, with six
+        // adjacent TEXT columns and nothing pinning the order. Swapping two would
+        // have returned the prefix in the suffix and failed no test.
+        let connection = store();
+        let made = create(&connection, &sample("notes.md")).unwrap();
+
+        let back = fetch(&connection, made.id).unwrap();
+        assert_eq!(back.color, "yellow");
+        assert_eq!(back.body, "");
+        assert_eq!(back.quote, "the quoted words");
+        assert_eq!(back.prefix, "before ");
+        assert_eq!(back.suffix, " after");
+        assert!(back.path.ends_with("notes.md"), "path was {}", back.path);
+    }
+
+    #[test]
+    fn deleting_something_that_is_gone_says_so_like_updating_does() {
+        let connection = store();
+        assert!(delete(&connection, 404).is_err());
     }
 
     #[test]

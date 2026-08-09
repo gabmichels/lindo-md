@@ -157,11 +157,30 @@ export function markTokens(theme: Theme): Record<string, string> {
   const tokens: Record<string, string> = {};
   for (const slot of MARK_SLOTS) {
     const ground = theme.colors.mark[slot];
-    tokens[`--doc-mark-${slot}`] = ground;
-    tokens[`--doc-mark-ink-${slot}`] = readableInk(ground);
+    const ink = readableInk(ground);
+    // `null` means the ground is a colour this app cannot reason about, which
+    // `ThemeColorsSchema` refuses for a mark — so it can only be reached by a
+    // `Theme` built in code rather than parsed. Falling back to House's own slot
+    // keeps the pair provably legible instead of painting a ground with an ink
+    // that was never checked against it.
+    tokens[`--doc-mark-${slot}`] = ink === null ? HOUSE_MARKS[slot] : ground;
+    tokens[`--doc-mark-ink-${slot}`] = ink ?? readableInk(HOUSE_MARKS[slot]) ?? "#000000";
   }
   return tokens;
 }
+
+/** House's own palette, and the floor every other one falls back to. Duplicated
+ *  from `ThemeColorsSchema`'s default rather than imported, because a schema
+ *  default is what a *file* falls back to and this is what a `Theme` object
+ *  falls back to; they are the same values for the same reason, not by
+ *  dependency. `theme.test.ts` pins that they agree. */
+const HOUSE_MARKS: Record<MarkSlot, string> = {
+  yellow: "oklch(0.88 0.15 95)",
+  green: "oklch(0.86 0.14 148)",
+  blue: "oklch(0.85 0.1 235)",
+  pink: "oklch(0.84 0.11 5)",
+  purple: "oklch(0.82 0.11 305)",
+};
 
 /** The slot names, in the order the menu offers them. */
 export const MARK_SLOTS = ["yellow", "green", "blue", "pink", "purple"] as const;
