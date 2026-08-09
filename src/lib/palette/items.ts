@@ -281,6 +281,7 @@ export interface PaletteActions {
   onUndo: () => void;
   onRedo: () => void;
   onExport: () => void;
+  onExportAnnotated: () => void;
   onPrint: () => void;
   onToggleCompare: () => void;
   onZoomIn: () => void;
@@ -437,6 +438,17 @@ export function commandItems(actions: PaletteActions, state: PaletteState): Pale
       group: "Commands",
       when: state.hasDocument,
       run: actions.onExport,
+    },
+    {
+      id: "cmd:export-annotated",
+      label: "Export with notes…",
+      // No chord. Every modifier is spoken for, and a command reached from the
+      // panel it belongs to does not need one — see the chord table's own note
+      // about a row advertising something nothing binds.
+      keywords: "annotations highlights marks markdown copy save",
+      group: "Commands",
+      when: state.hasDocument,
+      run: actions.onExportAnnotated,
     },
     {
       id: "cmd:print",

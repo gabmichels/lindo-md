@@ -32,7 +32,9 @@ import { useTabDocuments } from "@/hooks/useTabDocuments";
 import { useTabs } from "@/hooks/useTabs";
 import { useTheme } from "@/hooks/useTheme";
 import { useUpdater } from "@/hooks/useUpdater";
-import { writeHtmlFile, type Annotation } from "@/lib/ipc";
+import { listAnnotations, writeHtmlFile, writeMarkdownFile, type Annotation } from "@/lib/ipc";
+import { resolveAll } from "@/lib/annotate/resolve";
+import { annotatedMarkdown } from "@/lib/export/annotated";
 import { buildStandaloneHtml } from "@/lib/export/html";
 import type { PaletteActions, PaletteState } from "@/lib/palette/items";
 import { stepZoom } from "@/lib/zoom";
@@ -93,6 +95,11 @@ function Shell() {
    *  menu, so the panel opens with that row's editor already showing. Cleared as
    *  soon as the panel has acted on it: it is a request, not a selection. */
   const [noteTarget, setNoteTarget] = useState<number | null>(null);
+  /** What the last annotated export had to say, shown in the panel. Null unless
+   *  there is something worth interrupting for — a failure, or notes that could
+   *  not be placed. A clean export says nothing: the file is where it was asked
+   *  for. */
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
   /** The command palette's starting query, or `null` when it is closed — the
    *  same box opens on documents or on commands depending on the chord. */
   const [paletteQuery, setPaletteQuery] = useState<string | null>(null);
@@ -407,6 +414,58 @@ function Shell() {
   }, [config.contentWidth, reading, scroller, theme]);
 
   /**
+   * The document, with the reader's marks written into it, saved as a copy.
+   *
+   * Every offset is resolved against the file **as it is right now**, through
+   * the same `resolveAll` the view uses, so a mark that has moved since it was
+   * made is exported where it moved to and one whose words are gone is exported
+   * as a note with nowhere to sit rather than onto a nearby sentence.
+   *
+   * Read from the store rather than from the view's state: the panel can export
+   * a document the deck has evicted, and `listAnnotations` is one indexed query.
+   */
+  const exportAnnotated = useCallback(async () => {
+    if (!reading) return;
+    setExportNotice(null);
+
+    try {
+      const stored = await listAnnotations(reading.path);
+      if (stored.length === 0) {
+        setExportNotice("There are no highlights in this document to export.");
+        update({ notesOpen: true });
+        return;
+      }
+
+      const { resolved } = resolveAll(reading.source, reading.contentHash, reading.blocks, stored);
+      const { markdown, unplaced } = annotatedMarkdown(reading.source, resolved);
+
+      const path = await saveDialog({
+        title: "Export with notes",
+        // Named so it cannot be mistaken for the document, and so a second
+        // export does not offer to overwrite the file the marks were made on.
+        defaultPath: `${reading.title} (annotated).md`,
+        filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+      });
+      if (!path) return;
+
+      await writeMarkdownFile(path, markdown);
+      if (unplaced > 0) {
+        // Said out loud because it is the one outcome a reader would want to
+        // check. Nothing is lost — they are in the file under their own heading
+        // — but a note that is no longer beside its sentence is worth knowing
+        // about, and the alternative is finding out much later.
+        setExportNotice(
+          `Exported. ${unplaced === 1 ? "One note" : `${unplaced} notes`} could not be placed in the text and ${unplaced === 1 ? "is" : "are"} listed at the end.`,
+        );
+        update({ notesOpen: true });
+      }
+    } catch (cause) {
+      setExportNotice(message(cause));
+      update({ notesOpen: true });
+    }
+  }, [reading, update]);
+
+  /**
    * Following a link inside a tab.
    *
    * A link to a file that already has its own tab activates that tab rather
@@ -509,6 +568,7 @@ function Shell() {
     },
     onToggleCompare: toggleCompare,
     onExport: () => void exportHtml(),
+    onExportAnnotated: () => void exportAnnotated(),
     onBack: () => {
       step(-1);
     },
@@ -858,6 +918,13 @@ function Shell() {
           onEditingHandled={() => {
             setNoteTarget(null);
           }}
+          notice={exportNotice}
+          onDismissNotice={() => {
+            setExportNotice(null);
+          }}
+          // Offered only with a document open, since it exports *this* document
+          // rather than the panel's whole list.
+          onExport={reading ? () => void exportAnnotated() : undefined}
         />
       )}
 
@@ -935,6 +1002,14 @@ function Shell() {
       <DropOverlay active={dropActive} />
     </div>
   );
+}
+
+/** `LindoError` serializes to a plain string, so a refusal from Rust — a path
+ *  that is not Markdown, a target that is a symlink — is already written for a
+ *  reader. Anything else is a bug on this side and says so. */
+function message(cause: unknown): string {
+  if (typeof cause === "string") return cause;
+  return cause instanceof Error ? cause.message : "The export did not finish.";
 }
 
 function Message({ text }: { text: string }) {

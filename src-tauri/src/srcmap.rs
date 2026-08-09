@@ -886,6 +886,37 @@ mod tests {
         }
     }
 
+    /// **An annotated export can be annotated again.**
+    ///
+    /// A mark leaves this app as `<mark class="...">phrase</mark>`, so reopening
+    /// an exported document means reading inline HTML — and a block whose runs
+    /// do not cover its visible text is one no highlight can be made in, because
+    /// `annotationRange` has no offsets to resolve a selection against. Export
+    /// producing files this app can no longer mark up would be a quiet dead end,
+    /// so it is pinned here rather than assumed.
+    #[test]
+    fn a_paragraph_containing_a_mark_element_is_still_annotatable() {
+        let source = "A <mark class=\"lindo-yellow\">highlighted phrase</mark> in a line.\n";
+        let blocks = for_webview(source, RenderOptions::default());
+
+        let block = blocks
+            .iter()
+            .find(|block| block.runs.iter().any(|run| run.text.contains("highlighted")))
+            .expect("the paragraph reached the webview");
+
+        // The words inside the tags are addressable, which is what marking one
+        // needs; the tags themselves are markup and deliberately are not.
+        let covered: String = block.runs.iter().map(|run| run.text.as_str()).collect();
+        assert!(
+            covered.contains("highlighted phrase"),
+            "the marked words are not addressable: {covered:?}"
+        );
+        for run in &block.runs {
+            let slice = &source[run.source_start..run.source_end];
+            assert_eq!(slice, run.text, "a run does not select what it claims");
+        }
+    }
+
     /// Guards the spike itself: a fixture that stopped covering the hard
     /// constructs would make the two tests above pass for the wrong reason.
     #[test]

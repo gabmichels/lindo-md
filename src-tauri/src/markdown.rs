@@ -1122,6 +1122,12 @@ mod tests {
             "<kbd>Ctrl</kbd>",
             "<sub>sub</sub>",
             "<sup>sup</sup>",
+            // What an annotated export writes a highlight as. `==text==` would be
+            // the prettier spelling and no renderer we target implements it —
+            // not comrak, not GitHub — so the exported file uses plain HTML
+            // instead. If this tag ever stops surviving, every exported document
+            // silently loses its highlights.
+            "<mark>marked</mark>",
         ] {
             let out = html(markup);
             let tag = markup.split(['<', '>']).nth(1).unwrap_or_default();

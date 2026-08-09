@@ -1,4 +1,4 @@
-import { PanelRightClose, Trash2 } from "lucide-react";
+import { PanelRightClose, Share, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { filterGroups, oneLine, pinCurrent, type DocumentGroup } from "@/lib/annotate/list";
@@ -41,6 +41,12 @@ interface NotesPanelProps {
    *  menu. That row opens its editor; everything else is unaffected. */
   editing?: number | null;
   onEditingHandled?: () => void;
+  /** What the last annotated export had to say, if it had anything. Kept apart
+   *  from `error`, which is the store failing: an export that placed everything
+   *  but two notes succeeded, and reading it as an error would be wrong. */
+  notice?: string | null;
+  onDismissNotice?: () => void;
+  onExport?: () => void;
 }
 
 export function NotesPanel({
@@ -55,6 +61,9 @@ export function NotesPanel({
   onRemove,
   editing = null,
   onEditingHandled,
+  notice = null,
+  onDismissNotice,
+  onExport,
 }: NotesPanelProps) {
   const [query, setQuery] = useState("");
 
@@ -86,6 +95,21 @@ export function NotesPanel({
         <h2 className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ui-text-strong">
           Notes
         </h2>
+        {onExport && (
+          <button
+            type="button"
+            aria-label="Export with notes"
+            title="Export this document with its highlights and notes written in"
+            onClick={onExport}
+            className={cn(
+              "no-drag grid size-7 shrink-0 place-items-center rounded-ui-sm",
+              "text-ui-text-muted transition-colors duration-[var(--ui-dur)]",
+              "hover:bg-ui-plane-1 hover:text-ui-text-strong",
+            )}
+          >
+            <Share size={15} strokeWidth={1.5} aria-hidden />
+          </button>
+        )}
         <button
           type="button"
           aria-label="Close notes"
@@ -139,6 +163,27 @@ export function NotesPanel({
         <p className="px-[var(--ui-pad)] pb-2 text-[12px] text-ui-ember" role="alert">
           {error}
         </p>
+      )}
+
+      {/* Dismissable, unlike the error above it: an error describes a state the
+          store is still in, and this describes something that already
+          happened. `role="status"` rather than `alert` — an export that placed
+          everything but two notes worked. */}
+      {notice !== null && (
+        <div
+          className="mx-[var(--ui-pad)] mb-2 flex items-start gap-1.5 rounded-ui-md bg-ui-plane-1 px-2 py-1.5"
+          role="status"
+        >
+          <p className="min-w-0 flex-1 text-[12px] leading-snug text-ui-text">{notice}</p>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={onDismissNotice}
+            className="shrink-0 text-ui-text-muted transition-colors duration-[var(--ui-dur)] hover:text-ui-text-strong"
+          >
+            <X size={13} strokeWidth={1.5} aria-hidden />
+          </button>
+        </div>
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-[var(--ui-pad)] pb-2">
