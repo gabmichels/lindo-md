@@ -730,13 +730,27 @@ Compositing over an unknown background can only be argued preset by preset, and 
 halves to argue. Then the derived ink needed a **fallback to pure black or white**: a mid-grey
 ground sits equidistant from both softened inks, so the better of the two reaches only 3.95:1.
 Pure black and white always leave one option at 4.58:1 or better, which is what turns the
-guarantee from "for our palette" into "for any colour anyone can write".
+guarantee from "for our palette" into "for any colour anyone can write". (Mid-grey is roughly
+where the softened pair bottoms out rather than exactly its worst point: the true minimum is
+3.79:1 near L 0.205.)
 
-`theme.test.ts` checks four things rather than trusting the paragraph above: every slot against
-its derived ink on every preset, the same for colours no preset uses (white, black, mid-grey),
-that each slot is visibly different from every preset's paper, and that `document.css` really
-sets both halves of the pair. **That last one is what makes the first meaningful** — `toHex`
-drops alpha, so a translucent palette scores identically against an ink it never paints with.
+**A mark colour is the one colour a theme may not write freely.** Everywhere else a theme may
+say anything `isSafeCssValue` allows — `var()`, `color-mix()`, a named colour — because the
+value goes to CSS and CSS knows what to do with it. A mark is the one this app has to *reason*
+about, and `toHex` answers `#000000` for a form it cannot parse. So `white`, `hsl(60 100% 50%)`,
+`color-mix(…)` and `var(--doc-bg)` all reported luminance 0, the *light* ink was chosen, and the
+guarantee said 19.29:1 while the reader got about 1.02:1 — with the test agreeing, because it
+called the same function. `toHexStrict` returns `null` instead, `ThemeColorsSchema` refuses such
+a value per slot and falls back to House's own, and `readableInk` returns `null` so the refusal
+is the only way through rather than merely the usual one. Alpha is refused for the same reason:
+a 5% wash is contrast the paper decides again.
+
+`theme.test.ts` checks five things rather than trusting the paragraph above: every slot against
+its derived ink on every preset; the same for colours no preset uses; that a colour the parser
+cannot read is refused and replaced rather than derived from; that each slot is visibly
+different from every preset's paper; and that `document.css` really sets both halves of the
+pair. **The third is what makes the first mean anything** — without it the contrast assertion
+and the bug agree with each other, which is how the original defect passed.
 
 The context menu's swatches take their colour from the `theme` prop rather than from
 `--doc-mark-*`. DESIGN.md's rule is that chrome must not read the paper's *tokens*, which is
@@ -837,7 +851,14 @@ Four decisions worth not re-litigating:
   target's bytes, `align_block` reported `Exact` because a match *was* found, and typing after the
   label rewrote the link. `[[Note#Heading|Note]]` and `[[folder/Note|Note]]` are the ordinary
   Obsidian idioms, so this was the common case, not an edge one. `is_skipped` now covers
-  `NodeValue::WikiLink`. **Before adding an inline extension, ask where its non-rendered source
+  `NodeValue::WikiLink` — **and `ATOM_SELECTOR` in `selection.ts` covers `a[data-wikilink]`,
+  which is the other half of the same fix.** A skipped node emits no run, so the block map's
+  text is short by whatever the renderer still draws; the DOM walk has to leave out the same
+  characters or every offset after it in that block is wrong by the label's length. That half
+  was missed for a release: `See [[Roadmap#Q3|Roadmap]] and the plan.` measured 25 characters in
+  the DOM against 18 in the map, so an edit after the link rewrote bytes it did not own — the
+  very failure adding `WikiLink` to `is_skipped` was meant to stop, reintroduced one layer up.
+  **Before adding anything to `is_skipped`, ask what it still renders, and exclude that too.** **Before adding an inline extension, ask where its non-rendered source
   sits relative to its rendered text** — and note that `produces()` in the tests cannot answer it,
   since the wrong "Roadmap" spells "Roadmap" too. Only an assertion on the offset can.
 - **The window is frameless on Windows and Linux** (`decorations: false`), but **decorated on

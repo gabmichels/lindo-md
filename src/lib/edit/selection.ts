@@ -9,9 +9,29 @@ import type { BlockMap } from "@/lib/ipc";
  * because only Rust knows that `\*` is two characters of source for one of text.
  */
 
-/** The four constructs a caret never goes inside. Their rendered text is not
- *  their source text — Shiki, KaTeX and Mermaid see to that. */
-export const ATOM_SELECTOR = "pre.code-block, figure.mermaid, pre.mermaid-src, [data-math-style]";
+/**
+ * The constructs a caret never goes inside. Their rendered text is not their
+ * source text — Shiki, KaTeX and Mermaid see to that.
+ *
+ * **This list is the DOM half of `srcmap::is_skipped`, and the two have to agree
+ * or every offset after the construct is wrong.** A skipped node contributes no
+ * run, so the block map's text is short by exactly what the renderer still puts
+ * on screen; the walk below has to leave out the same characters. Every other
+ * entry in `is_skipped` is already excluded here or renders nothing walkable —
+ * an image's children become an attribute, a footnote reference becomes
+ * `.footnote-ref`, math carries `data-math-style`, a code block is `pre.code-block`.
+ *
+ * `a[data-wikilink]` is here because `[[target|label]]` renders its *label* as
+ * ordinary text while `is_skipped` emits no run for it, so a paragraph
+ * containing one measured seven characters longer in the DOM than in the map for
+ * `[[Roadmap#Q3|Roadmap]]`. Everything after it in that block resolved to source
+ * offsets that were short by the label's length — which for the editing path
+ * meant a keystroke rewriting bytes it did not own, the exact failure adding
+ * `WikiLink` to `is_skipped` was meant to stop. **Before adding anything to
+ * `is_skipped`, ask what it still renders, and add it here.**
+ */
+export const ATOM_SELECTOR =
+  "pre.code-block, figure.mermaid, pre.mermaid-src, [data-math-style], a[data-wikilink]";
 
 /** Text the renderer generated, which no character of the file corresponds to. */
 export const GENERATED_SELECTOR = "a.anchor, .footnote-backref, .code-copy, .footnote-ref";

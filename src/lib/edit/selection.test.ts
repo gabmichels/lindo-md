@@ -322,3 +322,63 @@ describe("annotationRange", () => {
     expect(annotate([plain], [text, 0], [text, 3])).toBeNull();
   });
 });
+
+describe("a wikilink is an atom on both sides", () => {
+  /**
+   * The DOM and the block map for `See [[Roadmap#Q3|Roadmap]] and the plan.`,
+   * taken verbatim from what comrak and `srcmap::for_webview` actually produce:
+   *
+   *   <p data-sourcepos="1:1-1:40">See <a … data-wikilink="true">Roadmap</a> and the plan.</p>
+   *   runs: "See " [0,4] and " and the plan." [26,40]
+   *
+   * The map has no run for the wikilink, because `is_skipped` covers it. The
+   * renderer still puts "Roadmap" on screen. If the DOM walk counts those seven
+   * characters, everything after them resolves seven short.
+   */
+  function wikilinkParagraph() {
+    const root = article(
+      `<p data-sourcepos="1:1-1:40">See <a data-sourcepos="1:5-1:26" href="Roadmap#Q3" data-wikilink="true">Roadmap</a> and the plan.</p>`,
+    );
+    const blocks: BlockMap[] = [
+      {
+        sourcepos: "1:1-1:40",
+        aligned: true,
+        runs: [
+          { text: "See ", sourceStart: 0, sourceEnd: 4 },
+          { text: " and the plan.", sourceStart: 26, sourceEnd: 40 },
+        ],
+      },
+    ];
+    const p = root.querySelector("p")!;
+    return { blocks, tail: p.lastChild!, p };
+  }
+
+  it("does not count the rendered label, so text offsets match the map", () => {
+    const { p, tail } = wikilinkParagraph();
+    // " and the plan." starts right after "See " in the map's text, so the
+    // caret-addressable offset of its first character is 4, not 11.
+    expect(textOffsetOf(p, tail, 0)).toBe(4);
+  });
+
+  it("resolves a selection after a wikilink to the source it actually covers", () => {
+    const { blocks, tail } = wikilinkParagraph();
+    // Select "and the plan" — DOM offsets 1..13 within the trailing text node.
+    const range = rangeOf(blocks, [tail, 1], [tail, 13]);
+    expect(range).toEqual({ start: 27, end: 39 });
+  });
+
+  it("refuses a selection inside the label rather than mapping it somewhere", () => {
+    const { blocks, p } = wikilinkParagraph();
+    const label = p.querySelector("a")!.firstChild!;
+    expect(rangeOf(blocks, [label, 0], [label, 7])).toBeNull();
+  });
+
+  it("puts a source offset back on the right side of the link", () => {
+    const { blocks, p } = wikilinkParagraph();
+    // Offset 27 is the "a" of "and"; it must land in the trailing text node,
+    // never inside the label.
+    const at = domPositionOf(p.parentElement!, blocks, 27);
+    expect(at?.node.nodeValue).toBe(" and the plan.");
+    expect(at?.offset).toBe(1);
+  });
+});

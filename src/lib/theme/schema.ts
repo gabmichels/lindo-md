@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { toHexStrict } from "./color";
+
 /**
  * The `Theme` schema is the single source of truth for what a theme is.
  *
@@ -80,6 +82,27 @@ export type Appearance = z.infer<typeof AppearanceSchema>;
 export const ContentWidthSchema = z.enum(["standard", "wide", "full"]);
 export type ContentWidth = z.infer<typeof ContentWidthSchema>;
 
+/**
+ * A colour a highlight may be painted in: narrower than `color`, and
+ * deliberately so.
+ *
+ * Everywhere else a theme may say anything `isSafeCssValue` allows — `var()`,
+ * `color-mix()`, a named colour — because the value is handed to CSS and CSS
+ * knows what to do with it. A mark is the one colour this app has to *reason*
+ * about: the ink it is read in is derived from it, and that derivation is the
+ * only thing keeping body text legible inside a highlight. A colour
+ * `toHexStrict` cannot read, or one carrying alpha, makes the derivation a guess
+ * — and a wash over the paper puts contrast back in the theme's hands, which is
+ * what opacity was adopted to end.
+ *
+ * A refused slot falls back to House's own rather than failing the theme, for
+ * the reason `StoredCustomThemesSchema` gives: one bad value must not cost
+ * someone every other colour they chose.
+ */
+function markColor(fallback: string) {
+  return color.refine((value) => toHexStrict(value) !== null).catch(fallback);
+}
+
 export const ThemeColorsSchema = z.object({
   bg: color,
   surface: color,
@@ -115,11 +138,11 @@ export const ThemeColorsSchema = z.object({
    */
   mark: z
     .object({
-      yellow: color,
-      green: color,
-      blue: color,
-      pink: color,
-      purple: color,
+      yellow: markColor("oklch(0.88 0.15 95)"),
+      green: markColor("oklch(0.86 0.14 148)"),
+      blue: markColor("oklch(0.85 0.1 235)"),
+      pink: markColor("oklch(0.84 0.11 5)"),
+      purple: markColor("oklch(0.82 0.11 305)"),
     })
     .default({
       yellow: "oklch(0.88 0.15 95)",

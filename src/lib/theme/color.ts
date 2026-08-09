@@ -46,6 +46,63 @@ export function toHex(value: string, fallback = "#000000"): string {
   return fallback;
 }
 
+/**
+ * The same conversion, but `null` rather than a guess when the value is not one
+ * this parser understands, or when it carries alpha.
+ *
+ * `toHex`'s fallback is right for its original callers — Mermaid and a colour
+ * input both need *a* colour and have a sane default — and catastrophic for a
+ * caller reasoning about contrast, because an unreadable pair and an unparseable
+ * one both come back as black. A theme may legally say `white`, `hsl(60 100%
+ * 50%)`, `color-mix(in oklab, white 90%, black)` or `var(--doc-bg)`: every one of
+ * those used to report luminance 0, so `readableInk` chose the *light* ink while
+ * the real, near-white ground was painted underneath it. The guarantee said
+ * 19.29:1 and the reader got about 1.02:1.
+ *
+ * Alpha is refused rather than ignored for the same reason. `rgba(255,255,0,0.05)`
+ * is a 5% wash over the paper, so its contrast is the paper's business again —
+ * which is the whole failure opacity was adopted to end.
+ */
+export function toHexStrict(value: string): string | null {
+  const input = value.trim();
+
+  // Four- and eight-digit hex carry alpha; three and six do not.
+  if (/^#[0-9a-f]{6}$/i.test(input) || /^#[0-9a-f]{3}$/i.test(input)) return toHex(input);
+  if (/^#[0-9a-f]{4}$/i.test(input) || /^#[0-9a-f]{8}$/i.test(input)) return null;
+
+  const rgb =
+    /^rgba?\(\s*([\d.]+%?)[\s,]+([\d.]+%?)[\s,]+([\d.]+%?)\s*([,/]\s*([\d.]+%?)\s*)?\)$/i.exec(
+      input,
+    );
+  if (rgb) {
+    if (rgb[5] !== undefined && !isOpaque(rgb[5])) return null;
+    // Percentage channels are legal and `toHex` does not read them.
+    if ([rgb[1], rgb[2], rgb[3]].some((c) => c?.endsWith("%"))) {
+      return channelsToHex(
+        ...([rgb[1], rgb[2], rgb[3]].map((c) => percentOr(c!, 255)) as [number, number, number]),
+      );
+    }
+    return toHex(input);
+  }
+
+  const oklch =
+    /^oklch\(\s*([\d.]+%?)\s+([\d.]+%?)\s+([\d.-]+)(deg)?\s*(\/\s*([\d.]+%?)\s*)?\)$/i.exec(input);
+  if (oklch) {
+    if (oklch[6] !== undefined && !isOpaque(oklch[6])) return null;
+    return toHex(input);
+  }
+
+  // Named colours, `color-mix()`, `var()`, `hsl()`, `oklch(from …)`, and hues in
+  // turns or radians all land here. Legal CSS, and not something this file can
+  // reason about — so it says so instead of guessing.
+  return null;
+}
+
+/** Alpha of 1 (or 100%) only. Anything else composites over the page. */
+function isOpaque(alpha: string): boolean {
+  return percentOr(alpha, 1) >= 1;
+}
+
 /** `50%` means half of `full`; a bare number is already in the right unit. */
 function percentOr(token: string, full: number): number {
   return token.endsWith("%") ? (Number(token.slice(0, -1)) / 100) * full : Number(token);
@@ -117,24 +174,33 @@ const READABLE = 4.5;
  *
  * The softened inks are tried first because they are what a mark should look
  * like, and pure black or white is the fallback for a ground neither can carry.
- * A mid-grey is the case that forces it: it sits equidistant from both, so the
- * best of the two reaches only 3.95:1. Pure black and white always leave one
- * option at 4.58:1 or better — that is the worst point of
- * `max((L + 0.05) / 0.05, 1.05 / (L + 0.05))`, at L ≈ 0.179 — so the guarantee
- * holds for every colour anyone can write, not merely for every colour we ship.
+ * A mid-grey is roughly where the softened pair bottoms out, at about 3.95:1 —
+ * the true minimum is 3.79:1 near L 0.205 — so the fallback is what keeps the
+ * promise. Pure black and white always leave one option at 4.58:1 or better:
+ * that is the worst point of `max((L + 0.05) / 0.05, 1.05 / (L + 0.05))`, at
+ * L ≈ 0.179. The guarantee therefore holds for every colour anyone can write.
+ *
+ * `null` for a ground this file cannot read. There is no ink that is provably
+ * safe on an unknown colour, and answering anyway is what made the old
+ * guarantee false — `ThemeColorsSchema` refuses such a colour for a mark before
+ * it can reach here, and this returning `null` is what makes that refusal the
+ * only way through rather than merely the usual one.
  */
-export function readableInk(ground: string): string {
+export function readableInk(ground: string): string | null {
+  const hex = toHexStrict(ground);
+  if (hex === null) return null;
+
   const softer =
-    contrastRatio(ground, INK_DARK) >= contrastRatio(ground, INK_LIGHT) ? INK_DARK : INK_LIGHT;
-  if (contrastRatio(ground, softer) >= READABLE) return softer;
-  return contrastRatio(ground, "#000000") >= contrastRatio(ground, "#ffffff")
-    ? "#000000"
-    : "#ffffff";
+    contrastRatio(hex, INK_DARK) >= contrastRatio(hex, INK_LIGHT) ? INK_DARK : INK_LIGHT;
+  if (contrastRatio(hex, softer) >= READABLE) return softer;
+  return contrastRatio(hex, "#000000") >= contrastRatio(hex, "#ffffff") ? "#000000" : "#ffffff";
 }
 
-/** Relative luminance of a CSS colour, per WCAG 2.x. */
+/** Relative luminance of a CSS colour, per WCAG 2.x. Unparseable colours are the
+ *  caller's problem — see `toHexStrict`; `contrastRatio` is only ever handed
+ *  values that have already been through it. */
 function luminance(value: string): number {
-  const hex = toHex(value);
+  const hex = toHexStrict(value) ?? "#000000";
   const channel = (at: number) => {
     const raw = parseInt(hex.slice(at, at + 2), 16) / 255;
     return raw <= 0.03928 ? raw / 12.92 : Math.pow((raw + 0.055) / 1.055, 2.4);
