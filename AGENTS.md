@@ -101,6 +101,8 @@ Windows 11.
 | `cargo clippy --all-targets -- -D warnings` | Lint — CI treats warnings as errors |
 | `cargo fmt --check` | Format check |
 | `cargo deny check` | Advisories, licences, wildcards and crate sources — see [Dependencies](#dependencies) |
+| `pnpm site` | Stage the landing page into `dist-site/` — see [The site](#the-site) |
+| `pnpm site:serve` | Stage it and serve it on :4321 |
 | `pnpm tauri build` | Bundle for the host platform |
 | `pnpm release` | Derive the next version from the commits, tag, push — see [Releasing](#releasing) |
 | `pnpm bump <major\|minor\|patch>` | Sync the version across `package.json` and `Cargo.toml` |
@@ -128,6 +130,7 @@ src/
                  on, and where did they move to
     theme/       Theme schema, presets, applyTheme, import/export
     export/      standalone HTML + print
+site/            the landing page — see below; not part of the app bundle
 src-tauri/src/
   lib.rs         builder wiring only; main.rs is 6 lines
   commands.rs    thin adapters — no logic
@@ -144,6 +147,30 @@ src-tauri/src/
 
 Flat on purpose: no `features/`, no barrel `index.ts`. Tests sit next to the code they test —
 `src/lib/theme/theme.test.ts`, and `#[cfg(test)] mod tests` at the bottom of each Rust module.
+
+## The site
+
+`site/` is the landing page at <https://gabmichels.github.io/lindo-md/>. Hand-written HTML, one
+stylesheet and one ES module — no framework and no bundler, because there is nothing here to
+compile and a build step for three files exists only to justify itself. `pnpm site` stages it into
+`dist-site/`, gathering the screenshots out of `docs/` and three woff2 files out of `node_modules`
+so the repo keeps one copy of each. `.github/workflows/pages.yml` runs the same script on a push to
+`main` that touched any of it.
+
+Two things about it are worth knowing before editing:
+
+- **It follows DESIGN.md, deliberately.** Same House palette, same 4px grid, same 4/7/11 radii,
+  same underline offset. The page is the product claim — a Markdown reader whose own site is set in
+  default Inter on a dark gradient has argued against itself before the reader scrolls.
+- **`site/themes.js` is a hand-copy of every preset palette**, because a static page cannot import
+  `presets.ts` without dragging in the font manifest, the schema and the Shiki registrations.
+  `site/themes.test.mjs` diffs the copy against `PRESETS` and fails the build when it drifts. It is
+  the only reason the copy is allowed to exist; do not delete it to make an edit go through.
+
+The offline invariant does **not** extend here — `site/main.js` calls the GitHub releases API so the
+download button can name a version and a file size. That is a web page asking about a public
+release, not the app phoning home about someone's documents, and the ESLint rule that enforces the
+invariant is scoped to `src/**` for exactly that reason.
 
 ## Data flow
 

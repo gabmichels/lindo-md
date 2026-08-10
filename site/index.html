@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="en" data-appearance="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>lindo-md — a Markdown viewer that makes documents worth reading</title>
+    <meta
+      name="description"
+      content="A small, offline desktop Markdown viewer with editorial typography, everything GitHub renders, edit-in-place, twenty themes, and one network request you can switch off. Windows and Linux, MIT licensed."
+    />
+    <link rel="canonical" href="https://gabmichels.github.io/lindo-md/" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="lindo-md" />
+    <meta
+      property="og:title"
+      content="lindo-md — a Markdown viewer that makes documents worth reading"
+    />
+    <meta
+      property="og:description"
+      content="Editorial typography, everything GitHub renders, edit in place, twenty themes, and nothing leaves your machine."
+    />
+    <meta property="og:url" content="https://gabmichels.github.io/lindo-md/" />
+    <meta
+      property="og:image"
+      content="https://gabmichels.github.io/lindo-md/screenshot-light.png"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link
+      rel="preload"
+      href="./fonts/source-serif-4-latin-wght-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="./fonts/inter-tight-latin-wght-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="./styles.css" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "lindo-md",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Windows, Linux",
+        "description": "An offline desktop Markdown viewer with editorial typography, GitHub-flavored rendering, edit-in-place and twenty themes.",
+        "url": "https://gabmichels.github.io/lindo-md/",
+        "downloadUrl": "https://github.com/gabmichels/lindo-md/releases/latest",
+        "license": "https://opensource.org/licenses/MIT",
+        "author": { "@type": "Person", "name": "Gabriel Michels" },
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+
+    <!-- Appearance before first paint. A page about reading does not get to
+         flash white at someone who asked for dark. -->
+    <script>
+      (function () {
+        var saved = null;
+        try {
+          saved = localStorage.getItem("lindo-appearance");
+        } catch (e) {
+          /* private mode; fall through to the system preference */
+        }
+        var dark = saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.dataset.appearance = dark ? "dark" : "light";
+      })();
+    </script>
+  </head>
+
+  <body>
+    <nav class="nav">
+      <div class="nav-inner">
+        <a class="brand" href="#top">
+          <img src="./icon.svg" alt="" width="22" height="22" />
+          lindo-md
+        </a>
+        <div class="nav-links">
+          <a href="#render" class="hide-sm">Rendering</a>
+          <a href="#features" class="hide-sm">Features</a>
+          <a href="#themes">Themes</a>
+          <a href="#privacy" class="hide-sm">Privacy</a>
+          <a href="https://github.com/gabmichels/lindo-md">GitHub</a>
+          <div class="seg" role="group" aria-label="Appearance">
+            <button type="button" data-appearance-set="light" aria-pressed="true">Light</button>
+            <button type="button" data-appearance-set="dark" aria-pressed="false">Dark</button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ---------------------------------------------------------------- hero -->
+    <header class="hero wrap" id="top">
+      <h1>A Markdown viewer that makes documents worth reading.</h1>
+      <p class="sub">
+        Local <code>.md</code> files usually open in a plain-text editor or a previewer that looks
+        like a 2014 admin panel. lindo-md renders them the way a well-set page should look — and
+        lets you edit the page you are reading without switching into a source view first.
+      </p>
+
+      <div class="hero-actions">
+        <a
+          class="btn btn-primary"
+          id="download-primary"
+          href="https://github.com/gabmichels/lindo-md/releases/latest"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 3v12" />
+            <path d="m7 11 5 5 5-5" />
+            <path d="M4 20h16" />
+          </svg>
+          <span id="download-label">Download</span>
+        </a>
+        <a class="btn btn-ghost" href="#download">All downloads</a>
+      </div>
+
+      <p class="hero-meta" id="release-meta">
+        Free and MIT licensed ·
+        <a href="https://github.com/gabmichels/lindo-md/releases">All releases</a>
+      </p>
+
+      <div class="shot">
+        <img
+          class="only-light"
+          src="./screenshot-light.png"
+          alt="lindo-md rendering a document in its House theme"
+          width="2560"
+          height="1600"
+          fetchpriority="high"
+        />
+        <img
+          class="only-dark"
+          src="./screenshot-dark.png"
+          alt="lindo-md rendering a document in its dark House theme"
+          width="2560"
+          height="1600"
+          fetchpriority="high"
+        />
+      </div>
+
+      <div class="badges">
+        <span>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            aria-hidden="true"
+          >
+            <path d="M12 3 4 6v6c0 5 3.4 8.3 8 9 4.6-.7 8-4 8-9V6Z" />
+          </svg>
+          Offline by default
+        </span>
+        <span>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            aria-hidden="true"
+          >
+            <path d="m13 2-9 12h7l-1 8 9-12h-7Z" />
+          </svg>
+          Rust + Tauri, not Electron
+        </span>
+        <span>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            aria-hidden="true"
+          >
+            <rect x="3" y="4" width="18" height="14" rx="2" />
+            <path d="M8 21h8" />
+          </svg>
+          Windows · Linux
+        </span>
+        <span>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            aria-hidden="true"
+          >
+            <path
+              d="M9 18c-4.5 1.5-4.5-2.5-6-3m12 6v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.3 4.3 0 0 0-.1-3.2s-1-.3-3.4 1.3a11.7 11.7 0 0 0-6.2 0C6.6 2.6 5.6 2.9 5.6 2.9a4.3 4.3 0 0 0-.1 3.2A4.6 4.6 0 0 0 4.2 9.3c0 4.6 2.7 5.7 5.5 6-.4.4-.5.9-.5 1.6V21"
+            />
+          </svg>
+          MIT · open source
+        </span>
+      </div>
+    </header>
+
+    <!-- ------------------------------------------------------- live rendering -->
+    <section id="render">
+      <div class="wrap">
+        <div class="prose">
+          <p class="section-label">What it renders</p>
+          <h2 class="title">Everything GitHub renders — and one thing it doesn't.</h2>
+          <p class="lede">
+            The panel below is not a screenshot. It is a page on this site, drawn with the theme you
+            have selected, so you can judge the type before you download anything.
+          </p>
+        </div>
+      </div>
+
+      <div class="wrap" style="margin-top: 44px">
+        <article class="paper">
+          <div class="doc">
+            <h3>Reading a document</h3>
+            <p>
+              Body text is set in Source Serif 4 at a sixty-six character measure — the same page
+              the app opens with. Emphasis is <em>drawn, not slanted</em>, links are
+              <a href="#themes">underlined rather than merely coloured</a>, and inline
+              <code>code</code> sits in the line instead of on top of it. Footnotes work<a
+                href="#fn1"
+                id="fnref1"
+                class="footnote-ref"
+                >1</a
+              >, and so do <span class="wikilink">[[wikilinks]]</span>, which GitHub has never
+              rendered.
+            </p>
+
+            <div class="alert alert-note">
+              <div class="alert-title">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 11v5M12 8h.01" />
+                </svg>
+                Note
+              </div>
+              <p>
+                All five GitHub alert kinds are supported, and the kind is written into the callout
+                in words — so a reader who cannot see the hue still knows which one this is.
+              </p>
+            </div>
+
+            <h4>Code, with real VS Code highlighting</h4>
+            <div class="fence">
+              <div class="fence-head">
+                <span>apply.ts</span>
+                <span>TypeScript</span>
+              </div>
+              <pre><code><span class="cm">// A preset is an opinion, not a cage.</span>
+<span class="kw">export function</span> <span class="fn">applyTheme</span><span class="pu">(</span>theme<span class="pu">:</span> <span class="ty">Theme</span><span class="pu">,</span> mode<span class="pu">:</span> <span class="ty">Appearance</span><span class="pu">) {</span>
+  <span class="kw">const</span> half <span class="pu">=</span> mode <span class="pu">===</span> <span class="st">"dark"</span> <span class="pu">?</span> theme<span class="pu">.</span>dark <span class="pu">:</span> theme<span class="pu">.</span>light<span class="pu">;</span>
+
+  <span class="kw">for</span> <span class="pu">(</span><span class="kw">const</span> <span class="pu">[</span>token<span class="pu">,</span> value<span class="pu">]</span> <span class="kw">of</span> <span class="ty">Object</span><span class="pu">.</span><span class="fn">entries</span><span class="pu">(</span>half<span class="pu">.</span>palette<span class="pu">)) {</span>
+    canvas<span class="pu">.</span>style<span class="pu">.</span><span class="fn">setProperty</span><span class="pu">(</span><span class="st">`--doc-${token}`</span><span class="pu">,</span> value<span class="pu">);</span>
+  <span class="pu">}</span>
+
+  <span class="cm">// Custom properties inherit, so the nearest themed ancestor wins.</span>
+  <span class="kw">return</span> <span class="cn">true</span><span class="pu">;</span>
+<span class="pu">}</span></code></pre>
+            </div>
+
+            <h4>Mermaid diagrams</h4>
+            <div class="mermaid">
+              <svg
+                viewBox="0 0 620 210"
+                role="img"
+                aria-label="Flowchart: opening a file, branching on whether it is Markdown, to either a rendered page or read-only text"
+              >
+                <defs>
+                  <marker
+                    id="arw"
+                    viewBox="0 0 10 10"
+                    refX="9"
+                    refY="5"
+                    markerWidth="7"
+                    markerHeight="7"
+                    orient="auto-start-reverse"
+                  >
+                    <path d="M0 0 L10 5 L0 10 z" fill="var(--muted)" />
+                  </marker>
+                </defs>
+                <g class="edge">
+                  <path d="M148 105 H186" marker-end="url(#arw)" />
+                  <path d="M352 105 H388 V64 H412" marker-end="url(#arw)" />
+                  <path d="M352 105 H388 V150 H412" marker-end="url(#arw)" />
+                </g>
+                <rect class="node" x="20" y="83" width="128" height="44" rx="7" />
+                <text x="84" y="110" text-anchor="middle">Open a file</text>
+                <path class="node" d="M269 63 L352 105 L269 147 L186 105 Z" />
+                <text x="269" y="110" text-anchor="middle">Markdown?</text>
+                <text class="edge-label" x="381" y="80" text-anchor="end">yes</text>
+                <text class="edge-label" x="381" y="140" text-anchor="end">no</text>
+                <rect class="node" x="412" y="42" width="188" height="44" rx="7" />
+                <text x="506" y="69" text-anchor="middle">Rendered, editable</text>
+                <rect class="node" x="412" y="128" width="188" height="44" rx="7" />
+                <text x="506" y="155" text-anchor="middle">Text, read-only</text>
+              </svg>
+            </div>
+
+            <h4>Tables and maths</h4>
+            <table>
+              <thead>
+                <tr>
+                  <th>Extension</th>
+                  <th>Renders as</th>
+                  <th>Editable</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>.md</code> <code>.markdown</code> <code>.qmd</code></td>
+                  <td>Markdown</td>
+                  <td>Yes</td>
+                </tr>
+                <tr>
+                  <td><code>.mdx</code></td>
+                  <td>Markdown, components shown as code</td>
+                  <td>No</td>
+                </tr>
+                <tr>
+                  <td><code>.txt</code> <code>.log</code> <code>.rst</code></td>
+                  <td>Exactly as written</td>
+                  <td>No</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <p class="mathblock">
+              <math display="block" xmlns="http://www.w3.org/1998/Math/MathML">
+                <mrow>
+                  <msub
+                    ><mi>C</mi><mrow><mi>t</mi><mo>,</mo><mi>b</mi></mrow></msub
+                  >
+                  <mo>=</mo>
+                  <mfrac>
+                    <mrow
+                      ><msub><mi>L</mi><mn>1</mn></msub
+                      ><mo>+</mo><mn>0.05</mn></mrow
+                    >
+                    <mrow
+                      ><msub><mi>L</mi><mn>2</mn></msub
+                      ><mo>+</mo><mn>0.05</mn></mrow
+                    >
+                  </mfrac>
+                  <mo>≥</mo>
+                  <mn>4.5</mn>
+                </mrow>
+              </math>
+            </p>
+
+            <ul class="task">
+              <li>
+                <input type="checkbox" checked disabled aria-hidden="true" /><span
+                  >Task lists write straight back to the file</span
+                >
+              </li>
+              <li>
+                <input type="checkbox" checked disabled aria-hidden="true" /><span
+                  >Line endings are preserved — CRLF stays CRLF</span
+                >
+              </li>
+              <li>
+                <input type="checkbox" disabled aria-hidden="true" /><span
+                  >Signed macOS builds</span
+                >
+              </li>
+            </ul>
+
+            <blockquote>
+              <p>
+                Heading anchors carry no <code>user-content-</code> prefix, so a
+                <code>file.md#anchor</code> link works exactly as typed.
+              </p>
+            </blockquote>
+
+            <div class="footnotes">
+              <p id="fn1">
+                1. Including the backreference, which jumps you to
+                <a href="#fnref1">where you were reading</a>.
+              </p>
+            </div>
+          </div>
+        </article>
+        <p class="caption">
+          Syntax colours here are House's own. Every other preset points at the authentic VS Code
+          theme of the same name, bundled with the app rather than fetched.
+        </p>
+      </div>
+    </section>
+
+    <hr class="rule" />
+
+    <!-- ------------------------------------------------------------ features -->
+    <section id="features">
+      <div class="wrap">
+        <div class="prose">
+          <p class="section-label">Features</p>
+          <h2 class="title">Built to be lived in, not looked at once.</h2>
+        </div>
+
+        <div class="grid">
+          <div class="cell">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+            <h3>Edit in place</h3>
+            <p>
+              Type directly into the rendered page. There is no mode to enter and no Save to
+              remember — the Markdown file is the source of truth, and a write is refused if the
+              file changed underneath you.
+            </p>
+          </div>
+          <div class="cell">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="5" width="7" height="5" rx="1.5" />
+              <rect x="12" y="5" width="9" height="5" rx="1.5" />
+              <path d="M3 14h18" />
+              <path d="M3 18h12" />
+            </svg>
+            <h3>Tabs and tab groups</h3>
+            <p>
+              Contiguous, coloured, collapsible groups. Every tab keeps its own scroll position and
+              history, and the whole session comes back on launch.
+            </p>
+          </div>
+          <div class="cell">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="13.5" cy="6.5" r="1.2" />
+              <circle cx="17.5" cy="10.5" r="1.2" />
+              <circle cx="6.5" cy="12.5" r="1.2" />
+              <path
+                d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.9 1.8-1.8 0-1.9 1.7-1.6 3.2-1.9A4 4 0 0 0 21 13a10 10 0 0 0-9-10Z"
+              />
+            </svg>
+            <h3>Twenty themes, all editable</h3>
+            <p>
+              Every preset ships a light and a dark half, its own type and its own page furniture.
+              Thirteen colours, eleven type controls, and the result exports to a JSON file you can
+              share.
+            </p>
+          </div>
+          <div class="cell">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 5h7v14H3z" />
+              <path d="M14 5h7v14h-7z" />
+            </svg>
+            <h3>Two documents at once</h3>
+            <p>
+              A read-only comparison pane at a fixed half of the canvas — <kbd>Ctrl</kbd>
+              <kbd>\</kbd>, or drag a tab into the right half and it opens there.
+            </p>
+          </div>
+          <div class="cell">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 4h9l3 3h4v13H4z" />
+              <path d="M8 12h8" />
+              <path d="M8 16h5" />
+            </svg>
+            <h3>A real folder, not one file</h3>
+            <p>
+              File tree, "On this page" outline, reading progress, find, zoom and live reload. Every
+              Markdown dialect opens like <code>.md</code>; plain text opens read-only and the
+              window says so.
+            </p>
+          </div>
+          <div class="cell">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 2h9l5 5v15H6z" />
+              <path d="M14 2v6h6" />
+              <path d="M9 15h6" />
+            </svg>
+            <h3>Export and print</h3>
+            <p>
+              HTML export that carries the theme with it, and print-to-PDF that sets the page rather
+              than screenshotting the window.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="rule" />
+
+    <!-- -------------------------------------------------------------- themes -->
+    <section id="themes">
+      <div class="wrap">
+        <div class="prose">
+          <p class="section-label">Themes</p>
+          <h2 class="title">Pick one. The whole page changes.</h2>
+          <p class="lede">
+            These are the app's twenty presets, and this is what they do — the site is re-themed
+            live, including the document above. Colour is only half of it: in the app each preset
+            also brings its own type, measure and page furniture, which a single web font cannot
+            show.
+          </p>
+        </div>
+
+        <div class="themes" id="theme-gallery" role="group" aria-label="Theme presets"></div>
+        <p class="theme-note" id="theme-note"></p>
+      </div>
+    </section>
+
+    <hr class="rule" />
+
+    <!-- ------------------------------------------------------------- privacy -->
+    <section id="privacy">
+      <div class="wrap split">
+        <div class="body">
+          <p class="section-label">Privacy</p>
+          <h2>One request, and it is optional.</h2>
+          <p>
+            Remote images are blocked by default, so opening a document cannot report that you did.
+            Shiki, KaTeX and Mermaid are <strong>bundled, not fetched</strong>. The launch version
+            check is the only thing that reaches the network, and it has a switch — turn it off and
+            the app opens no connections at all.
+          </p>
+          <p>
+            It is a small native desktop app built on Rust and Tauri, using the WebView your system
+            already has, rather than an Electron shell shipping a second browser.
+          </p>
+        </div>
+        <div>
+          <div class="paper" style="max-width: 460px">
+            <div class="doc">
+              <div class="alert alert-tip">
+                <div class="alert-title">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 3a6 6 0 0 0-3.5 10.9V17h7v-3.1A6 6 0 0 0 12 3Z" />
+                    <path d="M10 20h4" />
+                  </svg>
+                  Network activity
+                </div>
+                <p>Version check on launch — <em>Settings → General</em> to disable.</p>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>What</th>
+                    <th>Where from</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Syntax highlighting</td>
+                    <td>Bundled</td>
+                  </tr>
+                  <tr>
+                    <td>Maths typesetting</td>
+                    <td>Bundled</td>
+                  </tr>
+                  <tr>
+                    <td>Diagrams</td>
+                    <td>Bundled</td>
+                  </tr>
+                  <tr>
+                    <td>Twenty-six fonts</td>
+                    <td>Bundled</td>
+                  </tr>
+                  <tr>
+                    <td>Remote images</td>
+                    <td>Blocked</td>
+                  </tr>
+                  <tr>
+                    <td>Telemetry</td>
+                    <td>None</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="rule" />
+
+    <!-- ------------------------------------------------------------ keyboard -->
+    <section id="keyboard">
+      <div class="wrap">
+        <div class="prose">
+          <p class="section-label">Keyboard</p>
+          <h2 class="title">The shortcuts you already know.</h2>
+        </div>
+        <div class="keys">
+          <div class="keyrow">
+            <span>Find in document</span><span class="k"><kbd>Ctrl</kbd><kbd>F</kbd></span>
+          </div>
+          <div class="keyrow">
+            <span>Compare with another file</span><span class="k"><kbd>Ctrl</kbd><kbd>\</kbd></span>
+          </div>
+          <div class="keyrow">
+            <span>Toggle the Markdown source</span
+            ><span class="k"><kbd>Ctrl</kbd><kbd>E</kbd></span>
+          </div>
+          <div class="keyrow">
+            <span>Print, or save as PDF</span><span class="k"><kbd>Ctrl</kbd><kbd>P</kbd></span>
+          </div>
+          <div class="keyrow">
+            <span>New tab · close · reopen</span
+            ><span class="k"><kbd>Ctrl</kbd><kbd>T</kbd><kbd>W</kbd><kbd>⇧T</kbd></span>
+          </div>
+          <div class="keyrow">
+            <span>Cycle tabs · jump to tab</span
+            ><span class="k"><kbd>Ctrl</kbd><kbd>Tab</kbd><kbd>1…9</kbd></span>
+          </div>
+          <div class="keyrow">
+            <span>Zoom in · out · reset</span
+            ><span class="k"><kbd>Ctrl</kbd><kbd>+</kbd><kbd>−</kbd><kbd>0</kbd></span>
+          </div>
+          <div class="keyrow">
+            <span>Settings · appearance drawer</span
+            ><span class="k"><kbd>Ctrl</kbd><kbd>,</kbd><kbd>⇧,</kbd></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="rule" />
+
+    <!-- ------------------------------------------------------------ download -->
+    <section id="download">
+      <div class="wrap">
+        <div class="prose">
+          <p class="section-label">Download</p>
+          <h2 class="title">Free, MIT licensed, no account.</h2>
+          <p class="lede" id="download-version">
+            Installers are published on GitHub with every release.
+          </p>
+        </div>
+
+        <div class="dl">
+          <div class="card">
+            <h3>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M3 5.5 10 4.6v6.6H3Zm0 13L10 19.4v-6.6H3Zm8 1L21 21V12.8h-10Zm0-15V11.2h10V3Z"
+                />
+              </svg>
+              Windows
+            </h3>
+            <ul class="assets" id="assets-windows">
+              <li>lindo-md_x64-setup.exe</li>
+              <li>lindo-md_x64_en-US.msi</li>
+            </ul>
+            <p class="fine">
+              Associates the Markdown extensions, so <strong>Open with → lindo-md</strong> works.
+              Text files are opened but never claimed, so your own editor keeps them.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 2c-2 0-3 1.8-2.8 4 .1 1.3-.4 2.2-1.3 3.6C6.6 11.5 6 13 6 15c0 1.2-.6 2-1.2 2.8-.9 1.2-.4 2.4 1.1 2.6 1.3.2 2 .6 2.7 1 .8.5 1.9.6 3.4.6s2.6-.1 3.4-.6c.7-.4 1.4-.8 2.7-1 1.5-.2 2-1.4 1.1-2.6C18.6 17 18 16.2 18 15c0-2-.6-3.5-1.9-5.4-.9-1.4-1.4-2.3-1.3-3.6C15 3.8 14 2 12 2Z"
+                />
+              </svg>
+              Linux
+            </h3>
+            <ul class="assets" id="assets-linux">
+              <li>lindo-md_amd64.AppImage</li>
+              <li>lindo-md_amd64.deb</li>
+              <li>lindo-md.x86_64.rpm</li>
+            </ul>
+            <p class="fine">
+              For the AppImage, <code>chmod +x</code> it first. The <code>.deb</code> and
+              <code>.rpm</code> register the desktop entry and file associations.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M16 3c.1 1.3-.4 2.5-1.2 3.4-.8.9-2 1.6-3.2 1.5-.1-1.2.5-2.5 1.3-3.3C13.7 3.6 15 3 16 3Zm3.6 15.3c-.5 1.2-.8 1.7-1.5 2.7-1 1.4-2.4 3.1-4.1 3.1-1.5 0-1.9-1-4-1s-2.6 1-4 1c-1.7 0-3-1.6-4-3C-.7 16.9.5 10.4 4.4 9.1c1.3-.5 2.4.1 3.6.1 1.2 0 2-.7 3.6-.7 1.4 0 2.9.8 3.8 2.1-3.4 1.9-2.8 6.7.2 7.7Z"
+                />
+              </svg>
+              macOS
+            </h3>
+            <p class="fine">
+              No published build. It compiles fine, but an unsigned bundle fails Gatekeeper with
+              "lindo-md is damaged and can't be opened" — which reads as a broken download rather
+              than a security prompt. Building from source sidesteps it, since a binary you compiled
+              locally was never quarantined.
+            </p>
+          </div>
+        </div>
+
+        <div class="note-block">
+          <p>
+            <strong>These builds are unsigned</strong>, so Windows SmartScreen will show "Windows
+            protected your PC" the first time — choose <em>More info → Run anyway</em>. Instead of a
+            code-signing certificate, every release publishes SHA256 checksums, a CycloneDX SBOM,
+            and signed build provenance tying each binary to the exact commit and workflow run that
+            produced it:
+          </p>
+          <p><code>gh attestation verify &lt;file&gt; --repo gabmichels/lindo-md</code></p>
+          <p>
+            <a href="https://github.com/gabmichels/lindo-md/blob/main/docs/signing.md"
+              >docs/signing.md</a
+            >
+            explains what unsigned costs you, what signing would cost, and why it has not been done
+            — a decision on the record rather than an omission.
+          </p>
+        </div>
+
+        <div class="note-block">
+          <p>
+            <strong>Build from source</strong> — Node ≥ 22.13, pnpm 11 and a stable Rust toolchain:
+          </p>
+        </div>
+        <div class="fence" style="max-width: 620px">
+          <pre><code><span class="pu">$</span> pnpm install
+<span class="pu">$</span> pnpm tauri dev      <span class="cm"># run</span>
+<span class="pu">$</span> pnpm tauri build    <span class="cm"># bundle</span></code></pre>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="foot">
+        <span>MIT © Gabriel Michels</span>
+        <a href="https://github.com/gabmichels/lindo-md">Source</a>
+        <a href="https://github.com/gabmichels/lindo-md/releases">Releases</a>
+        <a href="https://github.com/gabmichels/lindo-md/issues">Issues</a>
+        <a href="https://github.com/gabmichels/lindo-md/blob/main/CONTRIBUTING.md">Contributing</a>
+        <a href="https://github.com/gabmichels/lindo-md/blob/main/SECURITY.md">Security</a>
+        <span class="spacer">Not affiliated with GitHub, Obsidian, or any theme's authors.</span>
+      </div>
+    </footer>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

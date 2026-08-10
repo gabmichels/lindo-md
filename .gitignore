@@ -1,6 +1,7 @@
 # Dependencies / build output
 node_modules/
 dist/
+dist-site/
 src-tauri/target/
 
 # Worktrees (worktrunk nested layout)

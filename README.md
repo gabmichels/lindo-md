@@ -11,6 +11,7 @@
     <img alt="Windows · Linux" src="https://img.shields.io/badge/platform-Windows%20%C2%B7%20Linux-lightgrey.svg" />
   </p>
   <p>
+    <a href="https://gabmichels.github.io/lindo-md/">Website</a> ·
     <a href="#download">Download</a> ·
     <a href="#features">Features</a> ·
     <a href="#themes">Themes</a> ·
@@ -120,7 +121,7 @@ the whole session is restored on launch.
 <tr>
 <td valign="top">
 
-### Fourteen themes, all editable
+### Twenty themes, all editable
 
 Every preset ships a light and a dark half. Type, layout and thirteen individual colors are
 adjustable, and the result exports to JSON.
@@ -197,9 +198,10 @@ automatically.
 ![The appearance drawer, showing the theme presets and the type controls](docs/screenshot-themes.png)
 
 The default is **House**, a reading theme designed for this app: warm bone paper, Source Serif 4 at
-a 66-character measure, ink-teal links. Fourteen more presets cover the themes people already read
+a 66-character measure, ink-teal links. Nineteen more presets cover the themes people already read
 in — GitHub, GitHub Dimmed, Solarized, Nord, Dracula, One, Tokyo Night, Catppuccin, Gruvbox,
-Rosé Pine, Everforest — plus three built for reading rather than recognition: **Paper** (sepia and
+Rosé Pine, Everforest, Ayu, Kanagawa, Vitesse, Material, Night Owl — plus three built for reading
+rather than recognition: **Paper** (sepia and
 lamplight, set in Garamond), **High Contrast** (Atkinson Hyperlegible at a short measure), and
 **Colorblind Safe**, whose alert colours and syntax highlighting are picked so that no two you have
 to tell apart collapse into each other under red-green or blue-yellow colour blindness — the code
