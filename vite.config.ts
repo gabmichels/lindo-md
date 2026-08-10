@@ -36,6 +36,13 @@ export default defineConfig(async () => ({
     environment: "jsdom",
     // `scripts/` is covered too: the release rules there decide what ships, so they are
     // tested like app code rather than trusted because they are "just a build script".
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "scripts/**/*.test.mjs"],
+    // `site/` too: it keeps a hand-copy of every preset palette, and the whole
+    // point of the copy being safe is that a test notices when it drifts.
+    include: [
+      "src/**/*.test.ts",
+      "src/**/*.test.tsx",
+      "scripts/**/*.test.mjs",
+      "site/**/*.test.mjs",
+    ],
   },
 }));

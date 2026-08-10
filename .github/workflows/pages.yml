@@ -1,0 +1,76 @@
+name: Pages
+
+# The landing page at https://gabmichels.github.io/lindo-md/.
+#
+# Deliberately separate from CI rather than a job inside it. CI runs on every
+# pull request from anywhere and is `contents: read` throughout; this one writes
+# to a GitHub environment and mints an OIDC token, so it runs only on `main` and
+# only for the paths that can change what is published. Merging the two would
+# hand those permissions to every PR job in the file.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "scripts/site.mjs"
+      - "docs/icon.svg"
+      - "docs/screenshot-*.png"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+# The three Pages deployment needs, and nothing else. `id-token` is what lets
+# `deploy-pages` prove to the Pages service which workflow run produced the
+# artifact — it is not a repository credential.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and a queued run is not cancelled: killing a
+# half-finished deploy is how you get a site serving one release's HTML against
+# another's assets.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The site has no dependencies of its own. The install is here because
+      # `scripts/site.mjs` copies three woff2 files out of node_modules, which is
+      # what keeps the app and the page on the same Source Serif 4.
+      - run: pnpm install --frozen-lockfile
+
+      # The palettes on the page are a hand-copy of the app's presets. This is
+      # the test that fails when they drift; running it here means a stale
+      # gallery cannot be published even if it reached main.
+      - run: pnpm exec vitest run site
+      - run: pnpm site
+
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: dist-site
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

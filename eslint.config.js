@@ -17,7 +17,14 @@ import globals from "globals";
  */
 export default tseslint.config(
   {
-    ignores: ["dist/**", "src-tauri/**", "node_modules/**", "eslint.config.js", "**/*.d.ts"],
+    ignores: [
+      "dist/**",
+      "dist-site/**",
+      "src-tauri/**",
+      "node_modules/**",
+      "eslint.config.js",
+      "**/*.d.ts",
+    ],
   },
 
   js.configs.recommended,
@@ -194,6 +201,23 @@ export default tseslint.config(
   {
     files: ["scripts/**/*.mjs", "test/e2e/**/*.mjs", "vite.config.ts"],
     languageOptions: { globals: globals.node },
+  },
+
+  // The landing page: browser, plain JS, and outside the TypeScript project, so
+  // type-aware rules have nothing to read and error out on the file itself.
+  //
+  // Note what it is *not* under: the offline invariant above is scoped to
+  // `src/**` and stays there. The app must never call `fetch`; the site is a web
+  // page whose download button asks GitHub which version is current, and holding
+  // it to the app's rule would be applying a promise about someone's documents
+  // to a page that has none.
+  {
+    files: ["site/**/*.{js,mjs}"],
+    ...tseslint.configs.disableTypeChecked,
+  },
+  {
+    files: ["site/**/*.{js,mjs}"],
+    languageOptions: { globals: globals.browser },
   },
 
   prettier,
