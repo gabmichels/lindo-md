@@ -127,6 +127,92 @@ export function stripRemoteRefs(root: HTMLElement): void {
 const REMOTE_URL = /url\(\s*['"]?\s*(?!#|data:)[^)]*\)/gi;
 
 /**
+ * The adopted copy of each diagram's stylesheet, by the id it is scoped to.
+ *
+ * Mermaid emits a `<style>` inside the SVG and puts *everything* there — fills,
+ * strokes, and the `text-align: center` that puts a label in the middle of its
+ * box. In the packaged app that element is inert, and the symptom is not an
+ * error but a diagram drawn in SVG's defaults: black boxes, no borders, labels
+ * against the left edge.
+ *
+ * The cause is CSP, and it is not the policy in `tauri.conf.json`. Tauri appends
+ * a nonce to `style-src` when it builds, and a nonce in a directive makes CSP
+ * *ignore* `'unsafe-inline'` for that directive — so the configured
+ * `style-src 'self' 'unsafe-inline'` stops covering any `<style>` the app
+ * inserts at runtime. Nothing in `vite dev` does that, which is why this
+ * survived review and shipped: the diagram is correct in every development run.
+ *
+ * A constructed stylesheet is the way through. CSP governs style *elements* and
+ * style *attributes*; rules installed through CSSOM by script that is already
+ * trusted are not inline styles and are not blocked. Widening the policy would
+ * work too, and was the first instinct — but it re-permits every inline
+ * `<style>` in the app to buy back one, and this costs a Map.
+ *
+ * Deliberately additive: the inert `<style>` stays in the figure, because
+ * `export/html.ts` serializes the canvas and an exported file has no CSP and no
+ * adopted sheets. Removing it here would fix the window and quietly break every
+ * diagram in every exported document.
+ */
+const adoptedSheets = new Map<string, CSSStyleSheet>();
+
+/** Whether this engine has constructed stylesheets. jsdom does not, so the
+ *  render tests exercise everything around this and skip the adoption itself. */
+function canAdopt(): boolean {
+  return (
+    typeof CSSStyleSheet === "function" &&
+    "replaceSync" in CSSStyleSheet.prototype &&
+    "adoptedStyleSheets" in Document.prototype
+  );
+}
+
+/**
+ * Re-installs a rendered diagram's own CSS somewhere the CSP will honour it.
+ *
+ * Keyed by the SVG's id because that is what every rule Mermaid writes is
+ * scoped to (`#mermaid-4 .node rect { … }`), which is also what keeps an adopted
+ * sheet from reaching anything outside its own diagram.
+ */
+export function adoptDiagramStyles(figure: HTMLElement): void {
+  const id = figure.querySelector("svg")?.id;
+  if (!id || !canAdopt()) return;
+
+  const css = [...figure.querySelectorAll("style")]
+    .map((style) => style.textContent)
+    .join("\n")
+    .trim();
+  if (!css) return;
+
+  let sheet = adoptedSheets.get(id);
+  if (!sheet) {
+    sheet = new CSSStyleSheet();
+    adoptedSheets.set(id, sheet);
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  }
+  // Re-rendered rather than new — a theme change re-renders every diagram, and
+  // Mermaid bakes the palette into the CSS, so the same id gets fresh rules.
+  sheet.replaceSync(css);
+  pruneDiagramStyles();
+}
+
+/**
+ * Drops the sheets whose diagram has left the document.
+ *
+ * Every render mints a new id, and a document being edited re-renders often, so
+ * without this the adopted list grows for as long as the app is open. Looked up
+ * by id rather than tracked by hand because a figure can leave in more ways than
+ * this module can see — `mirror` replaces blocks an edit touched, a tab closes,
+ * a view unmounts.
+ */
+export function pruneDiagramStyles(): void {
+  const stale = [...adoptedSheets].filter(([id]) => !document.getElementById(id));
+  if (!stale.length) return;
+
+  const dropped = new Set(stale.map(([, sheet]) => sheet));
+  for (const [id] of stale) adoptedSheets.delete(id);
+  document.adoptedStyleSheets = document.adoptedStyleSheets.filter((sheet) => !dropped.has(sheet));
+}
+
+/**
  * Renders one diagram in place. A diagram that fails to parse shows its source
  * and the parser's message instead of an empty gap: a broken diagram in someone
  * else's document is information, not a failure of the viewer.
@@ -166,9 +252,11 @@ export async function renderDiagram(block: HTMLElement, theme: Theme): Promise<v
     figure.setAttribute("role", "img");
 
     block.replaceWith(figure);
-    // Must happen after insertion: the fix below measures the real geometry,
-    // which only exists once the SVG is in the rendered document.
+    // Must happen after insertion, both of them: `normalizeViewBox` measures the
+    // real geometry and `adoptDiagramStyles` prunes by looking the SVG up by id,
+    // and neither exists until the figure is in the document.
     normalizeViewBox(figure);
+    adoptDiagramStyles(figure);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const failed = document.createElement("figure");

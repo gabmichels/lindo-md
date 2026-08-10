@@ -497,16 +497,23 @@ export function mermaidThemeVariables(theme: Theme): Record<string, string> {
   const ink = theme.appearance === "light" ? "#000000" : "#ffffff";
   return {
     background: c(colors.bg, neutral),
-    primaryColor: c(colors.surface, neutral),
+    // A node is the paper, not the surface — `document.css` gives the figure a
+    // `--doc-surface` tray, and a node filled with the same value is a shape
+    // whose only edge is its outline. Depth here comes from one plane sitting on
+    // another, which is the rule the chrome already follows; the border is then
+    // an edge on a step rather than the whole of it.
+    primaryColor: c(colors.bg, neutral),
     primaryTextColor: c(colors.text, ink),
     primaryBorderColor: c(colors.border, ink),
     secondaryColor: c(colors.codeBg, neutral),
-    tertiaryColor: c(colors.bg, neutral),
+    tertiaryColor: c(colors.surface, neutral),
     lineColor: c(colors.textMuted, ink),
     textColor: c(colors.text, ink),
-    mainBkg: c(colors.surface, neutral),
+    mainBkg: c(colors.bg, neutral),
     nodeBorder: c(colors.border, ink),
-    clusterBkg: c(colors.bg, neutral),
+    // A cluster is the tray, so it reads as the thing the nodes are *inside*
+    // rather than as another node.
+    clusterBkg: c(colors.surface, neutral),
     clusterBorder: c(colors.border, ink),
     edgeLabelBackground: c(colors.bg, neutral),
     titleColor: c(colors.heading, ink),
