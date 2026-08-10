@@ -1139,6 +1139,15 @@ Four decisions worth not re-litigating:
 - **Mermaid cannot parse `oklch()`** — it throws `Unsupported color format` and the diagram fails.
   Every colour handed to it goes through `toHex` in `src/lib/theme/color.ts` first. The same applies
   to `<input type="color">`, which only accepts `#rrggbb`.
+- **A `<style>` element inserted at runtime does nothing in the packaged app.** Tauri appends a
+  nonce to `style-src` when it builds, and a nonce in a directive makes CSP *ignore* the
+  `'unsafe-inline'` sitting beside it — so the policy in `tauri.conf.json` stops covering any
+  stylesheet the app injects. There is no error: the rules are simply never applied. This shipped
+  in 1.7.0 as Mermaid diagrams drawn in SVG's defaults — black boxes, no borders, labels against
+  the left edge — because `vite dev` serves no CSP and every development run looked right. Install
+  such CSS with a constructed `CSSStyleSheet` and `document.adoptedStyleSheets` instead, which CSP
+  does not govern; `adoptDiagramStyles` in `render/mermaid.ts` is the worked example, and it leaves
+  the inert element in place because `export/html.ts` serializes it into a file that has no CSP.
 - **Mermaid sizes each label box from a DOM text measurement.** It has to be measured in the same
   type context the SVG renders in, in an element that is attached and laid out — see
   `measuringHost` in `src/lib/render/mermaid.ts`. `display: none`, `height: 0` or a different

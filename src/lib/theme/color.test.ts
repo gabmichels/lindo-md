@@ -48,6 +48,20 @@ describe("toHex", () => {
 });
 
 describe("mermaidThemeVariables", () => {
+  it("never fills a node with the colour of the tray it sits on", () => {
+    // `document.css` draws `figure.mermaid` on `--doc-surface`. A node filled
+    // with that same value has no shape of its own — it is visible only where
+    // its 1px border is, which is what a diagram looked like before this.
+    for (const preset of PRESETS) {
+      for (const half of ["light", "dark"] as const) {
+        const vars = mermaidThemeVariables(preset[half]);
+        const tray = toHex(preset[half].colors.surface);
+        expect(vars.mainBkg, `${preset.id}.${half}`).not.toBe(tray);
+        expect(vars.primaryColor, `${preset.id}.${half}`).not.toBe(tray);
+      }
+    }
+  });
+
   it("hands Mermaid only hex, for every preset", () => {
     // The regression this guards: Mermaid's colour parser rejects oklch() with
     // "Unsupported color format", and every diagram in the document fails.

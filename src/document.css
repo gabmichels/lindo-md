@@ -724,6 +724,14 @@
 .doc figure.mermaid svg {
   max-width: 100%;
   height: auto;
+  /* Centred in its tray. A flowchart is usually narrower than the measure, and
+     Mermaid sizes the SVG to the drawing rather than to the space — so left to
+     itself a four-box graph sits against the left edge of a full-width panel
+     with a third of the figure empty beside it. When the diagram is wider than
+     the measure the figure scrolls instead, and `auto` margins collapse to
+     nothing, so this costs that case nothing. */
+  display: block;
+  margin-inline: auto;
 }
 
 .doc figure.mermaid-error {
