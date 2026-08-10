@@ -178,14 +178,14 @@ export function NotesPanel({
             className={cn(
               "no-drag w-full rounded-ui-md bg-ui-plane-1 px-2 py-1",
               "text-[12.5px] text-ui-text placeholder:text-ui-text-muted",
-              "outline-none focus-visible:ring-1 focus-visible:ring-ui-ember",
+              "outline-none focus-visible:ring-1 focus-visible:ring-ui-accent",
             )}
           />
         </div>
       )}
 
       {error !== null && (
-        <p className="px-[var(--ui-pad)] pb-2 text-[12px] text-ui-ember" role="alert">
+        <p className="px-[var(--ui-pad)] pb-2 text-[12px] text-ui-accent" role="alert">
           {error}
         </p>
       )}
@@ -472,7 +472,7 @@ function NoteEditor({
         className={cn(
           "w-full resize-none rounded-ui-md bg-ui-plane-2 px-1.5 py-1",
           "text-[12.5px] leading-snug text-ui-text placeholder:text-ui-text-muted",
-          "outline-none focus-visible:ring-1 focus-visible:ring-ui-ember",
+          "outline-none focus-visible:ring-1 focus-visible:ring-ui-accent",
         )}
       />
     </div>

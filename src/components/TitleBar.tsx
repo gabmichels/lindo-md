@@ -123,7 +123,7 @@ function WindowControls({ host }: { host: "windows" | "linux" }) {
             "transition-colors duration-[var(--ui-dur)]",
             host === "windows" ? "h-full w-[46px]" : "my-1 mr-1 size-7 rounded-full",
             danger
-              ? "hover:bg-ui-danger hover:text-white"
+              ? "hover:bg-ui-danger hover:text-ui-danger-ink"
               : "hover:bg-ui-plane-2 hover:text-ui-text-strong",
           )}
         >

@@ -53,6 +53,13 @@ pub struct AppConfig {
     #[serde(default)]
     pub notes_open: bool,
 
+    /// Width of the notes panel, in the same 200–420 band as the rail. Its own
+    /// field rather than a shared one because the two columns hold different
+    /// material — paths want a long measure, notes a short one — so a reader who
+    /// widens one has said nothing about the other.
+    #[serde(default = "default_notes_width")]
+    pub notes_width: u32,
+
     /// Most-recently-opened documents, newest first, capped at `MAX_RECENTS`.
     #[serde(default)]
     pub recent_files: Vec<String>,
@@ -126,6 +133,13 @@ pub struct AppConfig {
 
 const MAX_RECENTS: usize = 20;
 
+/// The band a resizable chrome column may occupy, in px. Below the floor the
+/// rail cannot show a nested path and the notes panel cannot show a quotation;
+/// above the ceiling the column is competing with the document for the window.
+/// Mirrored in `src/lib/panels.ts`, which is what the drag handles clamp to.
+pub const PANEL_WIDTH_MIN: u32 = 200;
+pub const PANEL_WIDTH_MAX: u32 = 420;
+
 fn default_version() -> u32 {
     CURRENT_VERSION
 }
@@ -137,6 +151,9 @@ fn default_appearance() -> String {
 }
 fn default_rail_width() -> u32 {
     264
+}
+fn default_notes_width() -> u32 {
+    248
 }
 fn default_true() -> bool {
     true
@@ -167,6 +184,7 @@ impl Default for AppConfig {
             rail_collapsed: false,
             rail_tree_collapsed: false,
             notes_open: false,
+            notes_width: default_notes_width(),
             recent_files: Vec::new(),
             last_folder: None,
             block_remote_images: true,
@@ -187,7 +205,8 @@ impl AppConfig {
     /// loads into a sane state instead of failing validation downstream.
     fn migrate(mut self) -> Self {
         self.version = CURRENT_VERSION;
-        self.rail_width = self.rail_width.clamp(200, 420);
+        self.rail_width = self.rail_width.clamp(PANEL_WIDTH_MIN, PANEL_WIDTH_MAX);
+        self.notes_width = self.notes_width.clamp(PANEL_WIDTH_MIN, PANEL_WIDTH_MAX);
         self.recent_files.truncate(MAX_RECENTS);
         // A NaN here would reach CSS as `NaNpx` and blank the document, and NaN
         // survives `clamp`, so it is replaced rather than bounded.
@@ -313,14 +332,16 @@ AppConfig::default() no longer matches test/fixtures/config-default.json.
     }
 
     #[test]
-    fn migrate_clamps_rail_width_and_caps_recents() {
+    fn migrate_clamps_panel_widths_and_caps_recents() {
         let config = AppConfig {
             rail_width: 9000,
+            notes_width: 1,
             recent_files: (0..50).map(|i| format!("f{i}.md")).collect(),
             ..Default::default()
         };
         let migrated = config.migrate();
-        assert_eq!(migrated.rail_width, 420);
+        assert_eq!(migrated.rail_width, PANEL_WIDTH_MAX);
+        assert_eq!(migrated.notes_width, PANEL_WIDTH_MIN);
         assert_eq!(migrated.recent_files.len(), MAX_RECENTS);
     }
 
@@ -348,6 +369,7 @@ AppConfig::default() no longer matches test/fixtures/config-default.json.
         let parsed: AppConfig =
             serde_json::from_str(r#"{"themeId":"nord","railWidth":300}"#).unwrap();
         assert_eq!(parsed.zoom, 1.0);
+        assert_eq!(parsed.notes_width, 248);
         assert!(parsed.reopen_last_document);
         assert!(!parsed.smart_punctuation);
         assert_eq!(parsed.content_width, "standard");

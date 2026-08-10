@@ -225,7 +225,7 @@ function Tab({ value, label }: { value: string; label: string }) {
         "rounded-ui-md px-2.5 py-1 text-[12.5px] text-ui-text-muted",
         "transition-colors duration-[var(--ui-dur)]",
         "hover:text-ui-text",
-        "data-[state=active]:bg-ui-ember-wash data-[state=active]:text-ui-text-strong",
+        "data-[state=active]:bg-ui-accent-wash data-[state=active]:text-ui-text-strong",
       )}
     >
       {label}
@@ -277,7 +277,7 @@ function DefaultAppSection({ open }: { open: boolean }) {
     <Section title="Markdown files">
       {status.isDefault ? (
         <p className="flex items-center gap-2 py-1 text-[12.5px] text-ui-text">
-          <Check size={14} strokeWidth={2} className="text-ui-ember" aria-hidden />
+          <Check size={14} strokeWidth={2} className="text-ui-accent" aria-hidden />
           lindo-md opens Markdown files.
         </p>
       ) : (

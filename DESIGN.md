@@ -6,55 +6,102 @@ zinc palette, no framework radius scale, and no borders drawn out of habit.
 
 ## The one structural idea
 
-**The tool and the paper are different materials.**
+**The tool and the paper are different materials, and the tool is made from the paper.**
 
-A slim, always-dark tool rail sits against a bright document canvas. The document's theme changes
-constantly — that is the point of the app — while the tool stays exactly the same object. You always
-know which surface you are looking at.
+A tool rail sits against the document canvas. It is not the same colour as the page and never is —
+it is a step away from the page's own ground and much quieter, so the two read as a sheet lying on
+a surface rather than as one continuous field. You always know which you are looking at.
 
-This is enforced, not merely intended, by two token namespaces:
+This used to say the tool was *fixed*: an always-dark rail whatever the page did. That was
+defensible — the tool is a constant object and the paper is the thing you retheme — and it was the
+one decision every reader read as a bug. A black rail beside a bone-white page does not look like
+two materials, it looks like an app that forgot half of itself. The mismatch is luminance, not hue:
+nobody objects to a sepia page in a chrome-coloured window, they object to a *bright* page in a
+*black* window.
 
-| Namespace | Owns | Changes when |
-| --- | --- | --- |
-| `--ui-*` | Rail, titlebar, settings, dialogs, find bar | Never |
-| `--doc-*` | Everything inside the document canvas | Every theme switch |
+So the relationship is now derived rather than fixed, which keeps what the old rule was for and
+drops what it cost:
+
+| Namespace | Owns | Written by | Onto |
+| --- | --- | --- | --- |
+| `--ui-*` | Rail, titlebar, notes panel, settings, dialogs, find bar | `lib/theme/chrome.ts` | `documentElement` |
+| `--doc-*` | Everything inside the document canvas | `lib/theme/apply.ts` | the canvas |
+
+Two elements, not one, and the split is not arbitrary. `--doc-*` belongs on the canvas because
+custom properties inherit, so a themed card inside a themed page overrides cleanly. `--ui-*` belongs
+on the root because chrome is spread across the whole window — including every dialog Radix portals
+out to `<body>`, which is not inside the canvas and never will be.
 
 **A chrome component must never read a `--doc-*` variable, and nothing inside the document canvas
-may read a `--ui-*` variable.** The single exception is the reading-progress hairline, which is
-Ember by design. `src/lib/theme/theme.test.ts` fails the build if the rule is broken — it
-reads `document.css` for a `--ui-*` read and every component for a `--doc-*` one. That check was
-named here for a long time before it existed, which is how a context-menu swatch reading a
+may read a `--ui-*` variable.** That rule survived the change unaltered, and it is worth being clear
+about why, because "the chrome is themed now" sounds like it should have repealed it. It never meant
+"the chrome cannot change" — it meant **the chrome changes as one material, in one place**. A
+component that reaches into the page's palette and picks a colour that suits it is how you get
+fifteen presets with fourteen different-looking rails. `theme.test.ts` fails the build if the rule
+is broken, reading `document.css` for a `--ui-*` read and every component for a `--doc-*` one. That
+check was named here for a long time before it existed, which is how a context-menu swatch reading a
 `--doc-*` token got as far as review.
 
-`--ui-*` lives in `src/styles.css` and is static. `--doc-*` is written at runtime by
-`src/lib/theme/apply.ts`; the House Light values are duplicated as defaults in `styles.css` so the
-first paint is already correct before React mounts.
+Both sets have House Light defaults in `styles.css` so the first paint is right before React mounts.
+The `--ui-*` half of those defaults is **generated, not chosen** — `chrome.test.ts` recomputes them
+from House and fails if the file has drifted. A hand-copied default that the app overwrites a frame
+later rots silently, because the only symptom is a flash nobody files a bug about.
+
+### Why derived rather than authored per theme
+
+The obvious alternative is a chrome palette in every preset. Fifteen presets in two appearances is
+thirty hand-tuned palettes, each of which can be got wrong quietly, and it does nothing at all for a
+theme a reader wrote — which is a file this code has never seen.
+
+Deriving also makes the guarantees real rather than reviewed. Every rung of the text ramp is
+*solved* for a contrast ratio against the surface it sits on rather than picked and eyeballed, so
+"the chrome is legible" is a property of the construction. The bars are above WCAG AA throughout
+because chrome text is small; `--ui-text-faint` is the deliberate exception at 3.2:1, since text
+that is meant to recede stops receding at 4.5.
 
 ## Color
 
 ### The tool
 
-Not black, not zinc — a cool deep neutral. Depth comes from three stacked planes, never from
-outlines:
+Depth comes from stacked planes, never from outlines. The values are derived per theme (`chrome.ts`)
+rather than written down here, so what follows is the *rule* each token obeys:
 
-| Token | Value | Used for |
+| Token | Rule | Used for |
 | --- | --- | --- |
-| `--ui-base` | `oklch(0.19 0.012 265)` | The rail itself |
-| `--ui-plane-1` | `oklch(0.225 0.012 265)` | Hover, inputs, sunken wells |
-| `--ui-plane-2` | `oklch(0.26 0.013 265)` | Popovers, active row |
-| `--ui-hairline` | 8% white | Section separation |
+| `--ui-base` | The paper's ground, stepped toward mid-range and at 80% of its chroma | The rail itself |
+| `--ui-plane-1` | One step toward the ink | Hover, inputs |
+| `--ui-plane-2` | Two steps toward the ink | Popovers, active row |
+| `--ui-sunken` | One step *away* from the ink | Wells and fields |
+| `--ui-hairline` | The strong ink at 8% | Section separation |
+
+Depth runs toward the ink and recession away from it, which is one rule that reads correctly in both
+appearances. On a dark tool a hovered row lifts toward white and a well drops toward black; on a
+light tool both invert, giving the grey toolbar with a white field sunk into it that every desktop
+already uses. The step is larger on light grounds, because at the top of the lightness range a
+difference that clearly separates two dark planes reads as a printing artefact instead.
 
 Text runs `--ui-text` → `--ui-text-muted` → `--ui-text-faint`; anything that must shout uses
-`--ui-text-strong`, sparingly.
+`--ui-text-strong`, sparingly. All four are solved against `--ui-base`, so the ramp keeps its
+*relative* order on any ground rather than keeping fixed values that happen to work on one.
 
-### Ember
+### The accent
 
-One chrome accent: `oklch(0.74 0.15 62)`, a warm amber-ochre. It marks the active file, focus rings,
-the reading-progress hairline, and the ring around a window holding a droppable file — nothing else.
+One chrome accent, and it is now **the theme's own** — `--ui-accent`, taken from `colors.accent` and
+moved only in lightness, enough to clear 3:1 on the rail. It marks the active file, focus rings, the
+reading-progress hairline, and the ring around a window holding a droppable file — nothing else.
 That last one is on the list because it *is* the second one: a focus ring drawn around the whole
-window rather than around one control. It
-is warm on purpose, so it never reads as "part of" a document theme, and it is not the blue-violet
-every desktop app defaults to.
+window rather than around one control.
+
+This was "Ember", a fixed warm amber-ochre, chosen so it could never read as part of a document
+theme. That was the right accent for a tool that ignored the page and the wrong one for a tool
+derived from it: an amber focus ring on a green Everforest rail is the same mismatch the black rail
+was, one element smaller. An accent that is the page's accent means the tool and the page agree
+about what "the highlighted thing" looks like.
+
+`--ui-accent-ink` is what stays legible *on* the accent — the active find match paints text on it.
+Derived rather than chosen, for the reason a mark's ink is: nothing stops a theme naming a colour
+this build has never seen. `--ui-danger-ink` exists for the same reason, and is why the close
+button's glyph is no longer a hardcoded `white`.
 
 ### Tab-group colours
 
@@ -66,10 +113,16 @@ oklch(0.62 0.09 H)   H ∈ 15, 75, 140, 195, 240, 280, 320, 355
 ```
 
 They are an exception because they are **user data, not brand**: the reader picks them to tell their
-own groups apart, so the app cannot be the one choosing. The constraints that keep them honest:
+own groups apart, so the app cannot be the one choosing. That is also why they are the one part of
+the chrome that does **not** follow the theme — a hue that shifted when the reader changed theme
+would stop being the label they picked. The constraints that keep them honest:
 
-- Fixed `0.62 / 0.09` — below Ember's `0.74 / 0.15` in both. No group colour can out-shout the
-  active-file marker, whatever the reader picks.
+- Fixed `0.62 / 0.09`, and low enough in both that no group colour reads as louder than the
+  active-file marker, whatever the reader picks. This used to be stated as "below Ember's
+  `0.74 / 0.15`", which a derived accent can no longer promise arithmetically: a theme whose accent
+  is a deep ink-teal sits below `0.62` in lightness. What holds instead is that the accent is
+  guaranteed legible against the rail and the group colours are decoration on two surfaces — see the
+  third bullet, which is what actually makes them safe.
 - They may tint exactly two things: a group's pill, and the band drawn behind that group's run of
   tabs. Never a tab body, never text, never an icon.
 - Membership is legible without them — the band's shape says which tabs belong together, so the
@@ -193,7 +246,7 @@ of them consequences of the rules above rather than new ones:
 - **The pane's header is tool, not paper.** It sits inside `<main>`, as the titlebar and toolbar
   already do, and reads `--ui-*` only. The rule that nothing may read `--ui-*` inside the document
   canvas is about what is inside `.doc-scroller`, not about everything under `<main>`.
-- **Focus is marked in Ember, and has to be.** With two documents on screen, the outline, the find
+- **Focus is marked in the accent, and has to be.** With two documents on screen, the outline, the find
   bar and the paging keys act on the focused one — so which pane that is cannot be invisible, or
   `Ctrl+F` looks like it is choosing a pane at random. It is an inset underline on the pane's
   header rather than a ring around the whole pane, which would compete with the drop ring.
@@ -203,9 +256,9 @@ cannot be edited. Same component, different reason: there the file cannot be wri
 is not where it is written.
 
 **Dragging a tab into the right half opens it there**, and the drop target is drawn as the *region*
-it would occupy — an Ember wash over exactly that half, with an Ember edge down its seam — rather
+it would occupy — an accent wash over exactly that half, with an accent edge down its seam — rather
 than as a ring around it. The region is the message: the reader is being told the document will fill
-precisely this. It is the same Ember that marks the active file and the droppable window, used for
+precisely this. It is the same accent that marks the active file and the droppable window, used for
 the same thing it is always used for.
 
 ## Two settings surfaces, on purpose
@@ -231,7 +284,20 @@ the ARIA, and nothing here is worth writing to config.
 
 ## Geometry and motion
 
-- 4px base grid. Rail 264px, resizable 200–420, collapses to 52px. Row height 30px, rail padding 10px.
+- 4px base grid. Rail 264px and notes panel 248px, both resizable 200–420 by a drag handle on the
+  seam; the rail collapses to 52px, where there is nothing left to resize and the handle goes with
+  it. Row height 30px, rail padding 10px. The handle draws nothing at rest — the seam is already
+  there — and an accent line under the pointer, the keyboard, or a drag. It carries no layout width
+  for the same reason, and hangs a 9px hit area off itself, because the seam sits between two
+  scrollers and an under-shoot otherwise lands on a scrollbar.
+- **The rail's two sections size themselves from their content, and each states a floor.** The
+  tree and the outline shrink in proportion when the rail cannot hold both, which is right until one
+  is much larger than the other and wipes the smaller out — so each keeps `min(its own content, four
+  rows)`. The floor is a measurement rather than a percentage on purpose: the outline used to carry a
+  flat `max-h-[60%]`, which is a floor for the tree written as a ceiling on the outline, and a
+  ceiling cannot tell whether the tree needs the room. It capped the outline at two thirds of the
+  rail with the tree collapsed, with the tree empty, and with a three-file tree that wanted 90px of
+  it.
 - Chrome is two rows: a 38px titlebar holding the tabs and the window controls, and a 34px toolbar
   under it. Tabs are 28px tall, 76–208px wide, and share the strip evenly — widening as tabs close,
   squeezing as they open, then scrolling once they hit the floor.
@@ -244,7 +310,7 @@ the ARIA, and nothing here is worth writing to config.
 
 1. No color literal in a component — only `--ui-*` / `--doc-*` tokens or their Tailwind aliases.
 2. No `border` in the chrome to create separation. Use a plane or a hairline.
-3. Focus is always an Ember ring, never a browser outline, and never removed.
+3. Focus is always an accent ring, never a browser outline, and never removed.
 4. Every icon-only control carries an `aria-label`.
 5. Document styles are scoped under `.doc` and are the only place `--doc-*` may be read.
 6. The window must always have somewhere to be dragged by. The tab strip reserves 56px of

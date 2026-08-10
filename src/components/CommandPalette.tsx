@@ -295,7 +295,7 @@ function Row({
       onClick={onRun}
       className={cn(
         "flex cursor-default items-baseline gap-2 rounded-ui-sm px-3 py-1.5 text-[12.5px]",
-        selected ? "bg-ui-ember-wash text-ui-text-strong" : "text-ui-text",
+        selected ? "bg-ui-accent-wash text-ui-text-strong" : "text-ui-text",
       )}
     >
       {/* `whitespace-pre` so a heading's indent survives — it is the outline's
@@ -326,7 +326,7 @@ function Marked({ text, ranges }: { text: string; ranges: [number, number][] }):
   for (const [from, to] of ranges) {
     if (from > at) parts.push(text.slice(at, from));
     parts.push(
-      <em key={from} className="text-ui-ember not-italic">
+      <em key={from} className="text-ui-accent not-italic">
         {text.slice(from, to)}
       </em>,
     );

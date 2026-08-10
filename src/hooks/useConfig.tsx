@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { getConfig, setConfig, type AppConfig } from "@/lib/ipc";
+import { NOTES_DEFAULT, RAIL_DEFAULT } from "@/lib/panels";
 import { EMPTY_SESSION } from "@/lib/tabs/model";
 
 /**
@@ -47,10 +48,11 @@ export const FALLBACK: AppConfig = {
   themeId: "house",
   appearance: "system",
   customThemes: [],
-  railWidth: 264,
+  railWidth: RAIL_DEFAULT,
   railCollapsed: false,
   railTreeCollapsed: false,
   notesOpen: false,
+  notesWidth: NOTES_DEFAULT,
   recentFiles: [],
   lastFolder: null,
   blockRemoteImages: true,

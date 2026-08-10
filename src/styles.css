@@ -14,14 +14,22 @@
    TOKENS
    Two namespaces, deliberately never mixed (see DESIGN.md):
 
-     --ui-*   the tool. Constant. Owned by this file. Always dark.
+     --ui-*   the tool. Owned by lib/theme/chrome.ts, which derives it from the
+              theme's ground: a step away from the paper and much quieter, so
+              the tool reads as the surface that paper lies on.
      --doc-*  the paper. Owned by lib/theme/apply.ts, rewritten on every theme
-              change. The values below are the House Light defaults, present so
-              the first paint is already correct before React mounts.
+              change.
+
+   Both sets below are the House Light defaults, present so the first paint is
+   already correct before React mounts. They are generated rather than chosen —
+   `chrome.test.ts` recomputes the --ui-* ones from House and fails if this file
+   has drifted from what the app will write over it a moment later.
 
    A chrome component must never read a --doc-* variable, and nothing inside the
-   document canvas may read a --ui-* variable. `src/lib/theme/apply.test.ts`
-   enforces this.
+   document canvas may read a --ui-* variable. That rule is unchanged by the
+   chrome becoming themed, and is still what keeps the two materials distinct:
+   the tool follows the paper, but it is not made of it. `theme.test.ts`
+   enforces both directions.
    =========================================================================== */
 
 :root {
@@ -30,34 +38,44 @@
   /* Depth comes from stacked planes, not borders. Three steps is the whole
      vocabulary: base for the rail, plane-1 for hover/inputs, plane-2 for
      popovers and the active row. */
-  --ui-base: oklch(0.19 0.012 265);
-  --ui-plane-1: oklch(0.225 0.012 265);
-  --ui-plane-2: oklch(0.26 0.013 265);
-  --ui-sunken: oklch(0.155 0.012 265);
+  --ui-base: oklch(0.91 0.0033 91.45);
+  --ui-plane-1: oklch(0.865 0.0033 91.45);
+  --ui-plane-2: oklch(0.82 0.0033 91.45);
+  --ui-sunken: oklch(0.955 0.0033 91.45);
 
-  --ui-text: oklch(0.8 0.01 265);
-  --ui-text-strong: oklch(0.93 0.008 265);
-  --ui-text-muted: oklch(0.6 0.012 265);
-  --ui-text-faint: oklch(0.48 0.012 265);
+  --ui-text: oklch(0.3695 0.0033 91.45);
+  --ui-text-strong: oklch(0.2582 0.0033 91.45);
+  --ui-text-muted: oklch(0.4907 0.0033 91.45);
+  --ui-text-faint: oklch(0.5855 0.0033 91.45);
 
-  --ui-hairline: color-mix(in oklab, white 8%, transparent);
-  --ui-hairline-strong: color-mix(in oklab, white 15%, transparent);
+  --ui-hairline: color-mix(in oklab, oklch(0.2582 0.0033 91.45) 8%, transparent);
+  --ui-hairline-strong: color-mix(in oklab, oklch(0.2582 0.0033 91.45) 15%, transparent);
 
-  /* "Ember" — the single chrome accent. Warm amber-ochre, chosen to sit against
-     a cool dark rail without competing with any document theme's own palette.
-     The document canvas never uses it, except for the reading-progress hairline. */
-  --ui-ember: oklch(0.74 0.15 62);
-  --ui-ember-dim: oklch(0.62 0.12 62);
-  --ui-ember-wash: color-mix(in oklab, oklch(0.74 0.15 62) 14%, transparent);
+  /* The single chrome accent — the theme's own, at whatever lightness reads on
+     the rail. It marks the active file, focus, reading progress and a droppable
+     window, and nothing else. This was "Ember", a fixed warm amber, back when
+     the tool was a fixed material; a chrome that follows the paper cannot keep
+     an accent that ignores it. --ui-accent-ink is what stays legible *on* the
+     accent, derived because a theme may name a colour this build never saw. */
+  --ui-accent: oklch(0.4834 0.0822 201.53);
+  --ui-accent-dim: oklch(0.6034 0.0699 201.53);
+  --ui-accent-wash: color-mix(in oklab, oklch(0.4834 0.0822 201.53) 14%, transparent);
+  --ui-accent-ink: oklch(0.97 0.005 85);
 
-  --ui-danger: oklch(0.58 0.2 25);
+  --ui-danger: oklch(0.5298 0.2 25);
+  --ui-danger-ink: oklch(0.97 0.005 85);
+
+  /* The seam's inward shadow, deeper on a dark tool — see chrome.ts. */
+  --ui-seam-shadow: rgb(0 0 0 / 0.12);
 
   /* Tab-group colours — the one other colour family in the chrome, and the
-     deliberate exception to "Ember and nothing else" (see DESIGN.md).
-     These are user data, not accent: the reader picks them to tell their own
-     groups apart. Every one is pinned to the same low chroma and lightness so
-     that none of them can out-shout Ember, and they are only ever allowed on a
-     group's pill and the hairline under its tabs. */
+     deliberate exception to "one accent and nothing else" (see DESIGN.md).
+     These are user data, not brand: the reader picks them to tell their own
+     groups apart, which is also why they are the one part of the chrome that
+     does *not* follow the theme. A hue that shifted under a theme change would
+     stop being the label the reader chose. Pinned to one lightness and chroma so
+     no group can out-shout the accent, and only ever allowed on a group's pill
+     and the band behind its tabs. */
   --ui-group-clay: oklch(0.62 0.09 15);
   --ui-group-amber: oklch(0.62 0.09 75);
   --ui-group-moss: oklch(0.62 0.09 140);
@@ -228,10 +246,12 @@
   --color-ui-text-faint: var(--ui-text-faint);
   --color-ui-hairline: var(--ui-hairline);
   --color-ui-hairline-strong: var(--ui-hairline-strong);
-  --color-ui-ember: var(--ui-ember);
-  --color-ui-ember-dim: var(--ui-ember-dim);
-  --color-ui-ember-wash: var(--ui-ember-wash);
+  --color-ui-accent: var(--ui-accent);
+  --color-ui-accent-dim: var(--ui-accent-dim);
+  --color-ui-accent-wash: var(--ui-accent-wash);
+  --color-ui-accent-ink: var(--ui-accent-ink);
   --color-ui-danger: var(--ui-danger);
+  --color-ui-danger-ink: var(--ui-danger-ink);
 
   --color-doc-bg: var(--doc-bg);
   --color-doc-surface: var(--doc-surface);
@@ -274,7 +294,7 @@
 
   /* Focus is always Ember, always a ring, never a browser default outline. */
   :focus-visible {
-    outline: 2px solid var(--ui-ember);
+    outline: 2px solid var(--ui-accent);
     outline-offset: 2px;
     border-radius: var(--ui-r-sm);
   }
@@ -374,12 +394,12 @@
    rather than by wrapping matches in elements, which would destroy the decorated
    code blocks and rendered diagrams the enhancement passes produced. */
 ::highlight(lindo-md-find) {
-  background-color: var(--ui-ember-wash);
+  background-color: var(--ui-accent-wash);
 }
 
 ::highlight(lindo-md-find-active) {
-  background-color: var(--ui-ember);
-  color: black;
+  background-color: var(--ui-accent);
+  color: var(--ui-accent-ink);
 }
 
 /* The seam between the tool and the paper.
@@ -390,7 +410,7 @@
 @utility canvas-edge {
   box-shadow:
     inset 1px 0 0 0 var(--ui-hairline-strong),
-    inset 12px 0 16px -12px rgb(0 0 0 / 0.45);
+    inset 12px 0 16px -12px var(--ui-seam-shadow);
 }
 
 /* The same seam again, between the deck and the comparison pane.
@@ -411,5 +431,5 @@
 @utility compare-edge {
   box-shadow:
     inset 1px 0 0 0 var(--ui-hairline-strong),
-    inset 12px 0 16px -12px rgb(0 0 0 / 0.45);
+    inset 12px 0 16px -12px var(--ui-seam-shadow);
 }

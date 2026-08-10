@@ -18,7 +18,7 @@ export const MENU_CLASS = cn(
 
 export const ITEM_CLASS = cn(
   "flex cursor-default items-center gap-2 rounded-ui-sm px-2 py-1.5 outline-none",
-  "data-[highlighted]:bg-ui-ember-wash data-[highlighted]:text-ui-text-strong",
+  "data-[highlighted]:bg-ui-accent-wash data-[highlighted]:text-ui-text-strong",
   "data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
 );
 

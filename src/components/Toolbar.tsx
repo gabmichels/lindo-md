@@ -172,8 +172,8 @@ function NavButton({
         "text-ui-text-muted transition-colors duration-[var(--ui-dur)]",
         "hover:bg-ui-plane-1 hover:text-ui-text-strong",
         "disabled:pointer-events-none disabled:opacity-30",
-        // Ember marks the active surface, the same as it does in the rail.
-        active && "bg-ui-ember-wash text-ui-text-strong",
+        // The accent marks the active surface, the same as it does in the rail.
+        active && "bg-ui-accent-wash text-ui-text-strong",
       )}
     >
       <Icon size={15} strokeWidth={1.5} aria-hidden />

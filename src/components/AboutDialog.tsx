@@ -87,7 +87,7 @@ export function AboutDialog({
                   console.error("lindo-md: could not open the repository URL", error);
                 });
               }}
-              className="text-[12px] text-ui-ember hover:underline"
+              className="text-[12px] text-ui-accent hover:underline"
             >
               Source on GitHub
             </button>

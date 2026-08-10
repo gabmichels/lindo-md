@@ -31,6 +31,7 @@ function config(customThemes: unknown) {
     railWidth: 260,
     railCollapsed: false,
     railTreeCollapsed: false,
+    notesWidth: 248,
     notesOpen: false,
     recentFiles: ["C:/notes/a.md", "C:/notes/b.md"],
     lastFolder: "C:/notes",
@@ -207,7 +208,14 @@ describe("the config contract with Rust", () => {
     // Not every value: `session` is normalized on the way through and the arrays are
     // empty either way. The scalars are the ones a reader notices being wrong — a
     // different default zoom or theme after a failed load looks like the app broke.
-    for (const key of ["themeId", "appearance", "railWidth", "zoom", "blockRemoteImages"]) {
+    for (const key of [
+      "themeId",
+      "appearance",
+      "railWidth",
+      "notesWidth",
+      "zoom",
+      "blockRemoteImages",
+    ]) {
       expect(FALLBACK[key as keyof typeof FALLBACK], key).toEqual(fixture[key]);
     }
   });

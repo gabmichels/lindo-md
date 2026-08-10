@@ -60,7 +60,7 @@ export function CompareBar({
         // and Page Down look like they are picking a pane at random. An inset
         // underline rather than a ring around the pane, which would compete
         // with the ring drawn around a window holding a droppable file.
-        focused && "shadow-[inset_0_-2px_0_0_var(--ui-ember)]",
+        focused && "shadow-[inset_0_-2px_0_0_var(--ui-accent)]",
       )}
       onFocusCapture={onFocus}
       onPointerDownCapture={onFocus}

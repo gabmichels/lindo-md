@@ -228,6 +228,7 @@ export const AppConfigSchema = z.object({
   railCollapsed: z.boolean(),
   railTreeCollapsed: z.boolean(),
   notesOpen: z.boolean(),
+  notesWidth: z.number(),
   recentFiles: z.array(z.string()),
   lastFolder: z
     .string()

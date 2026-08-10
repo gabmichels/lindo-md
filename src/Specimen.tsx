@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { DropOverlay } from "@/components/DropOverlay";
 import { FormatMenu } from "@/components/FormatMenu";
 import { Rail } from "@/components/Rail";
+import { ResizeHandle } from "@/components/ResizeHandle";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { TabStrip } from "@/components/TabStrip";
@@ -18,6 +19,8 @@ import {
   type Session,
 } from "@/lib/tabs/model";
 import { applyTheme } from "@/lib/theme/apply";
+import { applyChrome } from "@/lib/theme/chrome";
+import { PANEL_MAX, PANEL_MIN, RAIL_DEFAULT } from "@/lib/panels";
 import { PRESETS } from "@/lib/theme/presets";
 import type { Appearance } from "@/lib/theme/schema";
 import type { AppConfig, TreeNode } from "@/lib/ipc";
@@ -78,6 +81,7 @@ const SPECIMEN_CONFIG: AppConfig = {
   railWidth: 264,
   railCollapsed: false,
   railTreeCollapsed: false,
+  notesWidth: 248,
   notesOpen: false,
   recentFiles: [],
   lastFolder: null,
@@ -102,8 +106,33 @@ export default function Specimen() {
   // could only fail, and the state worth reviewing here is the resting one.
   const updater = useUpdater(false);
 
+  const shell = useRef<HTMLDivElement>(null);
+  const [railWidth, setRailWidth] = useState(RAIL_DEFAULT);
+
+  /**
+   * The chrome, following the appearance toggle.
+   *
+   * Without this the toggle retunes the twenty cards while the rail, the tab
+   * strip and every dialog stay frozen at the House Light defaults baked into
+   * `styles.css` — so the one page named as the design-review surface would show
+   * a chrome matching exactly one of the thirty-eight combinations the app can
+   * render, and a dark-chrome regression could not be reviewed here at all.
+   *
+   * House rather than the card being hovered: there is one chrome and twenty
+   * papers on this page, so it has to be *a* theme, and House is the default the
+   * app ships. The drawer preview below already picks `PRESETS[0]` for the same
+   * reason.
+   */
+  useEffect(() => {
+    applyChrome(PRESETS[0]![appearance], document.documentElement);
+  }, [appearance]);
+
   return (
-    <div className="flex h-full">
+    <div
+      ref={shell}
+      className="flex h-full"
+      style={{ "--ui-rail-w": `${railWidth}px` } as CSSProperties}
+    >
       <Rail
         collapsed={collapsed}
         onToggleCollapsed={() => {
@@ -133,6 +162,22 @@ export default function Specimen() {
         onOpenAbout={() => undefined}
       />
 
+      {/* Live, like the tab strips: the hover, focus and drag states are the
+          whole of what this control draws, and none of them survive a still. */}
+      {!collapsed && (
+        <ResizeHandle
+          label="Sidebar width"
+          cssVar="--ui-rail-w"
+          surface={shell}
+          width={railWidth}
+          min={PANEL_MIN}
+          max={PANEL_MAX}
+          initial={RAIL_DEFAULT}
+          grow={1}
+          onCommit={setRailWidth}
+        />
+      )}
+
       <main className="canvas-edge min-w-0 flex-1 overflow-y-auto bg-ui-sunken p-6">
         <header className="mb-6 flex items-center justify-between">
           <div>
@@ -152,7 +197,7 @@ export default function Specimen() {
                 }}
                 className={`rounded-ui-md px-3 py-1.5 text-[12px] capitalize ${
                   appearance === mode
-                    ? "bg-ui-ember-wash text-ui-text-strong"
+                    ? "bg-ui-accent-wash text-ui-text-strong"
                     : "bg-ui-plane-1 text-ui-text-muted"
                 }`}
               >

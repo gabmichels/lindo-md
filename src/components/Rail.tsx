@@ -18,12 +18,16 @@ import { ancestorsOf } from "@/hooks/useFileTree";
 import { basename, cn, dragRegion } from "@/lib/utils";
 
 /**
- * The Studio Rail: the tool, in its own constant dark material, against whatever
- * paper the document theme is showing.
+ * The Studio Rail: the tool, in its own material, against the paper the document
+ * theme is showing.
  *
- * Reads only `--ui-*` tokens — never a `--doc-*` one. That is what keeps the
- * tool looking like the same object while the document changes underneath it
- * (DESIGN.md).
+ * Reads only `--ui-*` tokens — never a `--doc-*` one. That rule outlived the
+ * thing it was first written for. It used to keep the tool looking like the same
+ * object while the document changed underneath it; now that `chrome.ts` derives
+ * the `--ui-*` set from the active theme, the rail moves with the paper. What
+ * the rule still buys is that it moves *as a material* — one derivation, applied
+ * once — rather than by this component reaching into the page's palette and
+ * picking a colour that suits it (DESIGN.md).
  */
 
 interface RailProps {
@@ -160,6 +164,50 @@ function TopSpacer() {
   return <div {...dragRegion("h-[var(--ui-titlebar-h)] shrink-0")} aria-hidden />;
 }
 
+/**
+ * How much of the rail a section keeps when the other one wants everything.
+ *
+ * The two sections size themselves from their content and, when the rail cannot
+ * hold both, shrink in proportion to it. Proportional shrink is right until one
+ * side is much larger than the other, at which point it wipes the smaller one
+ * out — a sixty-heading outline beside a six-file tree leaves the tree one row
+ * and a scrollbar.
+ *
+ * So each section states a floor, and it is a measurement rather than a
+ * percentage: `min` of its own content and four rows, so a section holding two
+ * rows never reserves space it has nothing to put in.
+ *
+ * That last clause is the whole reason this exists. The outline used to carry a
+ * flat `max-h-[60%]`, which is a floor for the tree written as a ceiling on the
+ * outline — and a ceiling cannot tell whether the tree needs the room. It capped
+ * the outline at 60% of the rail with the tree collapsed, with the tree empty,
+ * and with a three-file tree that wanted 90px of it, leaving the outline
+ * scrolling inside two thirds of a rail that was two thirds empty.
+ */
+const FLOOR_ROWS = 4;
+/** A `rail-label` at 10.5px with its `py-1`. */
+const LABEL_H = 22;
+/** `--ui-row-h`, and the outline's shorter row: 12.5px text with `py-1`. Only a
+ *  floor is computed from them, so they need to be close, not exact. */
+const TREE_ROW_H = 30;
+const OUTLINE_ROW_H = 26;
+
+function floorFor(rows: number, rowHeight: number): number {
+  return LABEL_H + Math.min(rows, FLOOR_ROWS) * rowHeight;
+}
+
+/** Rows the tree is actually drawing — a folded folder's children are not on
+ *  screen and must not be counted into the space it asks for. */
+function visibleRows(nodes: TreeNode[], expanded: Set<string>): number {
+  let rows = 0;
+  for (const node of nodes) {
+    rows += 1;
+    if (node.isDir && expanded.has(node.path)) rows += visibleRows(node.children, expanded);
+    if (rows >= FLOOR_ROWS) return rows;
+  }
+  return rows;
+}
+
 function FileTree({
   nodes,
   activePath,
@@ -199,9 +247,14 @@ function FileTree({
   };
 
   return (
-    // `shrink` with no `flex-1`: the tree is sized by its content until the rail
-    // runs out of room, and then it — not the outline — is what gives way.
-    <section className="flex min-h-0 shrink flex-col pt-1">
+    // `shrink` with no `flex-1`: the tree is sized by its content, and gives way
+    // to its floor — never past it — when the rail runs out of room.
+    <section
+      className="flex min-h-0 shrink flex-col pt-1"
+      style={{
+        minHeight: collapsed ? LABEL_H : floorFor(visibleRows(nodes, expanded), TREE_ROW_H),
+      }}
+    >
       <SectionLabel label="Documents" collapsed={collapsed} onToggle={onToggleCollapsed} />
       {!collapsed && (
         <div className="ui-scroller min-h-0 overflow-y-auto">
@@ -306,7 +359,7 @@ function TreeItem({
           "flex h-[var(--ui-row-h)] w-full items-center gap-1.5 rounded-ui-md pr-1.5",
           "text-left text-[13px] transition-colors duration-[var(--ui-dur)]",
           isActive
-            ? "bg-ui-ember-wash text-ui-text-strong"
+            ? "bg-ui-accent-wash text-ui-text-strong"
             : "text-ui-text hover:bg-ui-plane-1 hover:text-ui-text-strong",
         )}
         // Indentation is inline because it is data, not a design decision — the
@@ -330,12 +383,12 @@ function TreeItem({
           <FileText
             size={14}
             strokeWidth={1.5}
-            className={cn("ml-[14px] shrink-0", isActive && "text-ui-ember")}
+            className={cn("ml-[14px] shrink-0", isActive && "text-ui-accent")}
             aria-hidden
           />
         )}
         <span className="truncate">{node.name}</span>
-        {/* Open, but not the tab you are looking at. A dot rather than the Ember
+        {/* Open, but not the tab you are looking at. A dot rather than the accent
             wash: only one file at a time is actually being read. */}
         {hasTab && !isActive && (
           <span aria-hidden className="ml-auto size-1.5 shrink-0 rounded-full bg-ui-text-faint" />
@@ -378,18 +431,22 @@ function Outline({
   const baseLevel = useMemo(() => Math.min(...toc.map((heading) => heading.level)), [toc]);
 
   return (
-    // `shrink-0`, so the outline holds its content height while the tree gives
-    // way — but never past 60% of the rail, which is the tree's floor.
-    <section className="flex max-h-[60%] min-h-0 shrink-0 flex-col pt-1">
+    // Content height, shrinking to its floor when the tree wants the rail too.
+    // No ceiling: with the tree collapsed, short, or absent, the outline is what
+    // the rail is for and it takes the whole thing.
+    <section
+      className="flex min-h-0 shrink flex-col pt-1"
+      style={{ minHeight: floorFor(toc.length, OUTLINE_ROW_H) }}
+    >
       <p className="rail-label shrink-0 px-1.5 py-1">On this page</p>
 
       <div className="ui-scroller relative min-h-0 overflow-y-auto">
-        {/* The reading-progress hairline: the one place Ember appears next to the
+        {/* The reading-progress hairline: the one place the accent appears next to the
             document rather than in the tool. It spans the list, so it scrolls
             with the headings it measures. */}
         <div className="absolute inset-y-0 left-[3px] w-px bg-ui-hairline" aria-hidden>
           <div
-            className="w-px bg-ui-ember transition-[height] duration-[var(--ui-dur)] ease-[var(--ui-ease)]"
+            className="w-px bg-ui-accent transition-[height] duration-[var(--ui-dur)] ease-[var(--ui-ease)]"
             style={{ height: `${Math.round(progress * 100)}%` }}
           />
         </div>

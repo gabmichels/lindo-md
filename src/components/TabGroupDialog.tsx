@@ -110,8 +110,11 @@ export function TabGroupDialog({ group, onOpenChange, onRename, onRecolor }: Tab
               <button
                 type="submit"
                 className={cn(
-                  "rounded-ui-md bg-ui-ember px-3 py-1.5 text-[12.5px] font-medium",
-                  "text-black transition-[filter] duration-[var(--ui-dur)] hover:brightness-110",
+                  "rounded-ui-md bg-ui-accent px-3 py-1.5 text-[12.5px] font-medium",
+                  // Not `black`. That was right while the accent was a fixed
+                  // light amber; a derived accent on a light theme is solved
+                  // *downward* to clear the rail, so black on it fell to 2.6:1.
+                  "text-ui-accent-ink transition-[filter] duration-[var(--ui-dur)] hover:brightness-110",
                 )}
               >
                 Save name

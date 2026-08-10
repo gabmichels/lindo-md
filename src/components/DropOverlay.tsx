@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
  * the drop is accepted anywhere on the window and an overlay stopping at the
  * canvas edge would imply otherwise.
  *
- * The Ember ring is the one place Ember appears outside the three uses in
+ * The accent ring is the one place it appears outside the three uses in
  * DESIGN.md, and it is the same idea as the third: this is a focus ring drawn
  * around the whole window.
  */
@@ -26,7 +26,7 @@ export function DropOverlay({ active }: { active: boolean }) {
         active ? "opacity-100" : "opacity-0",
       )}
     >
-      <div className="absolute inset-3 rounded-ui-lg ring-2 ring-ui-ember ring-inset" />
+      <div className="absolute inset-3 rounded-ui-lg ring-2 ring-ui-accent ring-inset" />
       <p
         className={cn(
           "flex items-center gap-2 rounded-ui-lg px-4 py-3",

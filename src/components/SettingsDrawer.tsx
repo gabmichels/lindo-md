@@ -906,7 +906,7 @@ function ThemeGallery({ activeId, onPick }: { activeId: string; onPick: (id: str
             title={preset.note}
             className={cn(
               "overflow-hidden rounded-ui-md text-left transition-colors duration-[var(--ui-dur)]",
-              isActive ? "bg-ui-ember-wash" : "bg-ui-plane-1 hover:bg-ui-plane-2",
+              isActive ? "bg-ui-accent-wash" : "bg-ui-plane-1 hover:bg-ui-plane-2",
             )}
           >
             <span className="flex h-7 w-full">

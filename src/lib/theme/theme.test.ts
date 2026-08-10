@@ -503,6 +503,16 @@ describe("the two token namespaces stay apart", () => {
   // violation would actually be written.
   const css = readFileSync("src/styles.css", "utf8");
 
+  /** Every chrome component, as paths. Two rules below scan the same set. */
+  function chromeComponents(): string[] {
+    const files = readdirSync("src/components", { recursive: true, encoding: "utf8" })
+      .filter((name) => name.endsWith(".tsx"))
+      .map((name) => `src/components/${name.replaceAll("\\", "/")}`);
+    // A glob that silently matched nothing would make every rule here vacuous.
+    expect(files.length).toBeGreaterThan(10);
+    return files;
+  }
+
   it("defines both namespaces in styles.css", () => {
     expect(css).toContain("--ui-base:");
     expect(css).toContain("--doc-bg:");
@@ -522,15 +532,41 @@ describe("the two token namespaces stay apart", () => {
     // defaults, so defining one `--doc-*` in terms of another is its job.
     expect(readFileSync("src/document.css", "utf8")).not.toContain("var(--ui-");
 
-    const components = readdirSync("src/components", { recursive: true, encoding: "utf8" })
-      .filter((name) => name.endsWith(".tsx"))
-      .map((name) => `src/components/${name.replaceAll("\\", "/")}`);
-    expect(components.length).toBeGreaterThan(10);
-    for (const file of components) {
+    for (const file of chromeComponents()) {
       // Prose about the rule is not a breach of it; a `var()` reaching CSS is.
       expect(readFileSync(file, "utf8"), `${file} reads a --doc-* token`).not.toContain(
         "var(--doc-",
       );
+    }
+  });
+
+  it("never paints chrome text in a literal black or white", () => {
+    /**
+     * The failure this exists for, which shipped to review once and would have
+     * shipped again: a button reading `bg-ui-accent text-black`.
+     *
+     * That pairing was correct for years. The accent was a fixed light amber, so
+     * black on it was the readable choice, written as a literal because it could
+     * never be anything else. The moment the accent became derived it stopped
+     * being fixed *or* light — on a light theme it is solved downward to clear
+     * the rail — and black on it fell to 2.6:1 while the class name still looked
+     * exactly as deliberate as the day it was written.
+     *
+     * That is what makes it worth a test rather than a review note: nothing about
+     * the line changed, so nothing about the line draws the eye. Every ground a
+     * chrome component can paint text on now has a derived ink beside it
+     * (`--ui-accent-ink`, `--ui-danger-ink`, the `--ui-text-*` ramp), so a
+     * literal is always the wrong answer and can simply be banned.
+     *
+     * Scoped to `text-` utilities on purpose. `bg-black/35` is a modal scrim,
+     * which is a literal for a good reason: it is a shadow over the whole window
+     * rather than a colour on a surface, and it reads correctly on any chrome.
+     */
+    for (const file of chromeComponents()) {
+      const source = readFileSync(file, "utf8");
+      for (const literal of ["text-black", "text-white"]) {
+        expect(source, `${file} paints text in a literal ${literal}`).not.toContain(literal);
+      }
     }
   });
 

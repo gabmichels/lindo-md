@@ -67,9 +67,12 @@ Everything else in this document is derived from these.
    **mandatory**, not optional. Plain text takes the other route entirely — `plaintext.rs` escapes
    it and never parses it, so there is nothing for a sanitizer to undo. Both routes are held to the
    same hostile corpus in tests, because "it cannot emit a tag" is a claim worth checking.
-2. **The tool and the paper are different materials.** `--ui-*` styles the tool and never changes;
-   `--doc-*` styles the document and is rewritten on every theme switch. Neither side may read the
-   other's tokens. See `DESIGN.md`.
+2. **The tool and the paper are different materials, and the tool is made from the paper.** `--ui-*`
+   styles the tool, `--doc-*` styles the document, and both are rewritten on every theme switch —
+   `chrome.ts` derives the first from the theme's ground, `apply.ts` writes the second. Neither side
+   may read the other's tokens: that rule is not about the chrome being frozen (it no longer is), it
+   is about the chrome changing **as one material, in one place**, rather than component by
+   component. See `DESIGN.md`.
 
 ## Setup
 
@@ -110,7 +113,7 @@ three. Run them locally before pushing.
 
 ```
 src/
-  App.tsx  Specimen.tsx  styles.css      # styles.css owns every --ui-* token
+  App.tsx  Specimen.tsx  styles.css      # styles.css holds first-paint defaults for both namespaces
   components/    chrome + document view; ui/ holds restyled Radix primitives
   hooks/         one concern each, colocated tests
   lib/
@@ -781,9 +784,11 @@ pair. **The third is what makes the first mean anything** — without it the con
 and the bug agree with each other, which is how the original defect passed.
 
 The context menu's swatches take their colour from the `theme` prop rather than from
-`--doc-mark-*`. DESIGN.md's rule is that chrome must not read the paper's *tokens*, which is
-what stops a bright paper theme washing out the rail; it is not a rule against chrome ever
-showing a colour from the document, or the settings drawer's colour pickers could not exist.
+`--doc-mark-*`. DESIGN.md's rule is that chrome must not read the paper's *tokens*, which is what
+keeps the chrome one derived material rather than a per-component scramble through the page's
+palette; it is not a rule against chrome ever showing a colour from the document, or the settings
+drawer's colour pickers could not exist. Note that `chrome.ts` reads `theme.colors` the same way and
+for the same reason — it takes the theme *object*, not the paper's live custom properties.
 
 **A paragraph whose source and rendered text differ in length cannot be marked at all, and the
 menu says so rather than failing quietly.** `sourceOffsetOf` snaps any position inside a run

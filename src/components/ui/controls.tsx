@@ -126,13 +126,13 @@ export function Slider({
       className="relative flex h-4 w-full touch-none items-center select-none"
     >
       <RadixSlider.Track className="relative h-[3px] w-full grow rounded-full bg-ui-sunken">
-        <RadixSlider.Range className="absolute h-full rounded-full bg-ui-ember-dim" />
+        <RadixSlider.Range className="absolute h-full rounded-full bg-ui-accent-dim" />
       </RadixSlider.Track>
       <RadixSlider.Thumb
         className={cn(
           "block size-3.5 rounded-full bg-ui-text-strong",
           "transition-transform duration-[var(--ui-dur)] ease-[var(--ui-ease)]",
-          "hover:scale-110 focus-visible:outline-2 focus-visible:outline-ui-ember",
+          "hover:scale-110 focus-visible:outline-2 focus-visible:outline-ui-accent",
         )}
       />
     </RadixSlider.Root>
@@ -155,7 +155,7 @@ export function Switch({
       onCheckedChange={onChange}
       className={cn(
         "relative h-[18px] w-8 shrink-0 rounded-full transition-colors duration-[var(--ui-dur)]",
-        checked ? "bg-ui-ember-dim" : "bg-ui-sunken",
+        checked ? "bg-ui-accent-dim" : "bg-ui-sunken",
       )}
     >
       <RadixSwitch.Thumb
@@ -203,7 +203,7 @@ export function Segmented<T extends string>({
             "flex-1 rounded-ui-md py-1.5 text-[12px]",
             "transition-colors duration-[var(--ui-dur)]",
             value === option.value
-              ? "bg-ui-ember-wash text-ui-text-strong"
+              ? "bg-ui-accent-wash text-ui-text-strong"
               : "bg-ui-plane-1 text-ui-text-muted hover:text-ui-text",
           )}
         >
@@ -313,7 +313,7 @@ export function Select({
                     className={cn(
                       "flex cursor-default items-center justify-between gap-2 rounded-ui-sm px-2 py-1.5",
                       "text-[12.5px] text-ui-text outline-none",
-                      "data-[highlighted]:bg-ui-ember-wash data-[highlighted]:text-ui-text-strong",
+                      "data-[highlighted]:bg-ui-accent-wash data-[highlighted]:text-ui-text-strong",
                     )}
                   >
                     <RadixSelect.ItemText>
@@ -328,7 +328,7 @@ export function Select({
                       </span>
                     </RadixSelect.ItemText>
                     <RadixSelect.ItemIndicator>
-                      <Check size={13} strokeWidth={2} className="text-ui-ember" aria-hidden />
+                      <Check size={13} strokeWidth={2} className="text-ui-accent" aria-hidden />
                     </RadixSelect.ItemIndicator>
                   </RadixSelect.Item>
                 ))}

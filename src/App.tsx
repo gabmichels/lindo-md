@@ -1,6 +1,6 @@
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { AboutDialog } from "@/components/AboutDialog";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { FindBar } from "@/components/FindBar";
 import { NotesPanel } from "@/components/NotesPanel";
 import { Rail } from "@/components/Rail";
+import { ResizeHandle } from "@/components/ResizeHandle";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { TabGroupDialog } from "@/components/TabGroupDialog";
@@ -37,6 +38,7 @@ import { resolveAll } from "@/lib/annotate/resolve";
 import { annotatedMarkdown } from "@/lib/export/annotated";
 import { buildStandaloneHtml } from "@/lib/export/html";
 import type { PaletteActions, PaletteState } from "@/lib/palette/items";
+import { NOTES_DEFAULT, PANEL_MAX, PANEL_MIN, RAIL_DEFAULT } from "@/lib/panels";
 import { stepZoom } from "@/lib/zoom";
 import documentCss from "@/document.css?inline";
 import {
@@ -69,6 +71,15 @@ function Shell() {
   useRevealWindow(loaded);
 
   const [canvas, setCanvas] = useState<HTMLElement | null>(null);
+  /**
+   * The element carrying `--ui-rail-w` and `--ui-notes-w`.
+   *
+   * Both columns, and the titlebar's traffic-light shim, size themselves from
+   * those two properties rather than from props — which is what lets a drag
+   * write the new width onto this one node and leave React out of the gesture
+   * entirely. See `useResizable`.
+   */
+  const shell = useRef<HTMLDivElement>(null);
   /**
    * The scroller of each pane, and which one the keyboard is talking to.
    *
@@ -675,7 +686,16 @@ function Shell() {
   };
 
   return (
-    <div className="flex h-full">
+    <div
+      ref={shell}
+      className="flex h-full"
+      style={
+        {
+          "--ui-rail-w": `${config.railWidth}px`,
+          "--ui-notes-w": `${config.notesWidth}px`,
+        } as CSSProperties
+      }
+    >
       <Rail
         collapsed={config.railCollapsed}
         onToggleCollapsed={() => {
@@ -706,6 +726,24 @@ function Shell() {
           setAboutOpen(true);
         }}
       />
+
+      {/* Nothing to resize when the rail is a 52px strip of icons: at that width
+          the only gesture that means anything is expanding it again. */}
+      {!config.railCollapsed && (
+        <ResizeHandle
+          label="Sidebar width"
+          cssVar="--ui-rail-w"
+          surface={shell}
+          width={config.railWidth}
+          min={PANEL_MIN}
+          max={PANEL_MAX}
+          initial={RAIL_DEFAULT}
+          grow={1}
+          onCommit={(railWidth) => {
+            update({ railWidth });
+          }}
+        />
+      )}
 
       {/* The canvas: everything inside it is styled by --doc-* tokens, which
           `useTheme` writes onto this element and nowhere else.
@@ -895,7 +933,7 @@ function Shell() {
 
           {/* Where a dragged tab would land. Drawn over the right half rather
               than as a ring around it, because the region is the message: the
-              reader is being told the document will occupy exactly this. Ember,
+              reader is being told the document will occupy exactly this. The accent,
               like every other "this is the target" mark in the chrome. It never
               takes the pointer — the drag owns it through pointer capture, and
               an overlay that could receive events would end the gesture. */}
@@ -904,44 +942,62 @@ function Shell() {
               aria-hidden
               className={cn(
                 "pointer-events-none absolute inset-y-0 right-0 z-30 w-1/2",
-                "bg-ui-ember-wash shadow-[inset_2px_0_0_0_var(--ui-ember)]",
+                "bg-ui-accent-wash shadow-[inset_2px_0_0_0_var(--ui-accent)]",
               )}
             />
           )}
         </div>
       </main>
 
-      {/* A sibling of `<main>`, not a third column inside it. `splitZoneOf`
+      {/* Siblings of `<main>`, not a third column inside it. `splitZoneOf`
           measures `[data-canvas-body]` to decide where a dragged tab opens the
           comparison pane, so a column added in there would move the drop region
           every time this panel opened. Outside it, the canvas is exactly the
           paper and this is exactly chrome — which is also what keeps `--doc-*`
           out of scope here. */}
       {config.notesOpen && (
-        <NotesPanel
-          annotations={notes.annotations}
-          loaded={notes.loaded}
-          error={notes.error}
-          currentPath={document?.path ?? null}
-          markColors={theme.colors.mark}
-          onClose={() => {
-            update({ notesOpen: false });
-          }}
-          onReveal={revealMark}
-          onSetNote={notes.setNote}
-          onRemove={notes.remove}
-          editing={noteTarget}
-          onEditingHandled={() => {
-            setNoteTarget(null);
-          }}
-          notice={exportNotice}
-          onDismissNotice={() => {
-            setExportNotice(null);
-          }}
-          // Offered only with a document open, since it exports *this* document
-          // rather than the panel's whole list.
-          onExport={document ? () => void exportAnnotated() : undefined}
-        />
+        <>
+          <ResizeHandle
+            label="Notes panel width"
+            cssVar="--ui-notes-w"
+            surface={shell}
+            width={config.notesWidth}
+            min={PANEL_MIN}
+            max={PANEL_MAX}
+            initial={NOTES_DEFAULT}
+            // The panel is to the *right* of this handle, so it widens as the
+            // pointer moves left.
+            grow={-1}
+            onCommit={(notesWidth) => {
+              update({ notesWidth });
+            }}
+          />
+
+          <NotesPanel
+            annotations={notes.annotations}
+            loaded={notes.loaded}
+            error={notes.error}
+            currentPath={document?.path ?? null}
+            markColors={theme.colors.mark}
+            onClose={() => {
+              update({ notesOpen: false });
+            }}
+            onReveal={revealMark}
+            onSetNote={notes.setNote}
+            onRemove={notes.remove}
+            editing={noteTarget}
+            onEditingHandled={() => {
+              setNoteTarget(null);
+            }}
+            notice={exportNotice}
+            onDismissNotice={() => {
+              setExportNotice(null);
+            }}
+            // Offered only with a document open, since it exports *this* document
+            // rather than the panel's whole list.
+            onExport={document ? () => void exportAnnotated() : undefined}
+          />
+        </>
       )}
 
       <TabGroupDialog

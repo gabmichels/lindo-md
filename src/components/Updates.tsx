@@ -77,7 +77,7 @@ export function UpdateDialog({ updater }: { updater: Updater }) {
                   console.error("lindo-md: could not open the releases page", error);
                 });
               }}
-              className="text-[12px] text-ui-ember hover:underline"
+              className="text-[12px] text-ui-accent hover:underline"
             >
               Release notes
             </button>
@@ -102,7 +102,7 @@ export function UpdateDialog({ updater }: { updater: Updater }) {
                 }}
                 className={cn(
                   "rounded-ui-md bg-ui-plane-2 px-3 py-1.5 text-[12px] text-ui-text-strong",
-                  "transition-colors duration-[var(--ui-dur)] hover:bg-ui-ember-wash",
+                  "transition-colors duration-[var(--ui-dur)] hover:bg-ui-accent-wash",
                   "disabled:pointer-events-none disabled:opacity-40",
                 )}
               >
@@ -200,7 +200,7 @@ function CheckStatus({ updater, current }: { updater: Updater; current: string |
             }}
             className={cn(
               "ml-auto rounded-ui-md bg-ui-plane-2 px-3 py-1.5 text-[12px] text-ui-text-strong",
-              "transition-colors duration-[var(--ui-dur)] hover:bg-ui-ember-wash",
+              "transition-colors duration-[var(--ui-dur)] hover:bg-ui-accent-wash",
             )}
           >
             Install and restart
@@ -269,7 +269,7 @@ function ReleaseNotes({ notes }: { notes: string }) {
 /**
  * Determinate where the server sent a length, indeterminate where it did not.
  *
- * Neutral rather than Ember: DESIGN.md spends Ember on four things and a
+ * Neutral rather than the accent: DESIGN.md spends it on four things and a
  * download is not one of them. The bar reads perfectly well in `--ui-text`, and
  * an accent here would compete with the active-file marker for no gain.
  */

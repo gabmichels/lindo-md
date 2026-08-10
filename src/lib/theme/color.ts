@@ -144,6 +144,60 @@ function toByte(channel: number): string {
   return clamped.toString(16).padStart(2, "0");
 }
 
+/** A colour in Oklch, as `oklch()` writes it: lightness 0–1, chroma, hue in degrees. */
+export interface Oklch {
+  l: number;
+  c: number;
+  h: number;
+}
+
+/**
+ * The inverse of the conversion above: any CSS colour this file can read, in
+ * Oklch.
+ *
+ * Here because the chrome is derived from the paper (`chrome.ts`), and deriving
+ * means arithmetic on lightness and chroma — "a step away from the ground",
+ * "the same hue, quieter". A theme states its colours as strings in whatever
+ * notation its author preferred, so there has to be a way back into numbers.
+ *
+ * `null` for anything unreadable, for the same reason `toHexStrict` returns it:
+ * a caller reasoning about contrast cannot be handed a guess.
+ */
+export function toOklch(value: string): Oklch | null {
+  const hex = toHexStrict(value);
+  if (hex === null) return null;
+
+  const linear = (at: number) => {
+    const raw = parseInt(hex.slice(at, at + 2), 16) / 255;
+    return raw <= 0.04045 ? raw / 12.92 : Math.pow((raw + 0.055) / 1.055, 2.4);
+  };
+  const [r, g, b] = [linear(1), linear(3), linear(5)];
+
+  // Ottosson's matrix again, the other way round: linear sRGB → LMS, cube root
+  // into the perceptual space, then LMS → Oklab.
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+
+  const lightness = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+  const a = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+  const bb = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+
+  const hue = (Math.atan2(bb, a) * 180) / Math.PI;
+  return {
+    l: lightness,
+    c: Math.hypot(a, bb),
+    h: hue < 0 ? hue + 360 : hue,
+  };
+}
+
+/** An `Oklch` back to the CSS the browser is handed. Rounded, because these end
+ *  up in a stylesheet a person may read. */
+export function oklchCss({ l, c, h }: Oklch): string {
+  const round = (value: number, places: number) => Number(value.toFixed(places));
+  return `oklch(${round(Math.min(1, Math.max(0, l)), 4)} ${round(Math.max(0, c), 4)} ${round(h, 2)})`;
+}
+
 /**
  * WCAG relative-luminance contrast ratio between two CSS colours, 1 to 21.
  *
