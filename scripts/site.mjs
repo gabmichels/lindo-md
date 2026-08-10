@@ -21,7 +21,14 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const out = path.join(repo, "dist-site");
 
 /** Copied from `docs/`, which is where the README already points at them. */
-const SHARED = ["icon.svg", "screenshot-light.png", "screenshot-dark.png", "screenshot-themes.png"];
+const SHARED = [
+  "icon.svg",
+  "screenshot-light.png",
+  "screenshot-dark.png",
+  "screenshot-themes.png",
+  "screenshot-notes-light.png",
+  "screenshot-notes-dark.png",
+];
 
 /**
  * Latin only, and the `wght` axis rather than `opsz`.
