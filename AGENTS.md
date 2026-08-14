@@ -1090,8 +1090,12 @@ Four decisions worth not re-litigating:
 - **A rendered Mermaid diagram is scrubbed of every off-device reference, unconditionally.** The
   fence body never passes through ammonia — `markdown.rs` hands it over HTML-escaped, and it only
   becomes markup later, inside Mermaid — so `A["<img src='https://…'>"]` used to render a real
-  `<img>` and fetch it. `securityLevel: "strict"` does not prevent this: it leaves `htmlLabels` on,
-  and Mermaid's own DOMPurify allows `img`/`src`. `stripRemoteRefs` in `render/mermaid.ts` runs
+  `<img>` and fetch it. `securityLevel: "strict"` does not prevent this: Mermaid's own DOMPurify
+  allows `img`/`src`. `htmlLabels: false` now closes that route at the source — a label drawn as
+  SVG `<text>` has no HTML for a tag to appear in — but it was turned off for *layout* reasons
+  (see the label-measurement entry below), so treating it as the guarantee would make this
+  invariant depend on a decision nobody took for its sake. `stripRemoteRefs` in `render/mermaid.ts`
+  is still the guarantee, and it runs
   while the `<figure>` is still **detached**, which is what makes it reliable — nothing in a
   detached tree fetches, so there is no race with a request already in flight. It is an allowlist
   (`#fragment` and `data:` only) rather than a list of things to block, because `isExternal` does
@@ -1153,6 +1157,31 @@ Four decisions worth not re-litigating:
   `measuringHost` in `src/lib/render/mermaid.ts`. `display: none`, `height: 0` or a different
   font-size all produce boxes too small for their text. Its flowchart viewBox is unreliable
   regardless, so `normalizeViewBox` recomputes it from the drawn geometry.
+- **Labels are drawn as SVG `<text>`, not HTML — `htmlLabels: false`.** Mermaid's HTML-label path
+  measures a label by putting it in the DOM and reading `getBoundingClientRect`, having seeded the
+  element at `calculateTextWidth(label) + 100`; a diagram type made entirely of labels inherits
+  that inflation. The ER diagram is that type, and a nine-entity ERD measured **10,287px wide with
+  HTML labels and 1,852px without** — entities six times wider than their own text, which is what
+  a reader sees as "the diagram is unreadable". Turning them off has a security dividend (no
+  `foreignObject`, so no `<img>` in a label at all) but the reason is layout.
+- **An ER diagram's attribute rows are `rowOdd`/`rowEven`, not the documented
+  `attributeBackgroundColor*` pair.** The unified renderer reads the first two; setting the
+  documented ones changes nothing, silently. They also do *not* follow `background`, so on a dark
+  theme half of every entity was light paper carrying the theme's light ink — invisible rows in an
+  otherwise correct diagram. `mermaidThemeVariables` sets them to the document's two planes.
+- **`normalizeViewBox` measures the SVG, not its first `<g>`.** Only some diagram types wrap
+  themselves in a root group. A sequence diagram emits one top-level group per actor and message,
+  so measuring the first one cropped the whole drawing to a single participant box — three actors
+  and four messages rendered as a lone rectangle, in every release that had the pass.
+- **Clicking a diagram opens a pan-and-zoom viewer** (`render/zoom.ts`): full window, opening at
+  fit, then wheel to zoom about the pointer, drag to pan, `+`/`-`/`0`, arrows, Escape. It exists
+  because fitting a large diagram to the window only moves the ceiling — an ERD is unreadable at
+  window width too. Two things in it are load-bearing. The clone **keeps the original's SVG id**:
+  every Mermaid rule is scoped to it and a CSS id selector matches *every* element carrying it
+  (only `getElementById` returns one), so the adopted sheet styles the copy for free. And a drag
+  that ends on the backdrop must not be read as a dismissal, which is why the click handler is on
+  the capture phase — clearing that flag only from clicks the controls let through leaves it set,
+  and the next backdrop click is swallowed.
 - **Do not set `scrollbar-width` or `scrollbar-color` next to `::-webkit-scrollbar` rules.**
   Chromium ignores the `::-webkit-` rules entirely if the standard properties are present, and the
   OS scrollbar comes back.

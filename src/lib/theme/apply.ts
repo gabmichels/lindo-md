@@ -529,6 +529,19 @@ export function mermaidThemeVariables(theme: Theme): Record<string, string> {
     labelBoxBorderColor: c(colors.border, ink),
     labelTextColor: c(colors.text, ink),
     loopTextColor: c(colors.text, ink),
+    // An ER diagram's attribute rows are the one place Mermaid's base theme
+    // ignores `background` and derives its own near-white pair. On a dark theme
+    // that is light paper with `textColor` — light ink — written on it, which is
+    // how half of every entity's attribute list can be invisible while its
+    // edges, titles and every other diagram type read perfectly. Banding is
+    // worth keeping, so these are the document's two planes rather than one
+    // colour.
+    //
+    // `rowOdd`/`rowEven` and not the `attributeBackgroundColor*` pair the ER
+    // docs name: the unified renderer this version ships reads these two, and
+    // setting the documented ones changes nothing at all.
+    rowOdd: c(colors.bg, neutral),
+    rowEven: c(colors.surface, neutral),
     // The heading face, not the body face. `themeVariables.fontFamily` wins over
     // the top-level `fontFamily` config, so this is the one that decides what
     // diagram labels are set in — and what Mermaid measures them with.

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { adoptDiagramStyles, pruneDiagramStyles, stripRemoteRefs } from "./mermaid";
+import {
+  adoptDiagramStyles,
+  normalizeViewBox,
+  pruneDiagramStyles,
+  stripRemoteRefs,
+} from "./mermaid";
 
 /**
  * Mermaid renders a ```mermaid fence into SVG inside the webview, so its output
@@ -183,5 +188,62 @@ describe("adoptDiagramStyles", () => {
 
       expect(document.adoptedStyleSheets).toHaveLength(0);
     });
+  });
+});
+
+/**
+ * A sequence diagram has no root group — it emits one top-level `g` per actor
+ * and message — so sizing the viewBox from the first one cropped the drawing to
+ * a single participant box. jsdom has no layout, so the geometry is stubbed:
+ * these assert which element is *asked*, which is the whole of the bug.
+ */
+describe("normalizeViewBox", () => {
+  function measured(element: Element, box: { width: number; height: number } | null): void {
+    Object.defineProperty(element, "getBBox", {
+      configurable: true,
+      value: () => ({ x: 0, y: 0, ...(box ?? { width: 0, height: 0 }) }) as DOMRect,
+    });
+  }
+
+  function figureOf(inner: string): HTMLElement {
+    const figure = document.createElement("figure");
+    figure.className = "mermaid";
+    figure.innerHTML = `<svg>${inner}</svg>`;
+    return figure;
+  }
+
+  it("sizes from everything drawn, not from the first group", () => {
+    const figure = figureOf(`<g class="actor"></g><g class="message"></g>`);
+    const svg = figure.querySelector("svg")!;
+    measured(svg, { width: 550, height: 350 });
+    measured(svg.querySelector("g")!, { width: 150, height: 65 });
+
+    normalizeViewBox(figure);
+
+    // 10px of padding on each side, per `normalizeViewBox`.
+    expect(svg.getAttribute("viewBox")).toBe("-10 -10 570 370");
+  });
+
+  it("falls back to the first group when the union cannot be measured", () => {
+    const figure = figureOf(`<g class="root"></g>`);
+    const svg = figure.querySelector("svg")!;
+    measured(svg, null);
+    measured(svg.querySelector("g")!, { width: 200, height: 100 });
+
+    normalizeViewBox(figure);
+
+    expect(svg.getAttribute("viewBox")).toBe("-10 -10 220 120");
+  });
+
+  it("leaves Mermaid's own viewBox alone when nothing can be measured", () => {
+    const figure = figureOf(`<g></g>`);
+    const svg = figure.querySelector("svg")!;
+    svg.setAttribute("viewBox", "0 0 100 100");
+    measured(svg, null);
+    measured(svg.querySelector("g")!, null);
+
+    normalizeViewBox(figure);
+
+    expect(svg.getAttribute("viewBox")).toBe("0 0 100 100");
   });
 });

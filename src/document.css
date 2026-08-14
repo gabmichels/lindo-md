@@ -1042,13 +1042,73 @@
   cursor: zoom-out;
 }
 
+/* The viewport onto the drawing. `overflow: hidden` rather than a scroller: the
+   drawing is positioned by a transform, so there is no scrollable box to give
+   the browser, and a wheel here means zoom. */
 .diagram-zoom-stage {
-  display: flex;
+  position: relative;
   min-height: 0;
   flex: 1;
-  align-items: center;
-  justify-content: center;
   width: 100%;
+  overflow: hidden;
+  cursor: grab;
+  /* Chromium would otherwise pan the page on a trackpad gesture before the
+     wheel handler is consulted. */
+  touch-action: none;
+}
+
+.diagram-zoom-stage.is-panning {
+  cursor: grabbing;
+}
+
+/* Positioned from the stage's top-left, which is the origin every coordinate in
+   zoom.ts is measured in. `transform-origin` must stay at that corner: the
+   scale-about-a-point maths assumes it. */
+.diagram-zoom-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.diagram-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--doc-border);
+  border-radius: 11px;
+  background: var(--doc-bg);
+  cursor: default;
+}
+
+.diagram-zoom-button {
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-family: var(--doc-font-heading);
+  font-size: 13px;
+  line-height: 1;
+  color: var(--doc-text-muted);
+  cursor: pointer;
+}
+
+.diagram-zoom-button:hover {
+  background: color-mix(in oklab, var(--doc-text) 8%, transparent);
+  color: var(--doc-text);
+}
+
+.diagram-zoom-level {
+  min-width: 52px;
+  font-family: var(--doc-font-heading);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--doc-text-muted);
 }
 
 .diagram-zoom-hint {
