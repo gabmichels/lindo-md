@@ -28,14 +28,29 @@ async function getMermaid(theme: Theme): Promise<MermaidApi> {
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: "strict",
-      // `securityLevel: "strict"` does not cover this. It leaves `htmlLabels` on,
-      // and Mermaid's DOMPurify pass allows `img`/`src` — reasonable for a diagram
-      // library, wrong for a viewer whose whole claim is that it never phones home.
-      // `stripRemoteRefs` below is the guarantee; this is the cheaper first pass.
+      // `securityLevel: "strict"` does not cover this: Mermaid's DOMPurify pass
+      // allows `img`/`src` — reasonable for a diagram library, wrong for a viewer
+      // whose whole claim is that it never phones home. `stripRemoteRefs` below
+      // is the guarantee; this is the cheaper first pass.
       dompurifyConfig: {
         FORBID_TAGS: ["style", "img", "image", "use"],
         FORBID_ATTR: ["src", "srcset", "href", "xlink:href"],
       },
+      // Labels as SVG `<text>`, not as HTML in a `foreignObject`. This is a
+      // *layout* decision first: Mermaid measures an HTML label by putting it in
+      // the DOM and reading `getBoundingClientRect`, then seeds the element with
+      // `calculateTextWidth(label) + 100` — and an ER entity, which is nothing
+      // but labels, ends up sized from those inflated boxes rather than from its
+      // text. The same nine-entity diagram measures 10,287px wide with HTML
+      // labels and 1,852px without, which is the difference between a wall of
+      // unreadable bars and a diagram that fits the page.
+      //
+      // It also closes the `<img>` route structurally rather than by filtering:
+      // with no foreignObject there is no HTML in the output for a label like
+      // `A["<img src='https://…'>"]` to become. `stripRemoteRefs` stays anyway —
+      // it is the thing that has to hold if this line is ever reverted.
+      htmlLabels: false,
+      flowchart: { htmlLabels: false },
       theme: "base",
       themeVariables: mermaidThemeVariables(theme),
       // The heading face, not the body face: diagram labels are short strings in
@@ -292,18 +307,12 @@ export async function renderDiagram(block: HTMLElement, theme: Theme): Promise<v
  * Does nothing if the geometry cannot be measured — an unrendered or empty SVG
  * keeps whatever Mermaid decided.
  */
-function normalizeViewBox(figure: HTMLElement): void {
+export function normalizeViewBox(figure: HTMLElement): void {
   const svg = figure.querySelector("svg");
-  const content = svg?.querySelector("g");
-  if (!svg || !content) return;
+  if (!svg) return;
 
-  let box: DOMRect;
-  try {
-    box = content.getBBox();
-  } catch {
-    return;
-  }
-  if (box.width <= 0 || box.height <= 0) return;
+  const box = drawnBox(svg);
+  if (!box) return;
 
   const PAD = 10;
   const width = box.width + PAD * 2;
@@ -317,6 +326,37 @@ function normalizeViewBox(figure: HTMLElement): void {
   // blurry text and oversized boxes.
   svg.style.maxWidth = `${Math.ceil(width)}px`;
   svg.style.height = "auto";
+}
+
+/**
+ * Everything the SVG actually draws, as one box.
+ *
+ * The SVG's own `getBBox` is the union of its children, which is the number
+ * wanted here. This used to measure `svg.querySelector("g")` — the *first*
+ * group — and that is only the whole drawing for the diagram types that wrap
+ * themselves in a single root group. A sequence diagram emits one top-level
+ * group per actor and message, so the viewBox was rewritten to the bounds of one
+ * participant box and the rest of the diagram was cropped away: three actors and
+ * four messages rendered as a lone rectangle. Flowcharts have a root group and
+ * were always correct, which is how it went unnoticed.
+ *
+ * Falls back to the first group when the union is unmeasurable, and gives up
+ * rather than guessing when neither can be measured — an unrendered or hidden
+ * SVG (a background tab measures as zero) keeps whatever Mermaid decided.
+ */
+function drawnBox(svg: SVGSVGElement): DOMRect | null {
+  const candidates: (SVGGraphicsElement | null)[] = [svg, svg.querySelector("g")];
+  for (const element of candidates) {
+    if (!element) continue;
+    try {
+      const box = element.getBBox();
+      if (box.width > 0 && box.height > 0) return box;
+    } catch {
+      // jsdom has no layout and throws here; the next candidate cannot do better.
+      return null;
+    }
+  }
+  return null;
 }
 
 /**
@@ -343,11 +383,21 @@ function measuringHost(theme: Theme): HTMLElement {
   //     each label in a div that inherits from this host, then draws it in the
   //     SVG at the theme's diagram size. Left to inherit the app chrome's 13px,
   //     it measures ~30% narrow and every box is drawn too small for its text.
+  //  3. Shrink-to-fit, not a fixed width. The host used to be `width: 1200px`,
+  //     and a *block* label measured inside it reports the host's width rather
+  //     than its own text's — which is how an ER entity whose longest comment is
+  //     four words came out 1600px wide, and a nine-entity diagram 10,000px
+  //     wide. Diagram types drawing their labels as SVG `<text>` were never
+  //     affected, which is why this survived: it is only visible where Mermaid
+  //     uses HTML labels, and ER is the type that uses them for every cell.
+  //     `max-width` keeps a genuinely long label wrapping rather than running
+  //     off into one endless line.
   host.style.cssText = [
     "position:absolute",
     "left:-100000px",
     "top:0",
-    "width:1200px",
+    "width:max-content",
+    "max-width:1200px",
     "pointer-events:none",
     `font-family:${theme.typography.headingFont}`,
     `font-size:${diagramFontSize(theme)}px`,
