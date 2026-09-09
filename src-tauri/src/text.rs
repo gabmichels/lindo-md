@@ -160,14 +160,11 @@ pub fn normalize(text: &str) -> std::borrow::Cow<'_, str> {
 /// `None` on an odd byte count or an unpaired surrogate — either means this is not
 /// the UTF-16 its BOM claimed.
 fn from_utf16(bytes: &[u8], word: fn([u8; 2]) -> u16) -> Option<String> {
-    let pairs = bytes.chunks_exact(2);
-    if !pairs.remainder().is_empty() {
+    let (pairs, remainder) = bytes.as_chunks::<2>();
+    if !remainder.is_empty() {
         return None;
     }
-    let units: Vec<u16> = pairs
-        .map(|pair| <[u8; 2]>::try_from(pair).map(word))
-        .collect::<Result<_, _>>()
-        .ok()?;
+    let units: Vec<u16> = pairs.iter().copied().map(word).collect();
     String::from_utf16(&units).ok()
 }
 
