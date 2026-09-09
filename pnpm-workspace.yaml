@@ -59,12 +59,18 @@ allowBuilds:
 #     better than what it replaced) on the understanding that 3.4.13 would be taken once
 #     it cleared the floor. It clears on 2026-08-10; this was taken on 2026-08-09, with
 #     under a day left to run, because the daily scan is red until it is.
-#   * `nanoid@3.3.17` — CVE-2026-67213, infinite loop in `customAlphabet`/`customRandom`
-#     when `size` is 0. Transitive via postcss <- vite, so it is a build-time dependency
-#     and never reaches a user; nothing here calls those functions at all, let alone with
-#     an attacker-supplied size. Taken with the dompurify fix rather than separately —
-#     both were published 2026-08-03 and clear the floor within hours of each other, and
-#     one PR that empties the scanner's queue beats two that each leave it half-red.
+#
+# `nanoid` used to be on that list and no longer is, which is worth a note because the
+# reason is not "it aged out". CVE-2026-67213 (infinite loop in `customAlphabet` /
+# `customRandom` when `size` is 0) was first published with 3.3.17 named as the fix, and
+# 3.3.17 was excluded here on 2026-08-03 to take it early. The advisory was then revised
+# on 2026-08-13 to say the 3.x fix is 3.3.18 — so the version this repo had taken as the
+# remedy became a version the scanner flags, and the daily scan went red on a tree nobody
+# had touched. 3.3.18 is now well past the floor, so the override below is all that is
+# needed and no exclusion goes with it.
+#
+# An advisory's fixed-version range can move after you have acted on it. A green scan on
+# the day of the fix is not a promise that the same tree stays green.
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - "@shikijs/core@4.4.1"
@@ -78,7 +84,6 @@ minimumReleaseAgeExclude:
   - brace-expansion@1.1.18 || 5.0.9
   - mermaid@11.16.1
   - dompurify@3.4.13
-  - nanoid@3.3.17
 
 # When *no* version inside a declared range is old enough, install the newest anyway
 # rather than failing. This only ever fires when the whole range is young — the normal
@@ -103,16 +108,20 @@ minimumReleaseAgeStrict: false
 # pnpm happily resolved a v1 request up to a v5 release and the vulnerable 5.0.8 stayed
 # in the tree. Each line is pinned to its own major.
 #
-# The two entries below are here for a different reason, and it is worth stating because
-# the obvious fix does not work: for both packages the dependent's declared range already
-# permits the fixed version (mermaid asks for `dompurify@^3.3.3`, postcss for
-# `nanoid@^3.3.16`), so nothing is *blocking* the upgrade. What holds it back is the age
-# floor — pnpm resolves to the newest version that satisfies it, which is still the
-# vulnerable one, so `pnpm update` moves nothing and reports success. An override is what
-# names the version; the `minimumReleaseAgeExclude` entries above are what let pnpm take
-# it. Both halves are required, and each is silently a no-op without the other.
+# The `dompurify` and `nanoid` entries below are here for a different reason, and it is
+# worth stating because the obvious fix does not work: for both packages the dependent's
+# declared range already permits the fixed version (mermaid asks for `dompurify@^3.3.3`,
+# postcss for `nanoid@^3.3.16`), so nothing is *blocking* the upgrade. What holds it back
+# is that pnpm resolves to the newest version satisfying the range *it already locked*,
+# which is still the vulnerable one — `pnpm update` moves nothing and reports success. An
+# override is what names the version.
+#
+# When the fix is also younger than the floor, an override alone is silently a no-op: a
+# matching `minimumReleaseAgeExclude` entry is what lets pnpm take it, and both halves are
+# required. That was the case for `dompurify@3.4.13` and for `nanoid@3.3.17`. It is not
+# the case for `nanoid@3.3.18`, which is months old — hence an override with no exclusion.
 overrides:
   brace-expansion@<1.1.18: "^1.1.18"
   brace-expansion@>=2 <5.0.9: "^5.0.9"
   dompurify@<3.4.13: "^3.4.13"
-  nanoid@<3.3.17: "^3.3.17"
+  nanoid@<3.3.18: "^3.3.18"
