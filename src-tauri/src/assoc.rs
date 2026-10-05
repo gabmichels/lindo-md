@@ -298,7 +298,7 @@ mod tests {
                 Url::from_file_path(&image).unwrap(),
                 Url::from_file_path(std::env::temp_dir().join("absent.md")).unwrap(),
             ];
-            assert!(documents_from_urls(urls.iter()).is_empty());
+            assert_eq!(documents_from_urls(urls.iter()), Vec::<PathBuf>::new());
 
             std::fs::remove_file(&image).ok();
         }
@@ -328,6 +328,6 @@ mod tests {
             vec![PathBuf::from("a.md"), PathBuf::from("b.md")]
         );
         // A frontend that asks again — a reload, say — must not reopen them.
-        assert!(queue.take().is_empty());
+        assert_eq!(queue.take(), Vec::<PathBuf>::new());
     }
 }

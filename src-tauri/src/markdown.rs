@@ -730,7 +730,7 @@ mod tests {
     fn empty_document_renders_to_nothing_without_panicking() {
         let doc = render("");
         assert_eq!(doc.html.trim(), "");
-        assert!(doc.toc.is_empty());
+        assert_eq!(doc.toc, Vec::<Heading>::new());
         assert_eq!(doc.title, None);
         assert_eq!(doc.frontmatter, None);
     }
