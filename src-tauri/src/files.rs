@@ -109,7 +109,11 @@ pub struct Document {
     pub editable: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+// `PartialEq`/`Eq` are here for the tests: asserting a scan found *nothing* reads
+// better as a comparison against an empty `Vec` than as `assert!(… .is_empty())`,
+// and the comparison is what prints the unexpected nodes when it fails. `Heading`
+// carries them for the same reason.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TreeNode {
     pub name: String,
@@ -943,7 +947,7 @@ mod tests {
 
     #[test]
     fn tree_is_empty_when_no_markdown_was_found() {
-        assert!(tree("/r", &[]).is_empty());
+        assert_eq!(tree("/r", &[]), Vec::<TreeNode>::new());
     }
 
     #[test]

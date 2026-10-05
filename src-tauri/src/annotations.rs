@@ -531,7 +531,7 @@ mod tests {
         assert_eq!(made.anchored_hash, "hash-one");
         // A bare highlight is a body-less annotation rather than a `kind` column
         // that could disagree with the body beside it.
-        assert!(made.body.is_empty());
+        assert_eq!(made.body, "");
         assert_eq!(made.created_at, made.updated_at);
     }
 
