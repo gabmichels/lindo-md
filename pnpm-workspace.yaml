@@ -39,8 +39,6 @@ allowBuilds:
 #   * `shiki@4.4.1` — not a security fix. It was five days old when `minimumReleaseAge`
 #     was switched on and `^4.4.1` admitted nothing older, so the alternative was an
 #     unbuildable repo.
-#   * `brace-expansion@1.1.18 || 5.0.9` — GHSA-rgw5-rvv9-x895, CVSS 7.5, in both major
-#     lines. Fixed versions were 6.4 days old; see `overrides` below.
 #   * `mermaid@11.16.1` — five advisories in 11.16.0: prototype pollution in the config
 #     APIs (GHSA-c4c3-pg64-4m4v) and architecture diagrams (GHSA-3rrr-jr9j-h3q3), CSS
 #     injection reaching siblings of the diagram (GHSA-6x64-9x62-f2gx), and DoS in radar
@@ -53,24 +51,37 @@ allowBuilds:
 #     statically linked app has no server to patch afterwards. This is the case the
 #     "security fixes bypass the delay" rule in AGENTS.md exists for — a known-good fix
 #     for a known-bad version, which is the opposite of what the floor guards against.
-#   * `dompurify@3.4.13` — GHSA-55q2-fjhq-7xh7, XSS: removing an `IN_PLACE` hook leaves a
-#     detached subtree still executable. Transitive via mermaid, and therefore shipped.
-#     v1.3.0 shipped 3.4.12 knowingly (it is pre-existing, so 1.3.0 was still strictly
-#     better than what it replaced) on the understanding that 3.4.13 would be taken once
-#     it cleared the floor. It clears on 2026-08-10; this was taken on 2026-08-09, with
-#     under a day left to run, because the daily scan is red until it is.
 #
-# `nanoid` used to be on that list and no longer is, which is worth a note because the
-# reason is not "it aged out". CVE-2026-67213 (infinite loop in `customAlphabet` /
-# `customRandom` when `size` is 0) was first published with 3.3.17 named as the fix, and
-# 3.3.17 was excluded here on 2026-08-03 to take it early. The advisory was then revised
-# on 2026-08-13 to say the 3.x fix is 3.3.18 — so the version this repo had taken as the
-# remedy became a version the scanner flags, and the daily scan went red on a tree nobody
-# had touched. 3.3.18 is now well past the floor, so the override below is all that is
-# needed and no exclusion goes with it.
+# --- Why this list keeps shrinking -------------------------------------------
 #
-# An advisory's fixed-version range can move after you have acted on it. A green scan on
-# the day of the fix is not a promise that the same tree stays green.
+# `nanoid`, `brace-expansion` and `dompurify` were all on the list above and are all off
+# it now. None of the three aged out quietly, and the three ways they left are worth
+# keeping because each one turned the daily scan red on a tree nobody had touched:
+#
+#   * `nanoid` — **the advisory's fixed version moved.** CVE-2026-67213 was published
+#     naming 3.3.17 as the 3.x fix, 3.3.17 was excluded here on 2026-08-03 to take it
+#     early, and the advisory was revised on 2026-08-13 to say the fix is 3.3.18. The
+#     version taken as the remedy became the version flagged.
+#   * `brace-expansion` — **new advisories against the fixed version.** 1.1.18 and 5.0.9
+#     were taken for GHSA-rgw5-rvv9-x895. On 2026-09-29 three more landed against exactly
+#     those versions — two stack-exhaustion recursions and a quadratic expansion
+#     (GHSA-6j4f-fj2g-mc7p, GHSA-qhr7-859c-m2p7, GHSA-q2hr-2g5m-vwhr). Different bugs in
+#     the same parser, so the remedy was simply superseded.
+#   * `dompurify` — **the fix introduced the next bug.** 3.4.13 was taken on 2026-08-09
+#     for GHSA-55q2-fjhq-7xh7, an `IN_PLACE` hook leaving a detached subtree executable.
+#     GHSA-p98j-92pf-mc4p records `3.4.13` as its *introduced* version: the same hook
+#     family, the same detached-subtree shape, armed by the patch itself. Fixed in 3.4.16.
+#
+# All three replacements are months or weeks old, so each is a plain `overrides` bump with
+# no exclusion beside it. That is the shape to expect: an exclusion is for the few days a
+# fix is too young, and it should not outlive them.
+#
+# **Taking the named fix is not a durable state.** It is a snapshot of what the database
+# said that day, and the database moves under a tree that does not — by revising a range,
+# by flagging the version you landed on, or by finding the bug your patch introduced. A
+# green scan on the day of the fix is not a promise the same tree stays green; the daily
+# run is what notices, so it is worth keeping green rather than letting it go red for
+# three weeks and be rediscovered.
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - "@shikijs/core@4.4.1"
@@ -81,9 +92,7 @@ minimumReleaseAgeExclude:
   - "@shikijs/themes@4.4.1"
   - "@shikijs/types@4.4.1"
   - "shiki@4.4.1"
-  - brace-expansion@1.1.18 || 5.0.9
   - mermaid@11.16.1
-  - dompurify@3.4.13
 
 # When *no* version inside a declared range is old enough, install the newest anyway
 # rather than failing. This only ever fires when the whole range is young — the normal
@@ -95,33 +104,31 @@ minimumReleaseAgeExclude:
 # exactly that, and it made `pnpm install --frozen-lockfile` fail outright.
 minimumReleaseAgeStrict: false
 
-# GHSA-rgw5-rvv9-x895, CVSS 7.5, in both major lines of `brace-expansion`. It arrived
-# transitively with ESLint, and osv-scanner caught it on the first run of the workflow
-# added in the same branch.
+# Why an override at all: for every entry here the dependent's declared range *already*
+# permits the fixed version — mermaid asks for `dompurify@^3.3.3`, postcss for
+# `nanoid@^3.3.16`, ESLint's chain for a `brace-expansion` major. Nothing is blocking the
+# upgrade. What holds it back is that pnpm resolves to the newest version satisfying the
+# range it already locked, which is still the vulnerable one, so `pnpm update` moves
+# nothing and reports success. The override is what names the version.
 #
-# Overridden rather than waited out: the fixed versions were 6.4 days old when this was
-# written, so `minimumReleaseAge` would have refused them for another fifteen hours. A
-# known-good fix for a known-bad version is the opposite of the situation the delay
-# exists for, which is why both are listed in `minimumReleaseAgeExclude` above —
-# pinned to the exact version, so the exception dies with it.
-# Bounded on both sides. An open `>=1.1.18` is not a patch — it satisfies 5.x too, so
-# pnpm happily resolved a v1 request up to a v5 release and the vulnerable 5.0.8 stayed
-# in the tree. Each line is pinned to its own major.
+# A matching `minimumReleaseAgeExclude` entry is needed *only* while the fix is younger
+# than the floor; without it the override is silently a no-op. Every fix currently named
+# here is weeks or months old, so none of them has one. See the note above that list for
+# what happened to the three that did.
 #
-# The `dompurify` and `nanoid` entries below are here for a different reason, and it is
-# worth stating because the obvious fix does not work: for both packages the dependent's
-# declared range already permits the fixed version (mermaid asks for `dompurify@^3.3.3`,
-# postcss for `nanoid@^3.3.16`), so nothing is *blocking* the upgrade. What holds it back
-# is that pnpm resolves to the newest version satisfying the range *it already locked*,
-# which is still the vulnerable one — `pnpm update` moves nothing and reports success. An
-# override is what names the version.
+# `brace-expansion` is bounded on both sides, which matters and is easy to get wrong. An
+# open `>=1.1.21` is not a patch — it satisfies 5.x too, so pnpm resolved a v1 request up
+# to a v5 release and left the vulnerable version in the tree anyway. Each line is pinned
+# to its own major.
 #
-# When the fix is also younger than the floor, an override alone is silently a no-op: a
-# matching `minimumReleaseAgeExclude` entry is what lets pnpm take it, and both halves are
-# required. That was the case for `dompurify@3.4.13` and for `nanoid@3.3.17`. It is not
-# the case for `nanoid@3.3.18`, which is months old — hence an override with no exclusion.
+# The versions below are the *second* round for this package. 1.1.18 / 5.0.9 were taken
+# for GHSA-rgw5-rvv9-x895; three further advisories landed on 2026-09-29 against exactly
+# those versions, and each names a different fixed version per major line
+# (1.1.19/1.1.20/1.1.21 and 5.0.10/5.0.11/5.0.12, published minutes apart). Taking the
+# highest of each covers all three — pinning to the first advisory's fix would have left
+# the other two live, which is the trap in reading one advisory at a time.
 overrides:
-  brace-expansion@<1.1.18: "^1.1.18"
-  brace-expansion@>=2 <5.0.9: "^5.0.9"
-  dompurify@<3.4.13: "^3.4.13"
+  brace-expansion@<1.1.21: "^1.1.21"
+  brace-expansion@>=2 <5.0.12: "^5.0.12"
+  dompurify@<3.4.16: "^3.4.16"
   nanoid@<3.3.18: "^3.3.18"
