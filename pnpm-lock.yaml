@@ -8,7 +8,10 @@ overrides:
   brace-expansion@<1.1.21: ^1.1.21
   brace-expansion@>=2 <5.0.12: ^5.0.12
   dompurify@<3.4.16: ^3.4.16
+  katex@<0.19.0: ^0.19.0
   nanoid@<3.3.18: ^3.3.18
+  smol-toml@<1.9.0: ^1.9.0
+  source-map-js@<1.2.2: ^1.2.2
 
 importers:
 
@@ -138,8 +141,8 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       katex:
-        specifier: ^0.18.1
-        version: 0.18.1
+        specifier: ^0.19.0
+        version: 0.19.0
       lucide-react:
         specifier: ^0.545.0
         version: 0.545.0(react@19.2.8)
@@ -2076,13 +2079,13 @@ packages:
   comma-separated-tokens@2.0.3:
     resolution: {integrity: sha512-Fu4hJdvzeylCfQPp9SGWidpzrMs7tTrlu6Vb8XGaRGck8QSNZJJp538Wrb60Lax4fPwR64ViY468OIUTbRlGZg==}
 
+  commander@15.0.0:
+    resolution: {integrity: sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg==}
+    engines: {node: '>=22.12.0'}
+
   commander@7.2.0:
     resolution: {integrity: sha512-QrWXB+ZQSVPmIWIhtEO9H+gwHaMGYiF5ChvoJ+K9ZGHG/sVsa6yiesAD1GC/x46sET00Xlwo1u49RVVVzvcSkw==}
     engines: {node: '>= 10'}
-
-  commander@8.3.0:
-    resolution: {integrity: sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==}
-    engines: {node: '>= 12'}
 
   concat-map@0.0.1:
     resolution: {integrity: sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==}
@@ -2806,12 +2809,8 @@ packages:
     resolution: {integrity: sha512-ZZow9HBI5O6EPgSJLUb8n2NKgmVWTwCvHGwFuJlMjvLFqlGG6pjirPhtdsseaLZjSibD8eegzmYpUZwoIlj2cQ==}
     engines: {node: '>=4.0'}
 
-  katex@0.16.47:
-    resolution: {integrity: sha512-Eeo8Ys1doU1z+x8AZsPpQu+p/QcZBI5PeOo7QGQdy2x2m0MU/hYagBbGOmXwr5KVbEfVuWv9LpnQWeehogurjg==}
-    hasBin: true
-
-  katex@0.18.1:
-    resolution: {integrity: sha512-Td8GCYSxDAoMhHOlKmCFMJ/hz5qlAAb71n66Dryw9nfCVfumLo7nhuotbvKom/XPADmrYC3O5QR71EPq4DarJQ==}
+  katex@0.19.0:
+    resolution: {integrity: sha512-v6Tznz3zJ7u3niRCoDTsumM2+HA2XXcCu+WAacCeHD2z3p9A9Ks987o5FzfTGBN0e8A0vjEgIDvLbICrXpdw/Q==}
     hasBin: true
 
   keyv@4.5.4:
@@ -3258,12 +3257,12 @@ packages:
   siginfo@2.0.0:
     resolution: {integrity: sha512-ybx0WO1/8bSBLEWXZvEd7gMW3Sn3JFlW3TvX1nREbDLRNQNaeNN8WK0meBwPdAaOI7TtRRRJn/Es1zhrrCHu7g==}
 
-  smol-toml@1.7.1:
-    resolution: {integrity: sha512-PPlsspAZ4jbMBu5DMFhfUGDQLu/vrL4SyBROVS37x8ynnVmFIs1VPBz1Co8Xks3TvpIaZXmU85y4DrQ+UyVFoQ==}
+  smol-toml@1.9.0:
+    resolution: {integrity: sha512-hpd+HLON7HdZXqYchMM/+LaTTbdK0AU3NngIJ4KVyWbY9bfQqdL9cD+4yf6dUoU2Ap4VsU0JkQi6FxAI1B2mXQ==}
     engines: {node: '>= 18'}
 
-  source-map-js@1.2.1:
-    resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
+  source-map-js@1.2.2:
+    resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
     engines: {node: '>=0.10.0'}
 
   space-separated-tokens@2.0.2:
@@ -4690,7 +4689,7 @@ snapshots:
       jiti: 2.7.0
       lightningcss: 1.32.0
       magic-string: 0.30.21
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
       tailwindcss: 4.3.3
 
   '@tailwindcss/oxide-android-arm64@4.3.3':
@@ -5287,9 +5286,9 @@ snapshots:
 
   comma-separated-tokens@2.0.3: {}
 
-  commander@7.2.0: {}
+  commander@15.0.0: {}
 
-  commander@8.3.0: {}
+  commander@7.2.0: {}
 
   concat-map@0.0.1: {}
 
@@ -5312,7 +5311,7 @@ snapshots:
   css-tree@3.2.1:
     dependencies:
       mdn-data: 2.27.1
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
 
   cssstyle@5.3.7:
     dependencies:
@@ -6185,13 +6184,9 @@ snapshots:
       object.assign: 4.1.7
       object.values: 1.2.1
 
-  katex@0.16.47:
+  katex@0.19.0:
     dependencies:
-      commander: 8.3.0
-
-  katex@0.18.1:
-    dependencies:
-      commander: 8.3.0
+      commander: 15.0.0
 
   keyv@4.5.4:
     dependencies:
@@ -6208,7 +6203,7 @@ snapshots:
       oxc-parser: 0.140.0
       oxc-resolver: 11.24.2
       picomatch: 4.0.5
-      smol-toml: 1.7.1
+      smol-toml: 1.9.0
       strip-json-comments: 5.0.3
       tinyglobby: 0.2.17
       unbash: 4.0.4
@@ -6333,7 +6328,7 @@ snapshots:
       dayjs: 1.11.21
       dompurify: 3.4.16
       es-toolkit: 1.50.0
-      katex: 0.16.47
+      katex: 0.19.0
       khroma: 2.1.0
       marked: 16.4.2
       roughjs: 4.6.6
@@ -6513,7 +6508,7 @@ snapshots:
     dependencies:
       nanoid: 3.3.18
       picocolors: 1.1.1
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
 
   prelude-ls@1.2.1: {}
 
@@ -6735,9 +6730,9 @@ snapshots:
 
   siginfo@2.0.0: {}
 
-  smol-toml@1.7.1: {}
+  smol-toml@1.9.0: {}
 
-  source-map-js@1.2.1: {}
+  source-map-js@1.2.2: {}
 
   space-separated-tokens@2.0.2: {}
 
