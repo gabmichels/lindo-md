@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { _stripDelimiters } from "./katex";
+import { _stripDelimiters, renderMath } from "./katex";
 import { linkTarget, markExternalLinks } from "./links";
 import { hasBlockedImages, loadBlockedImages, resolveImages } from "./images";
 
@@ -30,6 +30,70 @@ describe("stripDelimiters", () => {
   it("does not eat a lone dollar sign", () => {
     // "$" is not a delimited formula, and slicing it would produce "".
     expect(_stripDelimiters("$")).toBe("$");
+  });
+});
+
+describe("renderMath", () => {
+  // Nothing else in the suite calls KaTeX itself — only `stripDelimiters` around
+  // it — so a KaTeX upgrade could change `render`, its options, or the shape of
+  // its output and every test would still pass. KaTeX is bumped for security
+  // advisories fairly often (0.18.2, then 0.19.0 within two months), and it is
+  // forced onto Mermaid by an override in `pnpm-workspace.yaml` beyond the range
+  // Mermaid declares, so the one API this app depends on is worth pinning down.
+
+  it("renders inline and display math, and marks each span done", async () => {
+    const element = root(String.raw`
+      <span data-math-style="inline">$a^2$</span>
+      <span data-math-style="display">$$\sum_{i=0}^n i$$</span>
+    `);
+
+    await renderMath(element);
+
+    const spans = element.querySelectorAll<HTMLElement>("[data-math-style]");
+    expect(spans).toHaveLength(2);
+    const inline = spans[0]!;
+    const display = spans[1]!;
+    expect(inline.querySelector(".katex")).not.toBeNull();
+    expect(display.querySelector(".katex-display")).not.toBeNull();
+    expect(inline.dataset.mathRendered).toBe("true");
+    expect(display.dataset.mathRendered).toBe("true");
+  });
+
+  it("keeps the original source so a re-render is not fed its own output", async () => {
+    const element = root(`<span data-math-style="inline">$a^2$</span>`);
+    const span = element.querySelector<HTMLElement>("[data-math-style]")!;
+
+    await renderMath(element);
+    const once = span.innerHTML;
+
+    // `enhance.ts` clears `data-rendered` on a theme change and renders again.
+    delete span.dataset.mathRendered;
+    await renderMath(element);
+
+    expect(span.dataset.source).toBe("$a^2$");
+    expect(span.innerHTML).toBe(once);
+  });
+
+  it("renders the rest of the document when one formula is malformed", async () => {
+    // `throwOnError: false` is the reason this does not reject; a document with
+    // one bad formula still renders.
+    const element = root(String.raw`
+      <span data-math-style="inline">$\frac{$</span>
+      <span data-math-style="inline">$b^2$</span>
+    `);
+
+    await expect(renderMath(element)).resolves.toBeUndefined();
+
+    const spans = element.querySelectorAll<HTMLElement>("[data-math-style]");
+    expect(spans).toHaveLength(2);
+    expect(spans[0]!.dataset.mathRendered).toBe("true");
+    expect(spans[1]!.querySelector(".katex")).not.toBeNull();
+  });
+
+  it("does nothing when the document has no math", async () => {
+    const element = root(`<p>no math here</p>`);
+    await renderMath(element);
+    expect(element.innerHTML).toBe(`<p>no math here</p>`);
   });
 });
 

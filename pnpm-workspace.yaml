@@ -127,8 +127,33 @@ minimumReleaseAgeStrict: false
 # (1.1.19/1.1.20/1.1.21 and 5.0.10/5.0.11/5.0.12, published minutes apart). Taking the
 # highest of each covers all three — pinning to the first advisory's fix would have left
 # the other two live, which is the trap in reading one advisory at a time.
+# `katex` is the awkward one, for two reasons worth writing down.
+#
+# First, the obvious override is wrong. CVE-2026-103923 names 0.18.2 as the fix, but
+# `katex@<0.18.2: "^0.18.2"` resolves to **0.18.11**, which npm marks deprecated:
+# "Accidentally published with breaking changes. Use 0.19.0 instead." The caret range
+# that satisfies the advisory walks straight into a release upstream has disowned, so the
+# override names 0.19.0 instead. Reading the fixed version out of an advisory is not the
+# same as knowing which version to take.
+#
+# Second, this one override moves a dependency past the range its dependent declares.
+# There were two copies in the tree — the app's own, and 0.16.47 under mermaid — and the
+# 0.16 line has no fix at all for this advisory: `introduced: 0.11.0, fixed: 0.18.2`.
+# Mermaid 12.1.0 still asks for `katex@^0.16.47`, so waiting for mermaid does not help
+# and upgrading mermaid does not either. Forcing 0.19.0 collapses both copies onto the
+# fixed version at the cost of giving mermaid a katex it never asked for.
+#
+# That is only safe because the surface is tiny: mermaid calls exactly one katex API,
+# `renderToString`, which was checked against 0.19.0 directly. The app's own call —
+# `katex.render(..., { displayMode, throwOnError: false, output: "html" })` — now has
+# tests in `render.test.ts`; before this change nothing in the suite called katex at all,
+# so a breaking upgrade would have gone green. Re-check both if this override moves again.
+
 overrides:
   brace-expansion@<1.1.21: "^1.1.21"
   brace-expansion@>=2 <5.0.12: "^5.0.12"
   dompurify@<3.4.16: "^3.4.16"
+  katex@<0.19.0: "^0.19.0"
   nanoid@<3.3.18: "^3.3.18"
+  smol-toml@<1.9.0: "^1.9.0"
+  source-map-js@<1.2.2: "^1.2.2"
