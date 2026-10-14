@@ -29,9 +29,33 @@
     pinDigests: true,
   },
 
+  // **This is the thing that keeps the daily OSV scan green.**
+  //
+  // Six rounds of supply-chain fixes (#59 through today) were nearly all *transitive*:
+  // nanoid under postcss, brace-expansion under ESLint, dompurify under mermaid,
+  // source-map-js under postcss, smol-toml under knip, rustls under
+  // tauri-plugin-updater. `vulnerabilityAlerts` and `osvVulnerabilityAlerts` only look
+  // at *direct* dependencies, so none of those would have produced a PR. A lockfile
+  // refresh is what moves them: every one of those fixes was inside the range its
+  // dependent already declared, so `cargo update` / `pnpm update` takes it.
+  //
+  // Daily rather than monthly because that is the exposure window. The advisories do not
+  // arrive on a schedule — the four rustls ones on 2026-10-14 were published at 12:00,
+  // between one scheduled scan and the next — and a monthly refresh means the scan sits
+  // red for weeks while the fix is already sitting in the registry.
+  //
+  // Automerged on CI, which is the deliberate trade: a refresh moves everything in range
+  // at once, including transitive deps of the packages listed as never-automerge below.
+  // What stands behind it is the gate, not a reviewer — 185 Rust tests including the
+  // sanitizer corpus and its composition proptest, 622 frontend tests, bundle builds on
+  // three platforms, `cargo-deny` for licences and advisories, osv-scanner and CodeQL.
+  // If that is ever not enough, this is the setting to turn off first.
   lockFileMaintenance: {
     enabled: true,
-    schedule: ["before 6am on the first day of the month"],
+    schedule: ["before 6am"],
+    automerge: true,
+    automergeType: "pr",
+    platformAutomerge: true,
   },
 
   packageRules: [
@@ -69,9 +93,28 @@
     },
   ],
 
+  // Use the OSV database for detection as well as GitHub's. This is the same database
+  // `osv-scanner` reads in the supply-chain workflow, so what turns CI red and what
+  // opens a PR come from one source rather than two that disagree. It covers the crate
+  // datasource, which matters here: the Rust half has produced as many advisories as the
+  // npm half. Direct dependencies only, and flagged experimental upstream — it adds
+  // coverage rather than replacing `vulnerabilityAlerts`.
+  osvVulnerabilityAlerts: true,
+
   // A vulnerability fix should not sit behind the seven-day age delay — the whole
   // reason for the delay is that an unknown-quality version might be malicious, and a
   // known-good fix for a known-bad version is the opposite situation.
+  //
+  // Deliberately *not* automerged, even though the rest of this file leans that way.
+  // Renovate's docs do not define whether `vulnerabilityAlerts.automerge` wins over a
+  // `packageRules` entry that sets `automerge: false`, and the packages that must not
+  // automerge — comrak, ammonia, mermaid, katex, shiki — are exactly the ones a direct
+  // security alert would fire on. Rather than depend on undefined precedence for the
+  // security-critical case, these open immediately and wait for a human.
+  //
+  // That is a smaller burden than it sounds: of the six rounds so far, one (ammonia,
+  // #62) was a direct dependency on that list. The weekly churn was transitive, and
+  // `lockFileMaintenance` above is what absorbs it.
   vulnerabilityAlerts: {
     labels: ["security"],
     schedule: ["at any time"],
