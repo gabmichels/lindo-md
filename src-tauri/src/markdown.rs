@@ -706,6 +706,20 @@ mod tests {
     fn strips_style_attributes() {
         let out = html("<p style=\"position:fixed;top:0\">covering the chrome</p>\n");
         assert!(!out.contains("style="), "{out}");
+
+        // RUSTSEC-2021-0157: ammonia under-escaped quotes inside a CSS `url()`, so a
+        // crafted `style` could break out of the url and inject further declarations.
+        // It applied only with the `style` attribute allowed and `filter_style_properties`
+        // in use, and this builder does neither — the attribute never survives, which is
+        // what makes the advisory unreachable.
+        //
+        // Here rather than in `HOSTILE` because `forbidden` inspects tags and URL schemes,
+        // not the `style` attribute: in the corpus this vector could not fail.
+        let injected = html(
+            r#"<div style='background:url("cid:\\");EVIL_CSS_HERE;background:url(\\"cid:")'>x</div>"#,
+        );
+        assert!(!injected.contains("style="), "{injected}");
+        assert!(!injected.contains("EVIL_CSS_HERE"), "{injected}");
     }
 
     #[test]
@@ -1035,6 +1049,14 @@ mod tests {
         r#"<details open ontoggle="alert(1)"><summary>s</summary>x</details>"#,
         r#"<input type="checkbox" onfocus="alert(1)" autofocus>"#,
         r"<p onbeforetoggle=alert(1)>a handler invented after this app was written</p>",
+        // The two vectors behind RUSTSEC-2021-0158 and -0157. Both advisories' affected
+        // ranges were reopened in October 2026 to include the ammonia this app had
+        // (4.1.4), and neither is reachable here: `svg` is a forbidden tag and `style` is
+        // allowed on nothing, so ammonia's own handling of them never comes into play.
+        // They are in the corpus so that claim is enforced rather than remembered — if
+        // either is ever allowed through the builder, these fail.
+        r#"<svg xmlns="http://www.w3.org/2000/svg"><a><animateMotion attributeName="href" to="javascript:alert(1)"></animateMotion><text y="30">click</text></a></svg>"#,
+        r#"<div style='background:url("cid:\");EVIL_CSS_HERE;background:url(\"cid:")'>css injection via url quoting</div>"#,
         // Malformed and unterminated markup — the shapes a parser most often disagrees on.
         r"<script",
         r"<img src=x onerror=alert(1)",
