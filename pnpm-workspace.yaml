@@ -93,6 +93,8 @@ minimumReleaseAgeExclude:
   - "@shikijs/types@4.4.1"
   - "shiki@4.4.1"
   - mermaid@11.16.1
+  # Renovate security update: vite@7.3.7
+  - vite@7.3.7
 
 # When *no* version inside a declared range is old enough, install the newest anyway
 # rather than failing. This only ever fires when the whole range is young — the normal
