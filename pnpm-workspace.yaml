@@ -95,6 +95,8 @@ minimumReleaseAgeExclude:
   - mermaid@11.16.1
   # Renovate security update: vite@7.3.7
   - vite@7.3.7
+  # Renovate security update: zod@4.6.6
+  - zod@4.6.6
 
 # When *no* version inside a declared range is old enough, install the newest anyway
 # rather than failing. This only ever fires when the whole range is young — the normal
