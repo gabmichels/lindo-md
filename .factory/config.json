@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "base": "main",
+  "trigger": { "label": "factory:go", "allowed_actors": ["gabmichels"] },
+  "concurrency": 1,
+  "spec_approval": "risky",
+  "loops": { "gate_attempts": 3, "review_rounds": 2 },
+  "limits": { "stage_timeout_min": 45, "gate_timeout_min": 40 },
+  "risk": {
+    "high": [
+      "src-tauri/src/markdown.rs",
+      "src-tauri/src/plaintext.rs",
+      "src-tauri/src/mdx.rs",
+      "src-tauri/src/export.rs",
+      "src-tauri/src/files.rs",
+      "src-tauri/src/commands.rs",
+      "src-tauri/src/config.rs",
+      "src-tauri/capabilities/**",
+      "src-tauri/tauri*.conf.json",
+      "src-tauri/installer-hooks.nsh",
+      "src-tauri/deny.toml",
+      "src/lib/export/**",
+      "src/lib/theme/**",
+      "src/lib/update.ts",
+      "scripts/release.mjs",
+      "scripts/version.mjs",
+      "scripts/bump.mjs",
+      "scripts/updater-manifest.mjs",
+      "pnpm-workspace.yaml"
+    ],
+    "ui": ["src/components/**", "src/hooks/**", "src/**/*.css", "src/App.tsx", "index.html", "site/**"],
+    "security": ["src-tauri/src/**", "src/lib/ipc.ts", "src/lib/render/**"],
+    "forbidden": [
+      ".factory/**",
+      ".claude/**",
+      ".github/**",
+      ".githooks/**",
+      ".config/**",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "SECURITY.md",
+      "osv-scanner.toml"
+    ]
+  },
+  "reviews": [
+    { "when": "ui", "agent": "review-ui" },
+    { "when": "high", "agent": "review-security" },
+    { "when": "security", "agent": "review-security" }
+  ],
+  "merge": {
+    "auto": false,
+    "method": "squash",
+    "max_auto_lines": 300,
+    "human_classes": ["high", "security", "loop-cap", "tests-modified", "dependencies"]
+  },
+  "gate": { "max_changed_lines": 1500 },
+  "models": {}
+}
