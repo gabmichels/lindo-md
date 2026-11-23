@@ -29,6 +29,23 @@
     pinDigests: true,
   },
 
+  // The pinned Rust toolchain (src-tauri/rust-toolchain.toml). CI tracking floating
+  // stable meant a new clippy lint turned `main` red on its own and surfaced in whatever
+  // unrelated PR ran next. Pinned and bumped here, it surfaces in its own PR instead —
+  // which is where fixing it belongs. Never automerged: a toolchain bump is exactly the
+  // PR that is expected to need a code change alongside it.
+  customManagers: [
+    {
+      customType: "regex",
+      description: "Rust toolchain pinned in rust-toolchain.toml",
+      managerFilePatterns: ["/(^|/)rust-toolchain\\.toml$/"],
+      matchStrings: ['channel\\s*=\\s*"(?<currentValue>\\d+\\.\\d+\\.\\d+)"'],
+      depNameTemplate: "rust",
+      packageNameTemplate: "rust-lang/rust",
+      datasourceTemplate: "github-releases",
+    },
+  ],
+
   // **This is the thing that keeps the daily OSV scan green.**
   //
   // Six rounds of supply-chain fixes (#59 through today) were nearly all *transitive*:
@@ -90,6 +107,13 @@
       matchPackageNames: ["comrak", "ammonia", "mermaid", "katex", "shiki"],
       automerge: false,
       addLabels: ["needs-careful-review"],
+    },
+    {
+      // The toolchain bump (see customManagers). Spelled out so no broader automerge
+      // rule can ever pick it up.
+      matchDepNames: ["rust"],
+      matchManagers: ["custom.regex"],
+      automerge: false,
     },
   ],
 
