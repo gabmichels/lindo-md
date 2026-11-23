@@ -28,7 +28,14 @@
       "scripts/updater-manifest.mjs",
       "pnpm-workspace.yaml"
     ],
-    "ui": ["src/components/**", "src/hooks/**", "src/**/*.css", "src/App.tsx", "index.html", "site/**"],
+    "ui": [
+      "src/components/**",
+      "src/hooks/**",
+      "src/**/*.css",
+      "src/App.tsx",
+      "index.html",
+      "site/**"
+    ],
     "security": ["src-tauri/src/**", "src/lib/ipc.ts", "src/lib/render/**"],
     "forbidden": [
       ".factory/**",
