@@ -74,7 +74,7 @@ sha2 = "0.10"
 # asking "everything I marked about X" across folders. A JSON file answers the
 # second by parsing every entry and the first by rewriting the whole file per
 # highlight.
-rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 
 # Folder scanning (respects .gitignore) and live reload.
 ignore = "0.4"
