@@ -9,7 +9,8 @@ edition = "2021"
 # No `rust-version`. The 1.82 that used to be declared here was untrue — `globset`
 # alone now ships a manifest that 1.82's cargo cannot parse — and an MSRV is a promise
 # to people compiling this as a dependency, which nobody does: lindo-md ships as a
-# binary. Track stable rather than defend a number no test checks.
+# binary. The toolchain CI and contributors build with is pinned in rust-toolchain.toml
+# instead: a build input, not a promise to downstream users.
 
 # `pedantic` is package-wide. The four lints that ban panicking — unwrap/expect/panic/
 # indexing — live in `src/lib.rs` instead, because a `[lints]` table applies to every
@@ -74,7 +75,7 @@ sha2 = "0.10"
 # asking "everything I marked about X" across folders. A JSON file answers the
 # second by parsing every entry and the first by rewriting the whole file per
 # highlight.
-rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 
 # Folder scanning (respects .gitignore) and live reload.
 ignore = "0.4"

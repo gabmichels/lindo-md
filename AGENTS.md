@@ -81,7 +81,7 @@ pnpm install
 pnpm tauri dev
 ```
 
-Requires Node ≥ 22.13, pnpm 11, a stable Rust toolchain, and (on Windows) WebView2, which ships with
+Requires Node ≥ 22.13, pnpm 11, rustup (the Rust version is pinned in `src-tauri/rust-toolchain.toml`), and (on Windows) WebView2, which ships with
 Windows 11.
 
 ## Commands
@@ -251,13 +251,18 @@ Two smaller decisions:
   too, and without it that job fails on line endings alone.
 - **There is no `rust-version`.** The `1.82` that used to be declared was untrue — `globset` alone
   now ships a manifest 1.82's cargo cannot parse — and an MSRV is a promise to people compiling
-  this as a dependency, which nobody does. The toolchain is deliberately *not* pinned either: a
-  `rust-toolchain.toml` would make every CI job download a second toolchain, since
-  `dtolnay/rust-toolchain` does not read that file. Two consequences, and the second one bites
-  harder than expected: a new clippy release can turn `main` red without anyone pushing, and —
-  because CI tracks stable — **an out-of-date local toolchain reports a green build that CI then
-  fails.** That happened on this branch: clippy 1.97 extended `map_unwrap_or` to `Result`, which
-  1.92 locally did not flag. Run `rustup update stable` before trusting a local `cargo clippy`.
+  this as a dependency, which nobody does.
+- **The toolchain *is* pinned, in `src-tauri/rust-toolchain.toml`.** It used to track stable, and
+  that cost twice: a new clippy release turned `main` red without anyone pushing (1.100 extended
+  `map_unwrap_or` to `Option`, which surfaced in an unrelated PR), and an out-of-date local
+  toolchain reported green builds that CI then failed (clippy 1.97 on `Result`, missed by 1.92
+  locally). The old objection, that `dtolnay/rust-toolchain` does not read the file so every job
+  would download a second toolchain, is answered in the workflows: each job reads `channel` from
+  the file and passes it as the action's `toolchain` input, so only the pinned version is
+  installed. The file sits in `src-tauri/`, not the repo root, so it governs cargo and nothing
+  else (the `cargo-deny` container runs from the root). Renovate bumps it in its own,
+  never-automerged PR (`customManagers` in `.github/renovate.json5`); that PR is where a new lint
+  gets fixed.
 
 ## Conventions
 
