@@ -11,7 +11,7 @@ pnpm install
 pnpm tauri dev
 ```
 
-Node ≥ 22.13, pnpm 11, a stable Rust toolchain, and on Windows WebView2. On Linux you also need
+Node ≥ 22.13, pnpm 11, rustup (the Rust version is pinned in `src-tauri/rust-toolchain.toml`), and on Windows WebView2. On Linux you also need
 `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev` and `patchelf`.
 
 `pnpm install` also points `core.hooksPath` at `.githooks/`, which is how the commit-message
@@ -25,8 +25,9 @@ cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings &
 ```
 
 CI runs all of these. **`cargo clippy` locally means exactly what it means in CI** — the lints are
-declared in `Cargo.toml` rather than as CI flags — with one caveat: CI tracks stable Rust, so an
-out-of-date local toolchain can report green where CI fails. `rustup update stable` first.
+declared in `Cargo.toml` rather than as CI flags, and `src-tauri/rust-toolchain.toml` makes rustup
+use the same Rust version CI does. If rustup does not install it on its own, run `rustup install`
+in `src-tauri/`.
 
 `pnpm test:e2e` drives the real app over CDP. It is not in CI and it needs a built binary and a
 running dev server; see [`test/e2e/README.md`](test/e2e/README.md). Run it before a release, and
