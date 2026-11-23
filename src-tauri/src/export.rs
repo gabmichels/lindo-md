@@ -39,8 +39,7 @@ fn require_extension(path: &Path, expected: &[&str]) -> LindoResult<()> {
     let extension = path
         .extension()
         .and_then(|e| e.to_str())
-        .map(str::to_lowercase)
-        .unwrap_or_default();
+        .map_or_else(String::new, str::to_lowercase);
 
     if expected.contains(&extension.as_str()) {
         return Ok(());
